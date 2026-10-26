@@ -3,10 +3,7 @@ node Frontend\build_components.js
 
 $targets = @(
     "Backend\src\Transporte.API\wwwroot",
-    "Backend\src\Transporte.API\bin\Release\net8.0\wwwroot",
-    "Backend\src\Transporte.API\bin\Debug\net8.0\wwwroot",
-    "Despliegue\Desarrollo\Transporte_App_DEV\wwwroot",
-    "Despliegue\Transporte_App\wwwroot"
+    "Backend\src\Transporte.API\bin\Debug\net8.0\wwwroot"
 )
 
 foreach ($target in $targets) {
