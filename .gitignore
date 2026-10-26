@@ -1,0 +1,33 @@
+## Visual Studio / .NET
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## Build outputs & Published deployments
+/Despliegue/
+/Ejecutables/
+
+## Database backups & Large binary files (sensitive / large)
+*.bak
+*.mdf
+*.ldf
+
+## Logs & Temp files
+*.log
+scratch/
+scratch_*.*
+
+## OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

@@ -1,0 +1,2 @@
+Set objShell = CreateObject("Shell.Application")
+objShell.ShellExecute "powershell.exe", "-ExecutionPolicy Bypass -Command ""$h = \""$env:windir\System32\drivers\etc\hosts\""; $t = [System.IO.File]::ReadAllText($h); if ($t -notmatch 'transportevc') { [System.IO.File]::AppendAllText($h, \""`r`n127.0.0.1 transportevc`r`n127.0.0.1 transportevc.local`r`n::1 transportevc`r`n\""); ipconfig /flushdns }""", "", "runas", 1
