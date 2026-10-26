@@ -1,0 +1,464 @@
+                    <!-- CONTROL DE VISTAS Y VIAJES DE RUTAS -->
+                    <div id="barControlVistasRutas"
+                        style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <span id="lblTextoModoVista"
+                                style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-right: 4px;">
+                                <i class="fa-solid fa-layer-group" style="color: #4f46e5;"></i> Modo de Vista:
+                            </span>
+                            <div id="wrapperPillsModoVista"
+                                style="display: inline-flex; background: #f1f5f9; padding: 3px; border-radius: 10px; border: 1px solid #e2e8f0; gap: 4px;">
+                                <button type="button" id="btnVistaViajesRutas" class="btn btn-sm"
+                                    onclick="conmutarVistaRutas('viajes')"
+                                    style="font-weight: 700; height: 34px; padding: 0 16px; border-radius: 7px; border: none; background: #ffffff; color: #1e293b; box-shadow: 0 2px 6px rgba(0,0,0,0.06); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s ease; font-size: 13px;">
+                                    <i class="fa-solid fa-truck-moving" style="color: #2563eb;"></i> Mis Viajes / Tickets
+                                    <span id="badgeContadorViajesRutas" class="badge"
+                                        style="background: #eff6ff; color: #1d4ed8; font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 800;">0</span>
+                                </button>
+                                <button type="button" id="btnVistaFincasRutas" class="btn btn-sm"
+                                    onclick="conmutarVistaRutas('fincas')"
+                                    style="font-weight: 600; height: 34px; padding: 0 16px; border-radius: 7px; border: none; background: transparent; color: #64748b; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s ease; font-size: 13px;">
+                                    <i class="fa-solid fa-list-check"></i> Detalle por Fincas
+                                    <span id="badgeContadorFincasRutas" class="badge"
+                                        style="background: #e2e8f0; color: #475569; font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 700;">0</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                            <!-- SELECTOR DE FECHA GLOBAL DE RUTAS -->
+                            <div id="boxFechaGlobalRutas"
+                                style="display: flex; align-items: center; gap: 8px; background: #ffffff; padding: 4px 12px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                                <label for="filtroFechaGlobalRutas"
+                                    style="font-size: 12px; font-weight: 700; color: #475569; margin: 0; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                    <i class="fa-regular fa-calendar-days" style="color: #2563eb; font-size: 14px;"></i>
+                                    Fecha:
+                                </label>
+                                <input type="date" id="filtroFechaGlobalRutas" class="form-input"
+                                    style="height: 28px; width: 135px; font-weight: 700; font-size: 13px; color: #0f172a; border: none; padding: 0; background: transparent; cursor: pointer;"
+                                    onchange="onCambiarFechaGlobalRutas(this.value)">
+                            </div>
+                            <button type="button" id="btnIniciarNuevoViajeRutas" class="btn"
+                                onclick="abrirModalIniciarViaje()"
+                                style="background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; font-weight: 700; height: 38px; padding: 0 18px; border: none; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(16,185,129,0.3); transition: all 0.25s ease; font-size: 13px;">
+                                <i class="fa-solid fa-plus-circle"></i> Iniciar Nuevo Viaje / Ticket
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BANNER DE DESPACHO A COMPAÑÍA ASIGNADO AL CHOFER (TB_CONTROL_COMPANIAS: EN VIA) -->
+                    <div id="bannerDespachoCompaniaActivoChofer" style="display: none; margin-bottom: 20px;">
+                        <!-- Generado dinámicamente cuando el chofer tiene un despacho asignado -->
+                    </div>
+
+                    <!-- VISTA A: PANEL DE VIAJES / TICKETS DEL DÍA (AGRUPADO) -->
+                    <div id="seccionViajesRutasDelDia" style="margin-bottom: 24px;">
+                        <!-- FILTRO POR ORIGEN DE TICKET (TODOS / RUTA / RECEPTORÍA) -->
+                        <div id="barraFiltroOrigenTickets"
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                            <div
+                                style="display: inline-flex; background: #f1f5f9; padding: 3px; border-radius: 8px; border: 1px solid #e2e8f0; gap: 4px;">
+                                <button type="button" class="btn btn-sm btn-filtro-origen-ticket"
+                                    id="btnFiltroOrigen_todos" onclick="filtrarOrigenTickets('todos')"
+                                    style="font-weight: 700; height: 30px; padding: 0 12px; border-radius: 6px; border: none; background: #ffffff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor: pointer; font-size: 12px;">
+                                    Todos (<span id="cntFiltroOrigen_todos">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-sm btn-filtro-origen-ticket"
+                                    id="btnFiltroOrigen_ruta" onclick="filtrarOrigenTickets('RUTA')"
+                                    style="font-weight: 600; height: 30px; padding: 0 12px; border-radius: 6px; border: none; background: transparent; color: #0369a1; cursor: pointer; font-size: 12px;">
+                                    <i class="fa-solid fa-route"></i> Ruta / Fincas (<span
+                                        id="cntFiltroOrigen_ruta">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-sm btn-filtro-origen-ticket"
+                                    id="btnFiltroOrigen_receptoria" onclick="filtrarOrigenTickets('RECEPTORIA')"
+                                    style="font-weight: 600; height: 30px; padding: 0 12px; border-radius: 6px; border: none; background: transparent; color: #7e22ce; cursor: pointer; font-size: 12px;">
+                                    <i class="fa-solid fa-building-wheat"></i> Receptoría / Salidas (<span
+                                        id="cntFiltroOrigen_receptoria">0</span>)
+                                </button>
+                            </div>
+                        </div>
+                        <div id="contenedorTarjetasViajesRutas"
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px;">
+                            <!-- Tarjetas generadas dinámicamente -->
+                        </div>
+                    </div>
+
+                    <!-- VISTA B: FORMULARIO Y TABLA DETALLADA (ENVUELTOS EN CONTENEDOR) -->
+                    <div id="seccionFincasDetalleRutas" style="display: none;">
+
+                        <!-- CARD 1: FORMULARIO DE CAPTURA (RUTAS) -->
+                        <div class="content-card" id="cardFormularioCapturaRutas"
+                            style="margin-bottom: 24px; padding: 0; overflow: visible;">
+                            <div class="card-header-styled card-header-primary"
+                                style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <span><i class="fa-solid fa-truck-ramp-box"></i> REGISTRAR RECOLECCI&Oacute;N EN
+                                    RUTA</span>
+                                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                    <button type="button" id="btnCargaMasivaFormChofer" class="btn btn-sm"
+                                        onclick="abrirModalRutasMasivo()"
+                                        style="display: none; background: linear-gradient(135deg, #4f46e5, #3b82f6); color: #ffffff; font-weight: 700; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; box-shadow: 0 2px 8px rgba(79,70,229,0.3); align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s ease;">
+                                        <i class="fa-solid fa-bolt"></i> Carga Masiva / Escanear Foto
+                                    </button>
+                                    <span id="badgeRolCaptura" class="badge badge-info" style="font-size: 11px;">ROL:
+                                        CHOFER</span>
+                                </div>
+                            </div>
+
+                            <!-- BANNER MODO ASOCIAR A TICKET ACTIVO -->
+                            <div id="bannerTicketActivoForm"
+                                style="display: none; background: #eff6ff; border-bottom: 1.5px solid #bfdbfe; padding: 10px 18px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span class="badge"
+                                        style="background: #2563eb; color: #fff; font-weight: 800; font-size: 12px; padding: 4px 8px; border-radius: 6px;"><i
+                                            class="fa-solid fa-ticket"></i> TICKET ACTIVO #<span
+                                            id="lblTicketActivoNumero"></span></span>
+                                    <span style="font-size: 13px; font-weight: 700; color: #1e3a8a;">Asociando fincas a
+                                        este viaje (<span id="lblTicketActivoChofer"></span>)</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline"
+                                    onclick="desvincularTicketActivoForm()"
+                                    style="background: #fff; border-color: #cbd5e1; color: #64748b; font-size: 11px; padding: 3px 10px; border-radius: 6px; font-weight: 600;">
+                                    <i class="fa-solid fa-xmark"></i> Desvincular Ticket
+                                </button>
+                            </div>
+
+                            <form id="formRegistroRuta" onsubmit="guardarRuta(event)" style="padding: 18px;">
+                                <div
+                                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="inputRutaFecha"
+                                            style="font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block;">Fecha
+                                            *</label>
+                                        <input type="date" id="inputRutaFecha" class="form-input" required
+                                            style="height: 38px;">
+                                    </div>
+
+                                    <!-- SELECTOR BUSCABLE CONDUCTOR -->
+                                    <div class="form-group" id="formGroupRutaConductor" style="margin-bottom: 0;">
+                                        <label for="searchConductorInput"
+                                            style="font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block;">Conductor
+                                            *</label>
+                                        <div class="searchable-select" id="comboboxConductor">
+                                            <input type="hidden" id="selectRutaConductor" name="conductorId" value="">
+                                            <div class="combobox-input-wrapper">
+                                                <input type="text" class="form-input combobox-search"
+                                                    id="searchConductorInput" placeholder="SELECCIONE CONDUCTOR"
+                                                    autocomplete="off">
+                                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                                            </div>
+                                            <div class="combobox-dropdown" id="dropdownConductorList"
+                                                style="display: none;"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- SELECTOR BUSCABLE FINCA -->
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="searchFincaInput"
+                                            style="font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block;">Finca
+                                            / Ganadero *</label>
+                                        <div class="searchable-select" id="comboboxFinca">
+                                            <input type="hidden" id="selectFinca" name="fincaId" value="">
+                                            <div class="combobox-input-wrapper">
+                                                <input type="text" class="form-input combobox-search"
+                                                    id="searchFincaInput" placeholder="SELECCIONE FINCAS"
+                                                    autocomplete="off">
+                                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                                            </div>
+                                            <div class="combobox-dropdown" id="dropdownFincaList"
+                                                style="display: none;"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="inputLitros"
+                                            style="font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block;">Litros
+                                            *</label>
+                                        <input type="number" id="inputLitros" class="form-input" placeholder="Litros"
+                                            step="1"
+                                            oninput="if(this.value && Number(this.value) < 0){ this.style.color = '#dc2626'; this.style.background = '#fef2f2'; this.style.borderColor = '#fca5a5'; } else { this.style.color = '#047857'; this.style.background = '#f0fdf4'; this.style.borderColor = '#86efac'; }"
+                                            required
+                                            style="height: 38px; font-weight: 800; font-size: 15px; color: #047857; background: #f0fdf4; border: 1.5px solid #86efac;">
+                                    </div>
+
+                                    <div class="form-group" id="groupRutaTipoLeche"
+                                        style="margin-bottom: 0; display: none;">
+                                        <label for="selectRutaTipoLeche"
+                                            style="font-size: 12px; color: #2563eb; font-weight: 700; margin-bottom: 4px; display: block;"><i
+                                                class="fa-solid fa-cow"></i> Tipo Leche *</label>
+                                        <select id="selectRutaTipoLeche" class="form-input"
+                                            style="height: 38px; font-weight: 700; font-size: 13px; border-radius: 8px; color: #1e293b; background: #eff6ff; border: 1.5px solid #93c5fd;">
+                                            <option value="VACA">🐄 VACA</option>
+                                            <option value="BUFALA">🐃 BÚFALA</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group"
+                                        style="margin-bottom: 0; display: flex; align-items: flex-end;">
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #b45309; font-size: 12.5px; font-weight: 700; height: 38px; padding: 0 12px; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px;">
+                                            <input type="checkbox" id="checkRutaEsAcida"
+                                                style="width: 18px; height: 18px; accent-color: #d97706;">
+                                            <span><i class="fa-solid fa-flask" style="color: #d97706;"></i> ¿Leche
+                                                Ácida?</span>
+                                        </label>
+                                    </div>
+
+                                    <div class="form-group" id="groupCheckDiferirLitros"
+                                        style="margin-bottom: 0; display: flex; align-items: flex-end;">
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #c2410c; font-size: 12.5px; font-weight: 700; height: 38px; padding: 0 12px; background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 8px;"
+                                            title="Dividir recolección para que parte entre en el cierre y el resto en la siguiente semana operativa">
+                                            <input type="checkbox" id="checkDiferirLitrosForm"
+                                                style="width: 18px; height: 18px; accent-color: #ea580c;"
+                                                onchange="toggleFormDiferirLitros(this.checked)">
+                                            <span><i class="fa-solid fa-clock-rotate-left" style="color: #ea580c;"></i> ¿Diferir Litros?</span>
+                                        </label>
+                                    </div>
+
+                                    <div class="form-group" id="boxInputDiferirLitrosForm"
+                                        style="margin-bottom: 0; display: none;">
+                                        <label for="inputLitrosDiferirForm"
+                                            style="font-size: 12px; color: #ea580c; font-weight: 700; margin-bottom: 4px; display: block;">
+                                            <i class="fa-solid fa-share"></i> Litros a Diferir (Sig. Sem.) *
+                                        </label>
+                                        <input type="number" id="inputLitrosDiferirForm" class="form-input"
+                                            placeholder="Ej: 100" min="1" step="1"
+                                            style="height: 38px; font-weight: 800; font-size: 14px; color: #c2410c; background: #fff7ed; border: 1.5px solid #fdba74;">
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                                    <div style="flex: 1; min-width: 250px;">
+                                        <label for="inputObservacion"
+                                            style="font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block;">Observaci&oacute;n</label>
+                                        <input type="text" id="inputObservacion" class="form-input"
+                                            placeholder="Observaci&oacute;n (opcional)" style="height: 38px;">
+                                    </div>
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <button type="submit" class="btn btn-primary" id="btnGuardarRuta"
+                                            style="height: 38px; padding: 0 24px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                                            <i class="fa-solid fa-floppy-disk"></i> Guardar
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- CARD 2: TABLA Y BUSCADOR DE RECOLECCIONES (3 FILTROS + DATATABLE) -->
+                        <div class="content-card" style="padding: 0; overflow: visible;">
+                            <div class="card-header-styled card-header-primary">
+                                <span><i class="fa-solid fa-magnifying-glass"></i> B&Uacute;SQUEDA Y CONTROL DE
+                                    RECOLECCIONES</span>
+                                <div
+                                    style="display: flex; gap: 12px; align-items: center; font-size: 13px; flex-wrap: wrap;">
+                                    <span
+                                        style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(255, 255, 255, 0.3); padding: 5px 14px; border-radius: 8px; font-weight: 600; color: #ffffff;">
+                                        Total del D&iacute;a: <strong id="kpiLitrosRutasHeader"
+                                            style="color: #4ade80; font-weight: 800; font-size: 15px;">0</strong> Lts
+                                    </span>
+                                    <span id="badgeTotalFiltrado"
+                                        style="display: none; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(52, 211, 153, 0.5); padding: 5px 14px; border-radius: 8px; font-weight: 600; color: #ffffff;">
+                                        Total Filtrado: <strong id="lblTotalLitrosFiltrado"
+                                            style="color: #4ade80; font-weight: 800; font-size: 15px;">0</strong> Lts
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div style="padding: 18px 18px 0 18px; overflow: visible;">
+                                <!-- BANNER FILTRO POR TICKET DE VIAJE -->
+                                <div id="bannerFiltroTicketRutas"
+                                    style="display: none; background: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; box-shadow: 0 2px 8px rgba(37,99,235,0.08);">
+                                    <div>
+                                        <div
+                                            style="font-size: 15px; font-weight: 800; color: #1e40af; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                            <i class="fa-solid fa-ticket"></i> Filtrando Fincas del Ticket #<span
+                                                id="lblFiltroTicketNumero"></span>
+                                            <span id="badgeFiltroTicketConductor" class="badge"
+                                                style="background: #dbeafe; color: #1e40af; font-size: 11.5px; padding: 2px 8px; border-radius: 6px;"></span>
+                                        </div>
+                                        <div style="font-size: 12.5px; color: #3b82f6; margin-top: 3px;">
+                                            Mostrando las <strong id="lblFiltroTicketFincasCount">0</strong> fincas
+                                            recolectadas en este viaje (<strong
+                                                id="lblFiltroTicketTotalLitros">0</strong> Lts en camión). Puedes editar
+                                            o eliminar cada recolección individualmente.
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <button type="button" class="btn btn-primary"
+                                            onclick="vincularTicketAlFormulario(state.filtroTicketId)"
+                                            style="font-weight: 700; padding: 6px 14px; border-radius: 8px; white-space: nowrap; font-size: 12.5px;">
+                                            <i class="fa-solid fa-plus-circle"></i> Agregar Finca a este Ticket
+                                        </button>
+                                        <button type="button" class="btn btn-outline"
+                                            onclick="quitarFiltroTicketRutas()"
+                                            style="background: #ffffff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; padding: 6px 14px; border-radius: 8px; white-space: nowrap; font-size: 12.5px;">
+                                            <i class="fa-solid fa-xmark"></i> Quitar Filtro / Ver Todas
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 3 FILTROS: FECHA, CHOFER DESPLEGABLE BUSCABLE (SOLO CHOFERES DEL DÍA), FINCA DESPLEGABLE BUSCABLE -->
+                                <div
+                                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px; overflow: visible;">
+                                    <!-- 1. Fecha -->
+                                    <div>
+                                        <label for="filtroFechaRutas"
+                                            style="font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; display: block;">
+                                            <i class="fa-regular fa-calendar"></i> 1. Fecha de Consulta
+                                        </label>
+                                        <input type="date" id="filtroFechaRutas" class="form-input"
+                                            style="height: 38px; font-size: 13px;"
+                                            onchange="onCambiarFechaFiltroRutas()">
+                                    </div>
+
+                                    <!-- 2. Chofer Desplegable Buscable (Dinámico por día) -->
+                                    <div>
+                                        <label
+                                            style="font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; display: block;">
+                                            <i class="fa-solid fa-user"></i> 2. Filtrar por Chofer
+                                        </label>
+                                        <div class="searchable-select" id="comboboxFiltroChofer">
+                                            <input type="hidden" id="filterChoferVal" value="">
+                                            <div class="combobox-input-wrapper">
+                                                <input type="text" class="form-input combobox-search"
+                                                    id="searchFiltroChoferInput" placeholder="TODOS LOS CHOFERES"
+                                                    autocomplete="off">
+                                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                                            </div>
+                                            <div class="combobox-dropdown" id="dropdownFiltroChoferList"
+                                                style="display: none;"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3. Finca Desplegable Buscable -->
+                                    <div>
+                                        <label
+                                            style="font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; display: block;">
+                                            <i class="fa-solid fa-wheat-awn"></i> 3. Filtrar por Finca
+                                        </label>
+                                        <div class="searchable-select" id="comboboxFiltroFinca">
+                                            <input type="hidden" id="filterFincaVal" value="">
+                                            <div class="combobox-input-wrapper">
+                                                <input type="text" class="form-input combobox-search"
+                                                    id="searchFiltroFincaInput" placeholder="TODAS LAS FINCAS"
+                                                    autocomplete="off">
+                                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                                            </div>
+                                            <div class="combobox-dropdown" id="dropdownFiltroFincaList"
+                                                style="display: none;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Barra de Resumen de Filtro Dinámico -->
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px;">
+                                        <span style="color: #94a3b8;">
+                                            <i class="fa-solid fa-list-check"></i> <strong id="lblConteoRutasTabla"
+                                                style="color: #cbd5e1;">0 registros encontrados</strong>
+                                        </span>
+                                        <span id="resumenFiltroChoferBadge"
+                                            style="display: none; color: #60a5fa; background: rgba(59, 130, 246, 0.15); padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                                            Chofer: <strong id="lblChoferFiltradoNombre">-</strong> (<span
+                                                id="lblChoferTotalLitros" style="color: #93c5fd;">0 Lts</span>)
+                                        </span>
+                                        <span id="resumenFiltroFincaBadge"
+                                            style="display: none; color: #fbbf24; background: rgba(251, 191, 36, 0.15); padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                                            Finca: <strong id="lblFincaFiltradaNombre">-</strong> (<span
+                                                id="lblFincaTotalLitros" style="color: #fde68a;">0 Lts</span>)
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-outline" onclick="limpiarFiltrosRutas()"
+                                            style="height: 30px; font-size: 12px; padding: 0 10px;"
+                                            title="Limpiar filtros">
+                                            <i class="fa-solid fa-rotate-left"></i> Limpiar Filtros
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Barra DataTable: Buscador en tiempo real + Selector de Página -->
+                                <div class="datatable-toolbar"
+                                    style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;">
+                                    <div style="position: relative; flex: 1; min-width: 240px; max-width: 380px;">
+                                        <i class="fa-solid fa-magnifying-glass"
+                                            style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b7280; font-size: 13px;"></i>
+                                        <input type="text" id="inputBuscarRutasTabla" class="form-input"
+                                            placeholder="Buscar finca, chofer, litros, obs..."
+                                            style="padding-left: 36px; height: 38px; font-size: 13px;"
+                                            oninput="onBuscarRutasTablaInput(this.value)">
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <label style="font-size: 12px; color: #9ca3af;">Mostrar:</label>
+                                        <select id="selectPageSizeRutas" class="form-input"
+                                            style="height: 38px; width: 95px; padding: 4px 8px; font-size: 13px;"
+                                            onchange="onChangePageSizeRutas()">
+                                            <option value="10" selected>10</option>
+                                            <option value="25">25</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                            <option value="999999">Todos</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive" style="padding: 0 18px 18px 18px;">
+                                <table class="modern-table" id="tablaRutasHoy">
+                                    <thead>
+                                        <tr>
+                                            <th style="cursor: pointer; user-select: none;"
+                                                onclick="ordenarTablaRutas('fecha')">
+                                                FECHA <i class="fa-solid fa-sort" id="sortIconRutasFecha"
+                                                    style="font-size: 11px; margin-left: 4px; color: #64748b;"></i>
+                                            </th>
+                                            <th style="cursor: pointer; user-select: none; text-align: center;"
+                                                onclick="ordenarTablaRutas('ticket')">
+                                                TICKET / VIAJE <i class="fa-solid fa-sort" id="sortIconRutasTicket"
+                                                    style="font-size: 11px; margin-left: 4px; color: #64748b;"></i>
+                                            </th>
+                                            <th style="cursor: pointer; user-select: none;"
+                                                onclick="ordenarTablaRutas('finca')">
+                                                FINCA <i class="fa-solid fa-sort" id="sortIconRutasFinca"
+                                                    style="font-size: 11px; margin-left: 4px; color: #64748b;"></i>
+                                            </th>
+                                            <th style="cursor: pointer; user-select: none;"
+                                                onclick="ordenarTablaRutas('litros')">
+                                                LITROS <i class="fa-solid fa-sort" id="sortIconRutasLitros"
+                                                    style="font-size: 11px; margin-left: 4px; color: #64748b;"></i>
+                                            </th>
+                                            <th>OBSERVACION</th>
+                                            <th style="cursor: pointer; user-select: none;"
+                                                onclick="ordenarTablaRutas('conductor')">
+                                                CONDUCTOR <i class="fa-solid fa-sort" id="sortIconRutasConductor"
+                                                    style="font-size: 11px; margin-left: 4px; color: #64748b;"></i>
+                                            </th>
+                                            <th style="text-align: center;">EDITAR</th>
+                                            <th style="text-align: center;">ELIMINAR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbodyRutasHoy">
+                                        <tr>
+                                            <td colspan="8" class="text-center">Cargando recolecciones...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <!-- Pie DataTable: Paginación & Resumen -->
+                                <div class="datatable-footer"
+                                    style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); flex-wrap: wrap; gap: 10px;">
+                                    <div style="font-size: 12px; color: #9ca3af;" id="lblResumenPaginacionRutas">
+                                        Mostrando 0 a 0 de 0 registros
+                                    </div>
+                                    <div class="pagination-buttons" id="paginacionRutasControls"
+                                        style="display: flex; gap: 6px; align-items: center;">
+                                        <!-- Botones generados dinámicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div> <!-- /seccionFincasDetalleRutas -->
+                </section>
+
+                <!-- VISTA 3: BALANCE Y MERMAS -->

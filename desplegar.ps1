@@ -15,17 +15,13 @@ Write-Host "==================================================================" 
 Write-Host "  SISTEMA DE DESPLIEGUE MULTI-AMBIENTE - TRANSPORTE V2           " -ForegroundColor Cyan
 Write-Host "==================================================================" -ForegroundColor Cyan
 
-# 1. Sincronización del Frontend a wwwroot
-Write-Host "`n[1/3] Sincronizando Frontend -> Backend\src\Transporte.API\wwwroot\..." -ForegroundColor Yellow
+# 1. Compilación de componentes y sincronización del Frontend a wwwroot
+Write-Host "`n[1/3] Compilando componentes React-like y sincronizando Frontend -> wwwroot..." -ForegroundColor Yellow
 $frontendPath = Join-Path $rootPath "Frontend"
 $wwwrootPath = Join-Path $rootPath "Backend\src\Transporte.API\wwwroot"
 
-if (-not (Test-Path $wwwrootPath)) {
-    New-Item -ItemType Directory -Path $wwwrootPath -Force | Out-Null
-}
-
-Copy-Item -Path "$frontendPath\*" -Destination $wwwrootPath -Recurse -Force
-Write-Host " -> Frontend sincronizado correctamente." -ForegroundColor Green
+node (Join-Path $frontendPath "build_components.js")
+Write-Host " -> Componentes compilados y Frontend sincronizado correctamente." -ForegroundColor Green
 
 # Función interna para publicar un ambiente específico
 function Publish-Environment {

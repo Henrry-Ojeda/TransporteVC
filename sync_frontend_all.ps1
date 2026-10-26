@@ -1,3 +1,6 @@
+Write-Output "Compilando arquitectura de componentes..."
+node Frontend\build_components.js
+
 $targets = @(
     "Backend\src\Transporte.API\wwwroot",
     "Backend\src\Transporte.API\bin\Release\net8.0\wwwroot",
