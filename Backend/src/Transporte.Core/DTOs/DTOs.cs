@@ -634,6 +634,8 @@ namespace Transporte.Core.DTOs
         public string? TipoServicioNombre { get; set; }
         public int? CompaniaId { get; set; }
         public string? CompaniaNombre { get; set; }
+        public int? RutaId { get; set; }
+        public string? RutaNombre { get; set; }
         public decimal PrecioLitroUSD { get; set; }
         public decimal PrecioLitroAcidaUSD { get; set; }
         public bool TieneDosTiposLeche { get; set; } = false;
@@ -656,6 +658,7 @@ namespace Transporte.Core.DTOs
         public string? NumeroCuenta { get; set; }
         public int? TipoServicioId { get; set; }
         public int? CompaniaId { get; set; }
+        public int? RutaId { get; set; }
         public decimal PrecioLitroUSD { get; set; }
         public decimal PrecioLitroAcidaUSD { get; set; }
         public bool TieneDosTiposLeche { get; set; } = false;
@@ -676,6 +679,7 @@ namespace Transporte.Core.DTOs
         public string? NumeroCuenta { get; set; }
         public int? TipoServicioId { get; set; }
         public int? CompaniaId { get; set; }
+        public int? RutaId { get; set; }
         public decimal? PrecioLitroUSD { get; set; }
         public decimal? PrecioLitroAcidaUSD { get; set; }
         public bool? TieneDosTiposLeche { get; set; }
@@ -1169,6 +1173,9 @@ namespace Transporte.Core.DTOs
         public string Placa { get; set; } = string.Empty;
         public int Compartimientos { get; set; } = 1;
         public decimal CapacidadLitros { get; set; }
+        public decimal CapacidadTanqueLitros { get; set; } = 0;
+        public string TipoCombustible { get; set; } = "GASOIL";
+        public decimal OdometroActualKm { get; set; } = 0;
         public string? MarcaModelo { get; set; }
         public string? Observaciones { get; set; }
         public bool Activo { get; set; } = true;
@@ -1181,6 +1188,9 @@ namespace Transporte.Core.DTOs
         public string Placa { get; set; } = string.Empty;
         public int Compartimientos { get; set; } = 1;
         public decimal CapacidadLitros { get; set; }
+        public decimal CapacidadTanqueLitros { get; set; } = 0;
+        public string TipoCombustible { get; set; } = "GASOIL";
+        public decimal OdometroActualKm { get; set; } = 0;
         public string? MarcaModelo { get; set; }
         public string? Observaciones { get; set; }
         public bool Activo { get; set; } = true;
@@ -1192,6 +1202,9 @@ namespace Transporte.Core.DTOs
         public string? Placa { get; set; }
         public int? Compartimientos { get; set; }
         public decimal? CapacidadLitros { get; set; }
+        public decimal? CapacidadTanqueLitros { get; set; }
+        public string? TipoCombustible { get; set; }
+        public decimal? OdometroActualKm { get; set; }
         public string? MarcaModelo { get; set; }
         public string? Observaciones { get; set; }
         public bool? Activo { get; set; }
@@ -1240,6 +1253,16 @@ namespace Transporte.Core.DTOs
         public string? NombreCerradoPor { get; set; }
         public int TotalFincas { get; set; }
 
+        // Ruta Logística y Combustible
+        public int? RutaLogisticaId { get; set; }
+        public string? RutaLogisticaNombre { get; set; }
+        public decimal? CombustibleLitrosSalida { get; set; }
+        public decimal? CombustibleLitrosLlegada { get; set; }
+        public decimal? CombustibleConsumidoLitros { get; set; }
+        public decimal? OdometroInicialKm { get; set; }
+        public decimal? OdometroFinalKm { get; set; }
+        public decimal? KmRecorridos { get; set; }
+
         public string? Observacion { get; set; }
         public DateTime CreatedAt { get; set; }
     }
@@ -1253,6 +1276,11 @@ namespace Transporte.Core.DTOs
         public int TotalLitrosReceptoria { get; set; }
         public int? ProcesoActualId { get; set; }
         public string? TipoDestino { get; set; }
+        public int? RutaLogisticaId { get; set; }
+        public decimal? CombustibleLitrosSalida { get; set; }
+        public decimal? CombustibleLitrosLlegada { get; set; }
+        public decimal? OdometroInicialKm { get; set; }
+        public decimal? OdometroFinalKm { get; set; }
         public string? Observacion { get; set; }
     }
 
@@ -1269,6 +1297,11 @@ namespace Transporte.Core.DTOs
         public int? LitrosCargadosAdicional { get; set; }
         public int? CompaniaDestinoId { get; set; }
         public int? LitrosEntregadosCompania { get; set; }
+        public int? RutaLogisticaId { get; set; }
+        public decimal? CombustibleLitrosSalida { get; set; }
+        public decimal? CombustibleLitrosLlegada { get; set; }
+        public decimal? OdometroInicialKm { get; set; }
+        public decimal? OdometroFinalKm { get; set; }
         public string? Observacion { get; set; }
     }
 
@@ -1843,6 +1876,198 @@ namespace Transporte.Core.DTOs
         public string ColorBadge { get; set; } = "#0284c7";
         public bool Activo { get; set; } = true;
         public int Orden { get; set; } = 1;
+    }
+
+    // =====================================================================
+    // DTOs para RUTAS LOGÍSTICAS (Planificación de Zonas/Rutas)
+    // =====================================================================
+    public class RutaLogisticaDto
+    {
+        public int Id { get; set; }
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string? Descripcion { get; set; }
+        public string Color { get; set; } = "#2563eb";
+        public bool Activo { get; set; } = true;
+        public int TotalFincasAsignadas { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class GuardarRutaLogisticaDto
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string? Descripcion { get; set; }
+        public string Color { get; set; } = "#2563eb";
+        public bool Activo { get; set; } = true;
+    }
+
+    public class AsignarFincasRutaDto
+    {
+        public List<int> FincaIds { get; set; } = new();
+    }
+
+    // =====================================================================
+    // DTOs para COMBUSTIBLE (Gasoil / Gasolina)
+    // =====================================================================
+    public class CombustibleInventarioDto
+    {
+        public int Id { get; set; }
+        public string TipoCombustible { get; set; } = "GASOIL";
+        public decimal StockActualLitros { get; set; }
+        public decimal CapacidadTanqueAlmacen { get; set; }
+        public decimal PorcentajeOcupado => CapacidadTanqueAlmacen > 0 
+            ? Math.Round((StockActualLitros / CapacidadTanqueAlmacen) * 100m, 2) 
+            : 0;
+        public DateTime UpdatedAt { get; set; }
+    }
+
+    public class RegistrarCompraCombustibleDto
+    {
+        public string TipoCombustible { get; set; } = "GASOIL";
+        public decimal Litros { get; set; }
+        public decimal CostoPorLitroUSD { get; set; }
+        public string? Proveedor { get; set; }
+        public DateTime Fecha { get; set; }
+        public string? Observaciones { get; set; }
+    }
+
+    public class RegistrarDespachoCombustibleDto
+    {
+        public int CamionId { get; set; }
+        public string TipoCombustible { get; set; } = "GASOIL";
+        public decimal Litros { get; set; }
+        public long? ControlRutaId { get; set; }
+        public decimal? OdometroKm { get; set; }
+        public DateTime Fecha { get; set; }
+        public string? Observaciones { get; set; }
+    }
+
+    public class CombustibleHistorialDto
+    {
+        public int Id { get; set; }
+        public string TipoMovimiento { get; set; } = string.Empty; // COMPRA_INGRESO, DESPACHO_CAMION, AJUSTE
+        public string TipoCombustible { get; set; } = string.Empty;
+        public decimal Litros { get; set; }
+        public decimal StockAnteriorLitros { get; set; }
+        public decimal StockNuevoLitros { get; set; }
+        public int? CamionId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public string? ChoferNombre { get; set; }
+        public long? ControlRutaId { get; set; }
+        public string? RutaNombre { get; set; }
+        public decimal? OdometroKm { get; set; }
+        public decimal CostoPorLitroUSD { get; set; }
+        public string? Proveedor { get; set; }
+        public string? Observaciones { get; set; }
+        public DateTime Fecha { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    // =====================================================================
+    // DTOs para MANTENIMIENTO DE CAMIONES & SINIESTROS
+    // =====================================================================
+    public class MantenimientoCamionDto
+    {
+        public int Id { get; set; }
+        public int CamionId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public string? MarcaModelo { get; set; }
+        public string TipoEvento { get; set; } = string.Empty; // CAMBIO_ACEITE, CAUCHOS, PREVENTIVO, CORRECTIVO, MEJORA, SINIESTRO_CHOFER
+        public string Titulo { get; set; } = string.Empty;
+        public string Descripcion { get; set; } = string.Empty;
+        public DateTime FechaEvento { get; set; }
+        public decimal? OdometroKm { get; set; }
+        public decimal? ProximoKmSugerido { get; set; }
+        public DateTime? ProximaFechaSugerida { get; set; }
+        public string? TallerOMecanico { get; set; }
+        public string Estado { get; set; } = "RESUELTO"; // REPORTADO_CHOFER, EN_TALLER, RESUELTO
+        public int? ReportadoPorChoferId { get; set; }
+        public string? ChoferNombre { get; set; }
+        public decimal CostoTotalUSD { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class CrearMantenimientoCamionDto
+    {
+        public int CamionId { get; set; }
+        public string TipoEvento { get; set; } = "PREVENTIVO";
+        public string Titulo { get; set; } = string.Empty;
+        public string Descripcion { get; set; } = string.Empty;
+        public DateTime FechaEvento { get; set; }
+        public decimal? OdometroKm { get; set; }
+        public decimal? ProximoKmSugerido { get; set; }
+        public DateTime? ProximaFechaSugerida { get; set; }
+        public string? TallerOMecanico { get; set; }
+        public string Estado { get; set; } = "RESUELTO";
+        public decimal CostoTotalUSD { get; set; } = 0;
+    }
+
+    public class ReportarSiniestroChoferDto
+    {
+        public int CamionId { get; set; }
+        public string Titulo { get; set; } = string.Empty;
+        public string Descripcion { get; set; } = string.Empty;
+        public decimal? OdometroKm { get; set; }
+        public DateTime FechaEvento { get; set; } = DateTime.Today;
+    }
+
+    // =====================================================================
+    // DTOs para INVENTARIO DE REPUESTOS
+    // =====================================================================
+    public class RepuestoDto
+    {
+        public int Id { get; set; }
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string Categoria { get; set; } = "OTROS";
+        public int StockActual { get; set; }
+        public int StockMinimo { get; set; } = 1;
+        public decimal CostoUnitarioUSD { get; set; }
+        public string? UbicacionAlmacen { get; set; }
+        public bool Activo { get; set; } = true;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class GuardarRepuestoDto
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string Categoria { get; set; } = "OTROS";
+        public int StockActual { get; set; }
+        public int StockMinimo { get; set; } = 1;
+        public decimal CostoUnitarioUSD { get; set; }
+        public string? UbicacionAlmacen { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+
+    public class MovimientoRepuestoDto
+    {
+        public int Id { get; set; }
+        public int RepuestoId { get; set; }
+        public string? RepuestoCodigo { get; set; }
+        public string? RepuestoNombre { get; set; }
+        public string TipoMovimiento { get; set; } = string.Empty; // ENTRADA_COMPRA, SALIDA_MANTENIMIENTO, AJUSTE
+        public int Cantidad { get; set; }
+        public decimal CostoUnitarioUSD { get; set; }
+        public int? MantenimientoId { get; set; }
+        public int? CamionId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public DateTime Fecha { get; set; }
+        public string? Observaciones { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class RegistrarMovimientoRepuestoDto
+    {
+        public int RepuestoId { get; set; }
+        public string TipoMovimiento { get; set; } = "ENTRADA_COMPRA";
+        public int Cantidad { get; set; }
+        public decimal CostoUnitarioUSD { get; set; }
+        public int? MantenimientoId { get; set; }
+        public int? CamionId { get; set; }
+        public DateTime Fecha { get; set; }
+        public string? Observaciones { get; set; }
     }
 }
 

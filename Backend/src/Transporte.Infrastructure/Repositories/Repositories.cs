@@ -968,6 +968,7 @@ namespace Transporte.Infrastructure.Repositories
                     ISNULL(p.NumeroCuenta, ISNULL(f.NumeroCuenta, '')) AS NumeroCuenta, 
                     f.TipoServicioId, ISNULL(ts.Nombre, 'RUTA') AS TipoServicioNombre,
                     f.CompaniaId, comp.Nombre AS CompaniaNombre,
+                    f.RutaId, rl.Nombre AS RutaNombre,
                     f.PrecioLitroUSD, f.PrecioLitroAcidaUSD, 
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(f.PrecioBufalaLitroUSD, 0) AS PrecioBufalaLitroUSD,
@@ -978,6 +979,7 @@ namespace Transporte.Infrastructure.Repositories
                 LEFT JOIN TB_BANCOS bp ON p.BancoId = bp.Id
                 LEFT JOIN TB_TIPO_SERVICIO ts ON f.TipoServicioId = ts.Id
                 LEFT JOIN TB_COMPANIAS comp ON f.CompaniaId = comp.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON f.RutaId = rl.Id
                 WHERE f.IsDeleted = 0 " + (soloActivos ? " AND f.Activo = 1 " : "") + @"
                 ORDER BY f.Nombre ASC";
 
@@ -1015,6 +1017,7 @@ namespace Transporte.Infrastructure.Repositories
                     f.BancoId, ISNULL(b.Nombre, 'Sin Banco') AS BancoNombre,
                     f.NumeroCuenta, f.TipoServicioId, ISNULL(ts.Nombre, 'RUTA') AS TipoServicioNombre,
                     f.CompaniaId, comp.Nombre AS CompaniaNombre,
+                    f.RutaId, rl.Nombre AS RutaNombre,
                     f.PrecioLitroUSD, f.PrecioLitroAcidaUSD, 
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(f.PrecioBufalaLitroUSD, 0) AS PrecioBufalaLitroUSD,
@@ -1023,6 +1026,7 @@ namespace Transporte.Infrastructure.Repositories
                 LEFT JOIN TB_BANCOS b ON f.BancoId = b.Id
                 LEFT JOIN TB_TIPO_SERVICIO ts ON f.TipoServicioId = ts.Id
                 LEFT JOIN TB_COMPANIAS comp ON f.CompaniaId = comp.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON f.RutaId = rl.Id
                 WHERE f.Id = @id AND f.IsDeleted = 0";
             var finca = await connection.QueryFirstOrDefaultAsync<FincaDto>(sql, new { id });
             if (finca != null)

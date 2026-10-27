@@ -434,7 +434,8 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
                 SELECT c.Id, c.UsuarioId, u.NombreCompleto AS ChoferNombre, u.Cedula AS ChoferCedula, u.Telefono AS ChoferTelefono,
-                       c.Placa, c.Compartimientos, c.CapacidadLitros, c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
+                       c.Placa, c.Compartimientos, c.CapacidadLitros, c.CapacidadTanqueLitros, c.TipoCombustible, c.OdometroActualKm,
+                       c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
                 FROM TB_CAMIONES c
                 LEFT JOIN TB_USUARIOS u ON c.UsuarioId = u.Id
                 WHERE c.IsDeleted = 0 " + 
@@ -448,7 +449,8 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
                 SELECT c.Id, c.UsuarioId, u.NombreCompleto AS ChoferNombre, u.Cedula AS ChoferCedula, u.Telefono AS ChoferTelefono,
-                       c.Placa, c.Compartimientos, c.CapacidadLitros, c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
+                       c.Placa, c.Compartimientos, c.CapacidadLitros, c.CapacidadTanqueLitros, c.TipoCombustible, c.OdometroActualKm,
+                       c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
                 FROM TB_CAMIONES c
                 LEFT JOIN TB_USUARIOS u ON c.UsuarioId = u.Id
                 WHERE c.Id = @id AND c.IsDeleted = 0";
@@ -460,7 +462,8 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
                 SELECT c.Id, c.UsuarioId, u.NombreCompleto AS ChoferNombre, u.Cedula AS ChoferCedula, u.Telefono AS ChoferTelefono,
-                       c.Placa, c.Compartimientos, c.CapacidadLitros, c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
+                       c.Placa, c.Compartimientos, c.CapacidadLitros, c.CapacidadTanqueLitros, c.TipoCombustible, c.OdometroActualKm,
+                       c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
                 FROM TB_CAMIONES c
                 LEFT JOIN TB_USUARIOS u ON c.UsuarioId = u.Id
                 WHERE c.UsuarioId = @usuarioId AND c.IsDeleted = 0";
@@ -472,9 +475,9 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
                 INSERT INTO TB_CAMIONES 
-                (UsuarioId, Placa, Compartimientos, CapacidadLitros, MarcaModelo, Observaciones, Activo, IsDeleted, CreatedAt)
+                (UsuarioId, Placa, Compartimientos, CapacidadLitros, CapacidadTanqueLitros, TipoCombustible, OdometroActualKm, MarcaModelo, Observaciones, Activo, IsDeleted, CreatedAt)
                 VALUES 
-                (@UsuarioId, @Placa, @Compartimientos, @CapacidadLitros, @MarcaModelo, @Observaciones, @Activo, 0, GETDATE());
+                (@UsuarioId, @Placa, @Compartimientos, @CapacidadLitros, @CapacidadTanqueLitros, @TipoCombustible, @OdometroActualKm, @MarcaModelo, @Observaciones, @Activo, 0, GETDATE());
                 SELECT CAST(SCOPE_IDENTITY() as int);";
 
             var id = await connection.ExecuteScalarAsync<int>(sql, new
@@ -483,6 +486,9 @@ namespace Transporte.Infrastructure.Repositories
                 Placa = dto.Placa.Trim().ToUpper(),
                 Compartimientos = dto.Compartimientos > 0 ? dto.Compartimientos : 1,
                 dto.CapacidadLitros,
+                CapacidadTanqueLitros = dto.CapacidadTanqueLitros,
+                TipoCombustible = string.IsNullOrWhiteSpace(dto.TipoCombustible) ? "GASOIL" : dto.TipoCombustible.ToUpper(),
+                OdometroActualKm = dto.OdometroActualKm,
                 dto.MarcaModelo,
                 dto.Observaciones,
                 dto.Activo
@@ -508,6 +514,9 @@ namespace Transporte.Infrastructure.Repositories
                     Placa = COALESCE(@Placa, Placa),
                     Compartimientos = COALESCE(@Compartimientos, Compartimientos),
                     CapacidadLitros = COALESCE(@CapacidadLitros, CapacidadLitros),
+                    CapacidadTanqueLitros = COALESCE(@CapacidadTanqueLitros, CapacidadTanqueLitros),
+                    TipoCombustible = COALESCE(@TipoCombustible, TipoCombustible),
+                    OdometroActualKm = COALESCE(@OdometroActualKm, OdometroActualKm),
                     MarcaModelo = COALESCE(@MarcaModelo, MarcaModelo),
                     Observaciones = COALESCE(@Observaciones, Observaciones),
                     Activo = COALESCE(@Activo, Activo)
@@ -520,6 +529,9 @@ namespace Transporte.Infrastructure.Repositories
                 Placa = dto.Placa?.Trim().ToUpper(),
                 dto.Compartimientos,
                 dto.CapacidadLitros,
+                dto.CapacidadTanqueLitros,
+                TipoCombustible = dto.TipoCombustible?.ToUpper(),
+                dto.OdometroActualKm,
                 dto.MarcaModelo,
                 dto.Observaciones,
                 dto.Activo
