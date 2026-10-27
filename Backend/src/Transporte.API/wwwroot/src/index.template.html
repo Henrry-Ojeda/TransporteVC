@@ -136,18 +136,15 @@
             <!-- SIDEBAR LATERAL TIPO ACORDEÓN (DESPLIEGUE POR HOVER Y CLIC ACTIVO) -->
             <aside class="sidebar hover-accordion-sidebar" id="mainSidebar"
                 style="width: 260px; min-width: 260px; max-width: 260px; flex-shrink: 0; height: 100%; overflow-y: auto;">
+                <!-- @component "layout/Sidebar" -->
+            </aside>
 
-        <!-- ============================================================== -->
-        <!-- COMPONENTES DE VISTA & LAYOUT (ARQUITECTURA REACT-LIKE)        -->
-        <!-- ============================================================== -->
-
-        <!-- @component "layout/Sidebar" -->
-        <!-- @component "layout/NavbarHeader" -->
-
-        <main class="main-content" id="mainContainer">
-            <!-- @component "configuracion/ConfiguracionEmpresa" -->
-            <!-- @component "configuracion/ParametrosGlobales" -->
-            <!-- @component "dashboard/Dashboard" -->
+            <!-- AREA DE CONTENIDO PRINCIPAL -->
+            <main class="content-area main-content" id="mainContainer"
+                style="flex: 1; min-width: 0; height: 100%; overflow-y: auto; padding: 24px 32px;">
+                <!-- @component "dashboard/Dashboard" -->
+                <!-- @component "configuracion/ConfiguracionEmpresa" -->
+                <!-- @component "configuracion/ParametrosGlobales" -->
             <!-- @component "rutas/Rutas" -->
             <!-- @component "receptoria/Receptoria" -->
             <!-- @component "balanceVolumetrico/BalanceVolumetrico" -->

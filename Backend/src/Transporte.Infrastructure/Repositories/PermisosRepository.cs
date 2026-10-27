@@ -148,7 +148,9 @@ namespace Transporte.Infrastructure.Repositories
                 (soloActivos ? " AND p.Activo = 1 AND m.Activo = 1 " : "") + @"
                 GROUP BY p.Id, p.ModuloId, m.Codigo, m.Nombre, m.Icono, m.Orden,
                          p.Codigo, p.Nombre, p.Accion, p.Descripcion, p.Activo
-                ORDER BY m.Orden ASC, p.ModuloId ASC, p.Accion ASC, p.Codigo ASC";
+                ORDER BY m.Orden ASC, p.ModuloId ASC, 
+                         CASE p.Accion WHEN 'VER' THEN 1 WHEN 'EDITAR' THEN 2 WHEN 'CREAR' THEN 3 WHEN 'AGREGAR' THEN 3 WHEN 'ELIMINAR' THEN 4 ELSE 5 END ASC, 
+                         p.Codigo ASC";
 
             return await connection.QueryAsync<PermisoDto>(sql, new { moduloId });
         }
@@ -289,7 +291,9 @@ namespace Transporte.Infrastructure.Repositories
                 INNER JOIN TB_MODULOS m ON p.ModuloId = m.Id
                 LEFT JOIN TB_ROL_PERMISOS rp ON p.Id = rp.PermisoId AND rp.RolId = @rolId
                 WHERE p.Activo = 1 AND m.Activo = 1
-                ORDER BY m.Orden ASC, p.ModuloId ASC, p.Accion ASC, p.Codigo ASC";
+                ORDER BY m.Orden ASC, p.ModuloId ASC, 
+                         CASE p.Accion WHEN 'VER' THEN 1 WHEN 'EDITAR' THEN 2 WHEN 'CREAR' THEN 3 WHEN 'AGREGAR' THEN 3 WHEN 'ELIMINAR' THEN 4 ELSE 5 END ASC, 
+                         p.Codigo ASC";
 
             return await connection.QueryAsync<RolPermisoItemDto>(sql, new { rolId });
         }

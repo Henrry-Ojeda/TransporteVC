@@ -274,6 +274,15 @@ function renderMatrizPermisos() {
         }
 
         const accionesAMostrar = filtro ? accionesFiltradas : accionesModulo;
+        
+        // Ordenar en orden estándar: VER, EDITAR, AGREGAR (Crear), ELIMINAR
+        const ordenAcciones = { 'VER': 1, 'EDITAR': 2, 'CREAR': 3, 'AGREGAR': 3, 'ELIMINAR': 4 };
+        accionesAMostrar.sort((a, b) => {
+            const ordenA = ordenAcciones[(a.accion || a.Accion || '').toUpperCase()] || 99;
+            const ordenB = ordenAcciones[(b.accion || b.Accion || '').toUpperCase()] || 99;
+            return ordenA - ordenB;
+        });
+
         let countAsignadosModulo = 0;
 
         accionesAMostrar.forEach(acc => {
@@ -327,7 +336,13 @@ function renderMatrizPermisos() {
                         let badgeBg = '#eff6ff';
                         let badgeColor = '#1d4ed8';
                         let badgeBorder = '#bfdbfe';
-                        if (accTipo === 'CREAR') { badgeBg = '#ecfdf5'; badgeColor = '#047857'; badgeBorder = '#a7f3d0'; }
+                        let labelAccion = accTipo;
+                        if (accTipo === 'CREAR' || accTipo === 'AGREGAR') { 
+                            badgeBg = '#ecfdf5'; 
+                            badgeColor = '#047857'; 
+                            badgeBorder = '#a7f3d0'; 
+                            labelAccion = 'AGREGAR';
+                        }
                         else if (accTipo === 'EDITAR') { badgeBg = '#fffbeb'; badgeColor = '#b45309'; badgeBorder = '#fde68a'; }
                         else if (accTipo === 'ELIMINAR') { badgeBg = '#fef2f2'; badgeColor = '#b91c1c'; badgeBorder = '#fecaca'; }
                         else if (accTipo === 'APROBAR') { badgeBg = '#faf5ff'; badgeColor = '#7e22ce'; badgeBorder = '#e9d5ff'; }
@@ -345,7 +360,7 @@ function renderMatrizPermisos() {
                                     </div>
                                 </div>
                                 <span style="font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; flex-shrink: 0; letter-spacing: 0.03em;">
-                                    ${accTipo}
+                                    ${labelAccion}
                                 </span>
                             </label>
                         `;
@@ -819,8 +834,19 @@ function renderTablaPermisosCat(lista) {
         return;
     }
 
+    // Ordenar coherentemente: Primero por Módulo (Nombre/Orden), luego por Acción estándar (VER, EDITAR, AGREGAR, ELIMINAR)
+    const ordenAcciones = { 'VER': 1, 'EDITAR': 2, 'CREAR': 3, 'AGREGAR': 3, 'ELIMINAR': 4 };
+    const listaOrdenada = [...lista].sort((a, b) => {
+        const modA = (a.moduloNombre || a.ModuloNombre || '').toLowerCase();
+        const modB = (b.moduloNombre || b.ModuloNombre || '').toLowerCase();
+        if (modA !== modB) return modA.localeCompare(modB);
+        const tipoA = ordenAcciones[(a.accion || a.Accion || '').toUpperCase()] || 99;
+        const tipoB = ordenAcciones[(b.accion || b.Accion || '').toUpperCase()] || 99;
+        return tipoA - tipoB;
+    });
+
     let html = '';
-    lista.forEach(p => {
+    listaOrdenada.forEach(p => {
         const pId = Number(p.id || p.Id || p.permisoId || p.PermisoId);
         const pMod = p.moduloNombre || p.ModuloNombre || 'Sin Módulo';
         const pCod = p.codigo || p.Codigo || '';
@@ -834,7 +860,13 @@ function renderTablaPermisosCat(lista) {
         let badgeBg = '#eff6ff';
         let badgeColor = '#1d4ed8';
         let badgeBorder = '#bfdbfe';
-        if (pAcc === 'CREAR') { badgeBg = '#ecfdf5'; badgeColor = '#047857'; badgeBorder = '#a7f3d0'; }
+        let labelAccion = pAcc;
+        if (pAcc === 'CREAR' || pAcc === 'AGREGAR') { 
+            badgeBg = '#ecfdf5'; 
+            badgeColor = '#047857'; 
+            badgeBorder = '#a7f3d0'; 
+            labelAccion = 'AGREGAR';
+        }
         else if (pAcc === 'EDITAR') { badgeBg = '#fffbeb'; badgeColor = '#b45309'; badgeBorder = '#fde68a'; }
         else if (pAcc === 'ELIMINAR') { badgeBg = '#fef2f2'; badgeColor = '#b91c1c'; badgeBorder = '#fecaca'; }
         else if (pAcc === 'APROBAR') { badgeBg = '#faf5ff'; badgeColor = '#7e22ce'; badgeBorder = '#e9d5ff'; }
@@ -847,7 +879,7 @@ function renderTablaPermisosCat(lista) {
                 <td style="padding: 12px 14px;"><span style="font-family: monospace; font-weight: 800; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; padding: 3px 8px; border-radius: 6px;">${pCod}</span></td>
                 <td style="text-align: center; padding: 12px 14px;">
                     <span style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder};">
-                        ${pAcc}
+                        ${labelAccion}
                     </span>
                 </td>
                 <td style="font-weight: 800; color: #0f172a; padding: 12px 14px;">${pNom}</td>
@@ -898,11 +930,11 @@ function sugerirCodigoPermiso() {
         
         // Sugerir nombre legible
         let verbo = 'Ver';
-        if (accion === 'CREAR') verbo = 'Crear / Registrar';
-        else if (accion === 'EDITAR') verbo = 'Editar / Modificar';
-        else if (accion === 'ELIMINAR') verbo = 'Eliminar / Anular';
-        else if (accion === 'APROBAR') verbo = 'Aprobar / Cerrar';
-        else if (accion === 'EXPORTAR') verbo = 'Exportar Reportes de';
+        if (accion === 'CREAR' || accion === 'AGREGAR') verbo = 'Agregar';
+        else if (accion === 'EDITAR') verbo = 'Editar';
+        else if (accion === 'ELIMINAR') verbo = 'Eliminar';
+        else if (accion === 'APROBAR') verbo = 'Aprobar';
+        else if (accion === 'EXPORTAR') verbo = 'Exportar';
 
         if (inputNom && (!inputNom.value || inputNom.dataset.autoSugerido === 'true')) {
             inputNom.value = `${verbo} ${modObj.nombre || modObj.Nombre}`;

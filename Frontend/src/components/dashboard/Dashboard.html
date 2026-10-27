@@ -1,3 +1,40 @@
+                <section id="tab-dashboard" class="tab-content active">
+                    <div class="view-header">
+                        <div>
+                            <h1 class="view-title">Tablero de Control y M&eacute;tricas</h1>
+                            <p class="view-subtitle">Resumen en vivo de recolecci&oacute;n en fincas, entregas en
+                                receptor&iacute;a y cuadre de mermas</p>
+                        </div>
+                        <div class="view-actions">
+                            <button class="btn btn-primary" id="btnNuevaRutaQuick" onclick="irAPestana('rutas')">
+                                <i class="fa-solid fa-plus"></i> Registrar Recolecci&oacute;n
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BARRA SUPERIOR DE FILTROS Y CONTROLES -->
+                    <div class="dashboard-filter-toolbar" style="margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <!-- Filtro de Período (Día / Semana) -->
+                            <div class="filter-pills-bar">
+                                <button type="button" class="filter-pill active" id="btnModoDashboardDia"
+                                    onclick="cambiarModoDashboard('dia')">
+                                    <i class="fa-solid fa-calendar-day"></i> Vista por D&iacute;a
+                                </button>
+                                <button type="button" class="filter-pill" id="btnModoDashboardSemana"
+                                    onclick="cambiarModoDashboard('semana')">
+                                    <i class="fa-solid fa-calendar-week"></i> Vista por Semana
+                                </button>
+                            </div>
+
+                            <!-- Filtro de Tipo de Servicio (Todos / Ruta / Transporte) -->
+                            <div class="filter-pills-bar" id="filtroPillsServicioDashboard">
+                                <button type="button" class="filter-pill active" id="btnFiltroServicioTodos"
+                                    onclick="cambiarFiltroServicioDashboard('todos')">
+                                    <i class="fa-solid fa-layer-group"></i> Todos los Servicios
+                                </button>
+                                <button type="button" class="filter-pill" id="btnFiltroServicioRuta"
+                                    onclick="cambiarFiltroServicioDashboard('ruta')">
                                     <i class="fa-solid fa-road" style="color: #0284c7;"></i> Servicio RUTA
                                 </button>
                                 <button type="button" class="filter-pill" id="btnFiltroServicioTransporte"
@@ -473,19 +510,3 @@
                         </div>
                     </div>
                 </section>
-
-                <section id="tab-rutas" class="tab-content">
-                    <div class="view-header"
-                        style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                        <div>
-                            <h1 class="view-title">Rutas</h1>
-                            <p class="view-subtitle">Captura, gesti&oacute;n y control de recolecciones de leche</p>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <button type="button" id="btnCargaMasivaHeaderRutas" class="btn btn-primary"
-                                onclick="abrirModalRutasMasivo()"
-                                style="font-weight: 700; background: linear-gradient(135deg, #4f46e5, #2563eb); border: none; box-shadow: 0 4px 14px rgba(37,99,235,0.35); height: 40px; padding: 0 18px; display: inline-flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-bolt"></i> Carga Masiva / Escanear Foto
-                            </button>
-                        </div>
-                    </div>

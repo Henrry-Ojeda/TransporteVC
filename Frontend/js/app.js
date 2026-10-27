@@ -38452,6 +38452,15 @@ function renderMatrizPermisos() {
         }
 
         const accionesAMostrar = filtro ? accionesFiltradas : accionesModulo;
+        
+        // Ordenar estrictamente: VER, EDITAR, AGREGAR, ELIMINAR
+        const ordenAcciones = { 'VER': 1, 'EDITAR': 2, 'AGREGAR': 3, 'CREAR': 3, 'ELIMINAR': 4 };
+        accionesAMostrar.sort((a, b) => {
+            const ordenA = ordenAcciones[(a.accion || a.Accion || '').toUpperCase()] || 99;
+            const ordenB = ordenAcciones[(b.accion || b.Accion || '').toUpperCase()] || 99;
+            return ordenA - ordenB;
+        });
+
         let countAsignadosModulo = 0;
 
         accionesAMostrar.forEach(acc => {
@@ -38496,7 +38505,8 @@ function renderMatrizPermisos() {
                     ${accionesAMostrar.length === 0 ? '<div style="color: #94a3b8; font-size: 12.5px; font-style: italic; padding: 14px 0; text-align: center;">Sin acciones registradas para este módulo</div>' : ''}
                     ${accionesAMostrar.map(acc => {
                         const pId = Number(acc.id || acc.Id || acc.permisoId || acc.PermisoId);
-                        const accTipo = (acc.accion || acc.Accion || 'VER').toUpperCase();
+                        const rawTipo = (acc.accion || acc.Accion || 'VER').toUpperCase();
+                        const accTipo = (rawTipo === 'CREAR') ? 'AGREGAR' : rawTipo;
                         const accCod = acc.codigo || acc.Codigo || '';
                         const accNom = acc.nombre || acc.Nombre || accCod;
                         const isChecked = cacheRBAC.permisosRolActivo.has(pId);
@@ -38505,11 +38515,26 @@ function renderMatrizPermisos() {
                         let badgeBg = '#eff6ff';
                         let badgeColor = '#1d4ed8';
                         let badgeBorder = '#bfdbfe';
-                        if (accTipo === 'CREAR') { badgeBg = '#ecfdf5'; badgeColor = '#047857'; badgeBorder = '#a7f3d0'; }
-                        else if (accTipo === 'EDITAR') { badgeBg = '#fffbeb'; badgeColor = '#b45309'; badgeBorder = '#fde68a'; }
-                        else if (accTipo === 'ELIMINAR') { badgeBg = '#fef2f2'; badgeColor = '#b91c1c'; badgeBorder = '#fecaca'; }
-                        else if (accTipo === 'APROBAR') { badgeBg = '#faf5ff'; badgeColor = '#7e22ce'; badgeBorder = '#e9d5ff'; }
-                        else if (accTipo === 'EXPORTAR') { badgeBg = '#f0fdfa'; badgeColor = '#0f766e'; badgeBorder = '#99f6e4'; }
+                        let labelAccion = 'VER';
+
+                        if (accTipo === 'AGREGAR') {
+                            badgeBg = '#ecfdf5';
+                            badgeColor = '#047857';
+                            badgeBorder = '#a7f3d0';
+                            labelAccion = 'AGREGAR';
+                        } else if (accTipo === 'EDITAR') {
+                            badgeBg = '#fffbeb';
+                            badgeColor = '#b45309';
+                            badgeBorder = '#fde68a';
+                            labelAccion = 'EDITAR';
+                        } else if (accTipo === 'ELIMINAR') {
+                            badgeBg = '#fef2f2';
+                            badgeColor = '#b91c1c';
+                            badgeBorder = '#fecaca';
+                            labelAccion = 'ELIMINAR';
+                        } else {
+                            labelAccion = 'VER';
+                        }
 
                         return `
                             <label style="display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-radius: 9px; background: ${isChecked ? '#f0fdf4' : '#ffffff'}; border: 1.5px solid ${isChecked ? '#bbf7d0' : '#f1f5f9'}; cursor: pointer; transition: all 0.15s ease; box-shadow: ${isChecked ? '0 1px 3px rgba(16,185,129,0.05)' : 'none'};"
@@ -38523,10 +38548,14 @@ function renderMatrizPermisos() {
                                     </div>
                                 </div>
                                 <span style="font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; flex-shrink: 0; letter-spacing: 0.03em;">
-                                    ${accTipo}
+                                    ${labelAccion}
                                 </span>
                             </label>
                         `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
                     }).join('')}
                 </div>
             </div>
