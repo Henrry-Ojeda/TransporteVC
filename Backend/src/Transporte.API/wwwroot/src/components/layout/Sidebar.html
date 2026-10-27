@@ -45,6 +45,11 @@
                                     <i class="fa-solid fa-gem" style="color: #0d9488;"></i>
                                     <span>Trazabilidad Búfala</span>
                                 </a>
+                                <a href="#rutas-planificacion" class="nav-item" data-tab="rutas-planificacion"
+                                    onclick="irAPestana('rutas-planificacion', event); return false;">
+                                    <i class="fa-solid fa-map-location-dot" style="color: #3b82f6;"></i>
+                                    <span>Planificación de Rutas</span>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -99,7 +104,37 @@
                         </div>
                     </div>
 
-                    <!-- 3. LIQUIDACIÓN & FINANZAS -->
+                    <!-- 3. FLOTA & MANTENIMIENTO -->
+                    <div class="nav-accordion-group" id="grp-flota">
+                        <div class="nav-accordion-header" onclick="toggleAccordionClick('grp-flota')">
+                            <div class="header-main">
+                                <i class="fa-solid fa-truck-wrench group-icon" style="color: #f97316;"></i>
+                                <span class="group-title">Flota &amp; Mantenimiento</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-right group-chevron"></i>
+                        </div>
+                        <div class="nav-accordion-body">
+                            <div class="accordion-subitems">
+                                <a href="#combustible" class="nav-item" data-tab="combustible"
+                                    onclick="irAPestana('combustible', event); return false;">
+                                    <i class="fa-solid fa-gas-pump" style="color: #ef4444;"></i>
+                                    <span>Gestión de Combustible</span>
+                                </a>
+                                <a href="#historial-camiones" class="nav-item" data-tab="historial-camiones"
+                                    onclick="irAPestana('historial-camiones', event); return false;">
+                                    <i class="fa-solid fa-wrench" style="color: #f59e0b;"></i>
+                                    <span>Historial &amp; Mantenimiento</span>
+                                </a>
+                                <a href="#repuestos" class="nav-item" data-tab="repuestos"
+                                    onclick="irAPestana('repuestos', event); return false;">
+                                    <i class="fa-solid fa-boxes-stacked" style="color: #10b981;"></i>
+                                    <span>Inventario de Repuestos</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. LIQUIDACIÓN & FINANZAS -->
                     <div class="nav-accordion-group" id="grp-finanzas">
                         <div class="nav-accordion-header" onclick="toggleAccordionClick('grp-finanzas')">
                             <div class="header-main">

@@ -1064,9 +1064,9 @@ namespace Transporte.Infrastructure.Repositories
             var sql = @"
                 DECLARE @InsertedId INT;
                 INSERT INTO TB_FINCAS 
-                (Codigo, Nombre, PropietarioId, Propietario, CedulaRIF, Telefono, BancoId, NumeroCuenta, TipoServicioId, CompaniaId, PrecioLitroUSD, PrecioLitroAcidaUSD, TieneDosTiposLeche, PrecioBufalaLitroUSD, Activo, IsDeleted, CreatedAt)
+                (Codigo, Nombre, PropietarioId, Propietario, CedulaRIF, Telefono, BancoId, NumeroCuenta, TipoServicioId, CompaniaId, RutaId, PrecioLitroUSD, PrecioLitroAcidaUSD, TieneDosTiposLeche, PrecioBufalaLitroUSD, Activo, IsDeleted, CreatedAt)
                 VALUES 
-                ('', @Nombre, @PropietarioId, @Propietario, @CedulaRIF, @Telefono, @BancoId, @NumeroCuenta, @TipoServicioId, @CompaniaId, @PrecioLitroUSD, @PrecioLitroAcidaUSD, @TieneDosTiposLeche, @PrecioBufalaLitroUSD, @Activo, 0, GETDATE());
+                ('', @Nombre, @PropietarioId, @Propietario, @CedulaRIF, @Telefono, @BancoId, @NumeroCuenta, @TipoServicioId, @CompaniaId, @RutaId, @PrecioLitroUSD, @PrecioLitroAcidaUSD, @TieneDosTiposLeche, @PrecioBufalaLitroUSD, @Activo, 0, GETDATE());
                 SET @InsertedId = SCOPE_IDENTITY();
                 
                 UPDATE TB_FINCAS 

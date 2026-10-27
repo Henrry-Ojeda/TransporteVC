@@ -991,8 +991,9 @@ function aplicarPermisosEnInterfaz() {
     const esAdmin = rol.includes('ADMIN') || rol === 'ADMINISTRADOR GENERAL';
 
     // 1. Visibilidad de Grupos de Menú
-    const puedeOperaciones = esAdmin || tienePermiso('DASHBOARD_VER') || tienePermiso('RUTAS_VER') || tienePermiso('ENTREGAS_VER') || tienePermiso('BALANCE_LECHE_VER') || tienePermiso('CONTROL_RUTAS_VER') || tienePermiso('MERMAS_VER') || tienePermiso('TRAZABILIDAD_BUFALA_VER');
+    const puedeOperaciones = esAdmin || tienePermiso('DASHBOARD_VER') || tienePermiso('RUTAS_VER') || tienePermiso('ENTREGAS_VER') || tienePermiso('BALANCE_LECHE_VER') || tienePermiso('CONTROL_RUTAS_VER') || tienePermiso('MERMAS_VER') || tienePermiso('TRAZABILIDAD_BUFALA_VER') || tienePermiso('RUTAS_PLANIFICACION_VER');
     const puedeCatalogos = esAdmin || tienePermiso('FINCAS_VER') || tienePermiso('PROPIETARIOS_VER') || tienePermiso('CONDUCTORES_VER') || tienePermiso('CAMIONES_VER') || tienePermiso('COMPANIAS_VER') || tienePermiso('BANCOS_VER') || tienePermiso('EMPRESA_VER');
+    const puedeFlota = esAdmin || tienePermiso('COMBUSTIBLE_VER') || tienePermiso('HISTORIAL_CAMIONES_VER') || tienePermiso('REPUESTOS_VER');
     const puedeFinanzas = esAdmin || tienePermiso('CICLOS_VER') || tienePermiso('LIQUIDACIONES_VER') || tienePermiso('PAGOS_PERSONAL_VER') || tienePermiso('HISTORIAL_PAGOS_VER') || tienePermiso('ADMINISTRACION_VER');
     const puedeAdelantos = esAdmin || tienePermiso('ADELANTOS_FINCAS_VER') || tienePermiso('ADELANTOS_PERSONAL_VER') || tienePermiso('ABONOS_COMPANIAS_VER') || tienePermiso('ADELANTOS_RECEPTORIA_VER') || tienePermiso('ABONOS_VER') || tienePermiso('HISTORIAL_ADELANTOS_VER') || tienePermiso('ADELANTOS_VER');
     const puedeReportes = esAdmin || tienePermiso('REPORTES_VER') || tienePermiso('HISTORIAL_BCV_VER');
@@ -1003,6 +1004,9 @@ function aplicarPermisosEnInterfaz() {
 
     const grpCatalogos = document.getElementById('grp-catalogos');
     if (grpCatalogos) grpCatalogos.style.setProperty('display', puedeCatalogos ? '' : 'none', 'important');
+
+    const grpFlota = document.getElementById('grp-flota');
+    if (grpFlota) grpFlota.style.setProperty('display', puedeFlota ? '' : 'none', 'important');
 
     const grpFinanzas = document.getElementById('grp-finanzas');
     if (grpFinanzas) grpFinanzas.style.setProperty('display', puedeFinanzas ? '' : 'none', 'important');
@@ -1034,6 +1038,7 @@ function aplicarPermisosEnInterfaz() {
         'control-rutas': esAdmin || tienePermiso('CONTROL_RUTAS_VER') || tienePermiso('RUTAS_VER'),
         'mermas': esAdmin || tienePermiso('MERMAS_VER') || tienePermiso('REPORTES_VER'),
         'trazabilidad-bufala': esAdmin || tienePermiso('TRAZABILIDAD_BUFALA_VER') || tienePermiso('RUTAS_VER'),
+        'rutas-planificacion': esAdmin || tienePermiso('RUTAS_PLANIFICACION_VER') || tienePermiso('RUTAS_VER'),
 
         // Catálogos & Flota
         'fincas': esAdmin || tienePermiso('FINCAS_VER'),
@@ -1043,6 +1048,11 @@ function aplicarPermisosEnInterfaz() {
         'companias': esAdmin || tienePermiso('COMPANIAS_VER'),
         'bancos': esAdmin || tienePermiso('BANCOS_VER'),
         'empresa': esAdmin || tienePermiso('EMPRESA_VER'),
+
+        // Flota & Mantenimiento
+        'combustible': esAdmin || tienePermiso('COMBUSTIBLE_VER') || tienePermiso('CAMIONES_VER'),
+        'historial-camiones': esAdmin || tienePermiso('HISTORIAL_CAMIONES_VER') || tienePermiso('CAMIONES_VER'),
+        'repuestos': esAdmin || tienePermiso('REPUESTOS_VER') || tienePermiso('CAMIONES_VER'),
 
         // Liquidación
         'semanas': esAdmin || tienePermiso('CICLOS_VER'),
