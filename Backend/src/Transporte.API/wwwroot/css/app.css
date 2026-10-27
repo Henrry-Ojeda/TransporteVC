@@ -987,28 +987,30 @@ body {
    DATATABLE CONTROLS, PILLS Y BOTONES DE ACCIÓN
    ========================================================================== */
 .filter-pills-bar {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     background: #f1f5f9;
-    padding: 4px;
+    padding: 3px 5px;
     border-radius: var(--radius-md);
-    border: 1px solid #e2e8f0;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .filter-pill {
     background: transparent;
-    border: none;
-    color: #64748b;
+    border: 1px solid transparent;
+    color: #334155;
     padding: 6px 14px;
     border-radius: var(--radius-sm);
     font-size: 12.5px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     transition: all 0.2s ease;
+    user-select: none;
 }
 
 .filter-pill:hover {
@@ -1018,9 +1020,38 @@ body {
 
 .filter-pill.active {
     background: #ffffff;
-    color: #4338ca;
-    border: 1px solid #cbd5e1;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    color: #0f172a;
+    border: 1px solid #94a3b8;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+
+/* Filtros específicos de Servicios (Alto Contraste) */
+#btnFiltroServicioRuta {
+    color: #0369a1;
+}
+#btnFiltroServicioRuta:hover {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+#btnFiltroServicioRuta.active {
+    background: #ffffff;
+    color: #0284c7;
+    border-color: #38bdf8;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.2);
+}
+
+#btnFiltroServicioTransporte {
+    color: #6d28d9;
+}
+#btnFiltroServicioTransporte:hover {
+    background: #f5f3ff;
+    color: #7c3aed;
+}
+#btnFiltroServicioTransporte.active {
+    background: #ffffff;
+    color: #7c3aed;
+    border-color: #c084fc;
+    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.2);
 }
 
 .btn-page {

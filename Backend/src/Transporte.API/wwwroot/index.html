@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
-    <link rel="stylesheet" href="css/app.css?v=1.1.71">
+    <link rel="stylesheet" href="css/app.css?v=1.1.72">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#f8fafc">
     <script>
@@ -930,19 +930,18 @@
                             </div>
 
                             <!-- Filtro de Tipo de Servicio (Todos / Ruta / Transporte) -->
-                            <div class="filter-pills-bar"
-                                style="background: rgba(30, 41, 59, 0.6); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div class="filter-pills-bar" id="filtroPillsServicioDashboard">
                                 <button type="button" class="filter-pill active" id="btnFiltroServicioTodos"
                                     onclick="cambiarFiltroServicioDashboard('todos')">
                                     <i class="fa-solid fa-layer-group"></i> Todos los Servicios
                                 </button>
                                 <button type="button" class="filter-pill" id="btnFiltroServicioRuta"
                                     onclick="cambiarFiltroServicioDashboard('ruta')">
-                                    <i class="fa-solid fa-road" style="color: #60a5fa;"></i> Servicio RUTA
+                                    <i class="fa-solid fa-road" style="color: #0284c7;"></i> Servicio RUTA
                                 </button>
                                 <button type="button" class="filter-pill" id="btnFiltroServicioTransporte"
                                     onclick="cambiarFiltroServicioDashboard('transporte')">
-                                    <i class="fa-solid fa-truck-fast" style="color: #a78bfa;"></i> Servicio TRANSPORTE
+                                    <i class="fa-solid fa-truck-fast" style="color: #7c3aed;"></i> Servicio TRANSPORTE
                                 </button>
                             </div>
                         </div>
@@ -988,11 +987,11 @@
                         <div
                             style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                             <h3
-                                style="font-size: 13.5px; font-weight: 800; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-road"></i> M&Eacute;TRICAS DE SERVICIO DE RUTA
+                                style="font-size: 13.5px; font-weight: 800; color: #0284c7; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-road" style="color: #0284c7;"></i> M&Eacute;TRICAS DE SERVICIO DE RUTA
                             </h3>
                             <span class="badge"
-                                style="background: rgba(96, 165, 250, 0.15); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); font-weight: 700; font-size: 11px;">RECOLECCI&Oacute;N
+                                style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 800; font-size: 11px;">RECOLECCI&Oacute;N
                                 EN FINCAS DE RUTA</span>
                         </div>
                         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
@@ -1065,11 +1064,11 @@
                         <div
                             style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                             <h3
-                                style="font-size: 13.5px; font-weight: 800; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-truck-fast"></i> M&Eacute;TRICAS DE SERVICIO DE TRANSPORTE
+                                style="font-size: 13.5px; font-weight: 800; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-truck-fast" style="color: #7c3aed;"></i> M&Eacute;TRICAS DE SERVICIO DE TRANSPORTE
                             </h3>
                             <span class="badge"
-                                style="background: rgba(167, 139, 250, 0.15); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.3); font-weight: 700; font-size: 11px;">FINCAS
+                                style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; font-weight: 800; font-size: 11px;">FINCAS
                                 SERVICIO TRANSPORTE</span>
                         </div>
                         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
@@ -1271,7 +1270,7 @@
                                 <label style="font-size: 12px; font-weight: 600; color: #94a3b8; margin: 0;"><i
                                         class="fa-solid fa-filter"></i> Periodo:</label>
                                 <select id="selectSemanasDashboard" class="form-control"
-                                    style="width: auto; padding: 4px 10px; font-size: 12px; height: 32px; background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border-color); color: #f8fafc; border-radius: 6px;"
+                                    style="width: auto; padding: 4px 10px; font-size: 12.5px; height: 32px; background: #ffffff; border: 1.5px solid #cbd5e1; color: #0f172a; font-weight: 600; border-radius: 6px;"
                                     onchange="window.cambiarSemanasDashboard(this.value)">
                                     <option value="4">Últimas 4 Semanas (1 Mes)</option>
                                     <option value="8" selected>Últimas 8 Semanas (2 Meses)</option>
