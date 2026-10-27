@@ -515,54 +515,14 @@ window.hideLoginModal = hideLoginModal;
 // --------------------------------------------------------------------------
 // DETECCIÓN Y DIFERENCIACIÓN VISUAL DE AMBIENTE (DEV VS PROD)
 // --------------------------------------------------------------------------
+// DETECCIÓN DE AMBIENTE (DESHABILITADO: TÍTULO Y HEADER LIMPIOS)
 async function detectarAmbienteYActualizarUI() {
-    try {
-        const res = await fetch('/api/system/environment');
-        if (!res.ok) return;
-        const data = await res.json();
-        
-        const currentPort = window.location.port ? parseInt(window.location.port, 10) : (window.location.protocol === 'https:' ? 443 : 80);
-        const isDev = currentPort === 5188 || (data.environment && data.environment.toLowerCase() === 'development' && currentPort !== 5190);
-        
-        // 1. Clases en body y título de pestaña
-        if (isDev) {
-            document.body.classList.add('env-dev-active');
-            document.title = `[DEV] Rutas de Leche (${data.port || currentPort || 5188})`;
-        } else {
-            document.body.classList.remove('env-dev-active');
-            document.title = `Rutas de Leche - Sistema de Transporte`;
-        }
-
-        // 2. Badge en Header
-        const badgeHeader = document.getElementById('envBadgeHeader');
-        if (badgeHeader) {
-            if (isDev) {
-                badgeHeader.className = 'env-badge-header env-badge-dev';
-                badgeHeader.innerHTML = `<i class="fa-solid fa-code-branch"></i> <span>DEV (${data.port || 5188})</span>`;
-                badgeHeader.title = `Ambiente: Desarrollo | BD: ${data.database || 'BD_TRANSPORTE_DEV'} | Puerto: ${data.port || 5188}`;
-                badgeHeader.style.display = 'inline-flex';
-            } else {
-                badgeHeader.className = 'env-badge-header env-badge-prod';
-                badgeHeader.innerHTML = `<i class="fa-solid fa-shield-halved"></i> <span>PROD (${data.port || 5190})</span>`;
-                badgeHeader.title = `Ambiente: Producción | BD: ${data.database || 'BD_TRANSPORTE_PROD'} | Puerto: ${data.port || 5190}`;
-                badgeHeader.style.display = 'inline-flex';
-            }
-        }
-
-        // 3. Banner en Modal de Login
-        const badgeLogin = document.getElementById('envBadgeLogin');
-        if (badgeLogin) {
-            if (isDev) {
-                badgeLogin.className = 'env-login-banner env-login-banner-dev';
-                badgeLogin.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>AMBIENTE DE DESARROLLO (Puerto ${data.port || 5188} | BD: ${data.database || 'BD_TRANSPORTE_DEV'})</span>`;
-                badgeLogin.style.display = 'flex';
-            } else {
-                badgeLogin.style.display = 'none';
-            }
-        }
-    } catch (e) {
-        console.warn('No se pudo verificar el ambiente:', e);
-    }
+    document.title = 'Rutas de Leche - Sistema de Transporte';
+    document.body.classList.remove('env-dev-active');
+    const badgeHeader = document.getElementById('envBadgeHeader');
+    if (badgeHeader) badgeHeader.style.display = 'none';
+    const badgeLogin = document.getElementById('envBadgeLogin');
+    if (badgeLogin) badgeLogin.style.display = 'none';
 }
 window.detectarAmbienteYActualizarUI = detectarAmbienteYActualizarUI;
 
