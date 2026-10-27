@@ -991,50 +991,83 @@ function aplicarPermisosEnInterfaz() {
     const esAdmin = rol.includes('ADMIN') || rol === 'ADMINISTRADOR GENERAL';
 
     // 1. Visibilidad de Grupos de Menú
-    const puedeCatalogos = esAdmin || tienePermiso('FINCAS_VER') || tienePermiso('COMPANIAS_VER') || tienePermiso('CONDUCTORES_VER') || tienePermiso('BANCOS_VER');
-    const puedeAdelantos = esAdmin || tienePermiso('ADELANTOS_VER');
-    const puedeFinanzas = esAdmin || tienePermiso('LIQUIDACIONES_VER') || tienePermiso('CICLOS_VER');
-    const puedeSistema = esAdmin || tienePermiso('USUARIOS_VER');
-    const puedeBcv = esAdmin || tienePermiso('HISTORIAL_BCV_VER');
-    const puedeReceptoria = esAdmin || tienePermiso('ENTREGAS_VER');
-    const puedeControlRutas = esAdmin || tienePermiso('RUTAS_VER');
-    const puedeMermas = esAdmin || tienePermiso('REPORTES_VER');
+    const puedeOperaciones = esAdmin || tienePermiso('DASHBOARD_VER') || tienePermiso('RUTAS_VER') || tienePermiso('ENTREGAS_VER') || tienePermiso('BALANCE_LECHE_VER') || tienePermiso('CONTROL_RUTAS_VER') || tienePermiso('MERMAS_VER') || tienePermiso('TRAZABILIDAD_BUFALA_VER');
+    const puedeCatalogos = esAdmin || tienePermiso('FINCAS_VER') || tienePermiso('PROPIETARIOS_VER') || tienePermiso('CONDUCTORES_VER') || tienePermiso('CAMIONES_VER') || tienePermiso('COMPANIAS_VER') || tienePermiso('BANCOS_VER') || tienePermiso('EMPRESA_VER');
+    const puedeFinanzas = esAdmin || tienePermiso('CICLOS_VER') || tienePermiso('LIQUIDACIONES_VER') || tienePermiso('PAGOS_PERSONAL_VER') || tienePermiso('HISTORIAL_PAGOS_VER') || tienePermiso('ADMINISTRACION_VER');
+    const puedeAdelantos = esAdmin || tienePermiso('ADELANTOS_FINCAS_VER') || tienePermiso('ADELANTOS_PERSONAL_VER') || tienePermiso('ABONOS_COMPANIAS_VER') || tienePermiso('ADELANTOS_RECEPTORIA_VER') || tienePermiso('ABONOS_VER') || tienePermiso('HISTORIAL_ADELANTOS_VER') || tienePermiso('ADELANTOS_VER');
+    const puedeReportes = esAdmin || tienePermiso('REPORTES_VER') || tienePermiso('HISTORIAL_BCV_VER');
+    const puedeSistema = esAdmin || tienePermiso('USUARIOS_VER') || tienePermiso('PERMISOS_VER') || tienePermiso('CONFIGURACION_VER') || tienePermiso('SESION_VER');
+
+    const grpOperaciones = document.getElementById('grp-operaciones');
+    if (grpOperaciones) grpOperaciones.style.setProperty('display', puedeOperaciones ? '' : 'none', 'important');
 
     const grpCatalogos = document.getElementById('grp-catalogos');
     if (grpCatalogos) grpCatalogos.style.setProperty('display', puedeCatalogos ? '' : 'none', 'important');
 
+    const grpFinanzas = document.getElementById('grp-finanzas');
+    if (grpFinanzas) grpFinanzas.style.setProperty('display', puedeFinanzas ? '' : 'none', 'important');
+
     const grpAdelantos = document.getElementById('grp-adelantos');
     if (grpAdelantos) grpAdelantos.style.setProperty('display', puedeAdelantos ? '' : 'none', 'important');
 
-    const grpFinanzas = document.getElementById('grp-finanzas');
-    if (grpFinanzas) grpFinanzas.style.setProperty('display', puedeFinanzas ? '' : 'none', 'important');
+    const grpReportes = document.getElementById('grp-reportes');
+    if (grpReportes) grpReportes.style.setProperty('display', puedeReportes ? '' : 'none', 'important');
 
     const grpSistema = document.getElementById('grp-sistema');
     if (grpSistema) grpSistema.style.setProperty('display', puedeSistema ? '' : 'none', 'important');
 
     // 2. BCV Widget y botones
     const bcvWidget = document.getElementById('bcvWidget');
-    if (bcvWidget) bcvWidget.style.setProperty('display', puedeBcv ? '' : 'none', 'important');
+    if (bcvWidget) bcvWidget.style.setProperty('display', (esAdmin || tienePermiso('HISTORIAL_BCV_VER')) ? '' : 'none', 'important');
     const btnSyncBcv = document.getElementById('btnSyncBcvApi');
-    if (btnSyncBcv) btnSyncBcv.style.setProperty('display', (puedeBcv && (esAdmin || tienePermiso('HISTORIAL_BCV_CREAR'))) ? '' : 'none', 'important');
+    if (btnSyncBcv) btnSyncBcv.style.setProperty('display', (esAdmin || tienePermiso('HISTORIAL_BCV_CREAR')) ? '' : 'none', 'important');
     const btnEditarBcv = document.getElementById('btnEditarBcv');
-    if (btnEditarBcv) btnEditarBcv.style.setProperty('display', (puedeBcv && (esAdmin || tienePermiso('HISTORIAL_BCV_EDITAR'))) ? '' : 'none', 'important');
+    if (btnEditarBcv) btnEditarBcv.style.setProperty('display', (esAdmin || tienePermiso('HISTORIAL_BCV_EDITAR')) ? '' : 'none', 'important');
 
-    // 3. Links individuales
+    // 3. Links individuales para cada sub-menú (Mapeo exhaustivo a permisología)
     const mapTabs = {
-        'receptoria': puedeReceptoria,
-        'control-rutas': puedeControlRutas,
-        'mermas': puedeMermas,
-        'historial-bcv': puedeBcv,
+        // Operaciones
+        'dashboard': esAdmin || tienePermiso('DASHBOARD_VER'),
+        'rutas': esAdmin || tienePermiso('RUTAS_VER'),
+        'receptoria': esAdmin || tienePermiso('ENTREGAS_VER'),
+        'balance-receptoria': esAdmin || tienePermiso('BALANCE_LECHE_VER'),
+        'control-rutas': esAdmin || tienePermiso('CONTROL_RUTAS_VER') || tienePermiso('RUTAS_VER'),
+        'mermas': esAdmin || tienePermiso('MERMAS_VER') || tienePermiso('REPORTES_VER'),
+        'trazabilidad-bufala': esAdmin || tienePermiso('TRAZABILIDAD_BUFALA_VER') || tienePermiso('RUTAS_VER'),
+
+        // Catálogos & Flota
         'fincas': esAdmin || tienePermiso('FINCAS_VER'),
-        'companias': esAdmin || tienePermiso('COMPANIAS_VER'),
+        'propietarios': esAdmin || tienePermiso('PROPIETARIOS_VER') || tienePermiso('FINCAS_VER'),
         'conductores': esAdmin || tienePermiso('CONDUCTORES_VER'),
+        'camiones': esAdmin || tienePermiso('CAMIONES_VER') || tienePermiso('CONDUCTORES_VER'),
+        'companias': esAdmin || tienePermiso('COMPANIAS_VER'),
         'bancos': esAdmin || tienePermiso('BANCOS_VER'),
+        'empresa': esAdmin || tienePermiso('EMPRESA_VER'),
+
+        // Liquidación
+        'semanas': esAdmin || tienePermiso('CICLOS_VER'),
         'liquidacion': esAdmin || tienePermiso('LIQUIDACIONES_VER'),
-        'ciclos': esAdmin || tienePermiso('CICLOS_VER'),
-        'adelantos': esAdmin || tienePermiso('ADELANTOS_VER'),
+        'pagos-usuarios': esAdmin || tienePermiso('PAGOS_PERSONAL_VER') || tienePermiso('LIQUIDACIONES_VER'),
+        'historial-pagos': esAdmin || tienePermiso('HISTORIAL_PAGOS_VER') || tienePermiso('LIQUIDACIONES_VER'),
+        'administracion': esAdmin || tienePermiso('ADMINISTRACION_VER') || tienePermiso('LIQUIDACIONES_VER'),
+
+        // Adelantos
+        'adelantos-fincas': esAdmin || tienePermiso('ADELANTOS_FINCAS_VER') || tienePermiso('ADELANTOS_VER'),
+        'adelantos-usuarios': esAdmin || tienePermiso('ADELANTOS_PERSONAL_VER') || tienePermiso('ADELANTOS_VER'),
+        'abonos-companias': esAdmin || tienePermiso('ABONOS_COMPANIAS_VER') || tienePermiso('ADELANTOS_VER'),
+        'adelantos-receptoria': esAdmin || tienePermiso('ADELANTOS_RECEPTORIA_VER') || tienePermiso('ADELANTOS_VER'),
+        'abonos': esAdmin || tienePermiso('ABONOS_VER') || tienePermiso('ADELANTOS_VER'),
+        'historial-adelantos': esAdmin || tienePermiso('HISTORIAL_ADELANTOS_VER') || tienePermiso('ADELANTOS_VER'),
+
+        // Reportes
         'reportes': esAdmin || tienePermiso('REPORTES_VER'),
-        'usuarios_seguridad': esAdmin || tienePermiso('USUARIOS_VER')
+        'historial-bcv': esAdmin || tienePermiso('HISTORIAL_BCV_VER'),
+
+        // Sistema
+        'usuarios': esAdmin || tienePermiso('USUARIOS_VER') || tienePermiso('USUARIOS_SEGURIDAD_VER'),
+        'permisos': esAdmin || tienePermiso('PERMISOS_VER'),
+        'configuracion-sistema': esAdmin || tienePermiso('CONFIGURACION_VER'),
+        'configuracion-sesion': esAdmin || tienePermiso('SESION_VER')
     };
 
     Object.keys(mapTabs).forEach(tab => {
