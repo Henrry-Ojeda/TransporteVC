@@ -1627,11 +1627,14 @@ function aplicarFiltrosBandejaReceptoria() {
                                     <span style="color: #475569;">Litros en Quesera:</span>
                                     <strong style="color: #0f172a; font-size: 13px;">${recibidos.toLocaleString('es-VE')} Lts</strong>
                                 </div>
-                                <div style="display: flex; justify-content: space-between; margin-top: 3px;">
-                                    <span style="color: ${falla > 0 ? '#c2410c' : '#166534'}; font-weight: 700;">Falla / Merma:</span>
-                                    <strong style="color: ${falla > 0 ? '#ea580c' : '#16a34a'}; font-weight: 800;">
-                                        ${falla > 0 ? `-${falla.toLocaleString('es-VE')} Lts (${mermaPct}%)` : (falla < 0 ? `+${Math.abs(falla).toLocaleString('es-VE')} Lts` : '0 Lts (0%)')}
-                                    </strong>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                                    <span style="color: #475569; font-weight: 700;">Falla / Merma:</span>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span style="font-weight: 800; font-size: 12px; color: ${falla > 0 ? '#b91c1c' : '#047857'};">
+                                            ${falla > 0 ? `-${falla.toLocaleString('es-VE')} L` : (falla < 0 ? `+${Math.abs(falla).toLocaleString('es-VE')} L` : '0 L')}
+                                        </span>
+                                        ${typeof renderSemaforoMerma === 'function' ? renderSemaforoMerma(mermaPct, falla) : `<span class="badge">${mermaPct}%</span>`}
+                                    </div>
                                 </div>
                             </div>
                         ` : ''}

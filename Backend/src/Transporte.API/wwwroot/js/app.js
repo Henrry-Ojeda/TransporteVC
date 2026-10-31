@@ -38566,10 +38566,6 @@ function renderMatrizPermisos() {
                 </div>
             </div>
         `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
     });
 
     grid.innerHTML = html;

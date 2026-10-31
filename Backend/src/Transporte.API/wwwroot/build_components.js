@@ -39,28 +39,33 @@ const compiledHtml = template.replace(componentRegex, (match, componentPath) => 
 
 // Lista ordenada de scripts de componentes modulares
 const componentScripts = [
-    'src/utils/formatters.js?v=1.2.0',
+    'src/utils/formatters.js?v=1.4.0',
     'src/services/api.js?v=1.2.0',
     'src/modules/liquidaciones/liquidaciones.js?v=1.2.0',
     'src/modules/tiposLeche/tiposLeche.js?v=1.2.0',
     'src/components/core/AppCore.js?v=1.2.0',
     'src/components/dashboard/Dashboard.js?v=1.2.0',
-    'src/components/rutas/Rutas.js?v=1.2.0',
+    'src/components/rutas/Rutas.js?v=1.4.0',
+    'src/components/rutas/RutasLogistica.js?v=1.2.0',
     'src/components/semanas/Semanas.js?v=1.2.0',
     'src/components/adelantos/AbonosAdelantos.js?v=1.2.0',
     'src/components/adelantos/AdelantosCiclos.js?v=1.2.0',
     'src/components/catalogos/Catalogos.js?v=1.2.0',
-    'src/components/reportes/Reportes.js?v=1.2.0',
+    'src/components/reportes/Reportes.js?v=1.4.0',
     'src/components/chatbot/Chatbot.js?v=1.2.0',
     'src/components/seguridad/UsuariosCamiones.js?v=1.2.0',
-    'src/components/controlRutas/ViajesTickets.js?v=1.2.0',
+    'src/components/controlRutas/ViajesTickets.js?v=1.4.0',
     'src/components/controlRutas/ControlRutas.js?v=1.2.0',
     'src/components/balanceVolumetrico/BalanceVolumetrico.js?v=1.2.0',
     'src/components/rentabilidad/Rentabilidad.js?v=1.2.0',
     'src/components/pagosPersonal/PagosPersonal.js?v=1.2.0',
-    'src/components/seguridad/PermisosRbac.js?v=1.3.0',
+    'src/components/seguridad/PermisosRbac.js?v=1.4.0',
     'src/components/bufala/Bufala.js?v=1.2.0',
     'src/components/configuracion/ConfiguracionSistema.js?v=1.2.0',
+    'src/components/combustible/Combustible.js?v=1.2.0',
+    'src/components/mantenimiento/MantenimientoCamiones.js?v=1.2.0',
+    'src/components/repuestos/Repuestos.js?v=1.2.0',
+    'src/components/data/GestionData.js?v=1.4.1',
     'src/components/core/AppInit.js?v=1.2.0'
 ];
 
@@ -92,6 +97,7 @@ function copyFolderRecursiveSync(source, target) {
 
     const files = fs.readdirSync(source);
     files.forEach(file => {
+        if (file === 'node_modules' || file === '.git') return;
         const curSource = path.join(source, file);
         const curTarget = path.join(target, file);
 

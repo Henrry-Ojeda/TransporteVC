@@ -1352,6 +1352,7 @@ namespace Transporte.Core.DTOs
     {
         public DateTime? Fecha { get; set; }
         public int? ConductorId { get; set; }     // Admin puede asignar; Chofer usa su propio Id
+        public int? RutaLogisticaId { get; set; } // Ruta asignada (Zona Sur, etc.)
         public string? Observacion { get; set; }
     }
 

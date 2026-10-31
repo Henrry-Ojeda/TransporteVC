@@ -96,6 +96,10 @@ builder.Services.AddScoped<IControlCompaniasRepository, ControlCompaniasReposito
 builder.Services.AddScoped<IPagosUsuariosRepository, PagosUsuariosRepository>();
 builder.Services.AddScoped<IPermisosRepository, PermisosRepository>();
 builder.Services.AddScoped<IConfiguracionRepository, ConfiguracionRepository>();
+builder.Services.AddScoped<IRutasLogisticaRepository, RutasLogisticaRepository>();
+builder.Services.AddScoped<ICombustibleRepository, CombustibleRepository>();
+builder.Services.AddScoped<IMantenimientoCamionesRepository, MantenimientoCamionesRepository>();
+builder.Services.AddScoped<IRepuestosRepository, RepuestosRepository>();
 
 // 2. Controladores
 builder.Services.AddControllers();

@@ -42,12 +42,11 @@
 
                 <!-- CABECERA DE DATOS GENERALES (COMPACTA) -->
                 <div
-                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #ffffff; padding: 10px 14px; border-radius: 10px; margin-bottom: 10px; border: 1.5px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); position: relative; z-index: 50;">
+                    style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 12px; background: #ffffff; padding: 10px 14px; border-radius: 10px; margin-bottom: 10px; border: 1.5px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); position: relative; z-index: 50;">
                     <div>
                         <label
                             style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <i class="fa-solid fa-calendar-day" style="color: #2563eb; margin-right: 4px;"></i> FECHA DE
-                            RECOLECCIÓN *
+                            <i class="fa-solid fa-calendar-day" style="color: #2563eb; margin-right: 4px;"></i> FECHA *
                         </label>
                         <input type="date" id="inputMasivoFecha" class="form-input"
                             style="height: 36px; background: #ffffff; color: #0f172a; border: 1.5px solid #cbd5e1; border-radius: 7px; font-weight: 600; font-size: 13px;">
@@ -68,6 +67,16 @@
                             <div class="combobox-dropdown" id="dropdownMasivoConductorList" style="display: none;">
                             </div>
                         </div>
+                    </div>
+                    <div>
+                        <label
+                            style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fa-solid fa-map-location-dot" style="color: #059669; margin-right: 4px;"></i> RUTA / ZONA *
+                        </label>
+                        <select id="selectMasivoRutaLogistica" class="form-input" onchange="onCambiarRutaMasivo(this.value)"
+                            style="height: 36px; background: #ffffff; color: #0f172a; border: 1.5px solid #cbd5e1; border-radius: 7px; font-weight: 600; font-size: 13px; cursor: pointer;">
+                            <option value="">-- TODAS LAS FINCAS --</option>
+                        </select>
                     </div>
                 </div>
 
@@ -320,13 +329,32 @@
                                 style="display: none;"></div>
                         </div>
                     </div>
+                    <div class="iniciar-viaje-field">
+                        <label for="searchIniciarViajeRutaLogisticaInput" class="iniciar-viaje-label">
+                            <i class="fa-solid fa-map-location-dot" style="color: #059669; font-size: 14px;"></i> Ruta / Zona Asignada *
+                        </label>
+                        <div class="searchable-select" id="comboboxIniciarViajeRutaLogistica" style="position: relative;">
+                            <input type="hidden" id="selectIniciarViajeRutaLogistica" name="rutaLogisticaId" value="">
+                            <div class="combobox-input-wrapper">
+                                <input type="text" class="iniciar-viaje-input combobox-search"
+                                    id="searchIniciarViajeRutaLogisticaInput" placeholder="SELECCIONE O BUSQUE RUTA / ZONA..."
+                                    autocomplete="off">
+                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                            </div>
+                            <div class="combobox-dropdown" id="dropdownIniciarViajeRutaLogisticaList"
+                                style="display: none;"></div>
+                        </div>
+                        <div id="infoFincasRutaViaje" style="margin-top: 6px; font-size: 12px; color: #059669; font-weight: 600; display: none;">
+                            <i class="fa-solid fa-circle-check"></i> <span id="lblFincasRutaViaje">0 fincas asociadas</span>
+                        </div>
+                    </div>
                     <div class="iniciar-viaje-field" style="margin-bottom: 0;">
                         <label for="inputIniciarViajeObs" class="iniciar-viaje-label">
                             <i class="fa-regular fa-comment-dots" style="color: #64748b; font-size: 14px;"></i>
                             Observación Inicial (Opcional)
                         </label>
                         <input type="text" id="inputIniciarViajeObs" class="iniciar-viaje-input"
-                            placeholder="Ej: Ruta zona sur, salida 5:00 AM...">
+                            placeholder="Ej: Salida 5:00 AM...">
                     </div>
                 </div>
                 <div class="modal-custom-footer">
@@ -1414,5 +1442,163 @@
                     <i class="fa-solid fa-floppy-disk"></i> Guardar Modificación
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL RÁPIDO DE REGISTRO DE RECOLECCIÓN POR FINCA (RECOLECCIÓN VISUAL) -->
+    <div id="modalQuickRecoleccion" class="custom-modal-backdrop" style="display: none;">
+        <div class="modal-custom-content"
+            style="max-width: 480px; width: 95%; background: #ffffff; color: #1e293b; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 25px 60px rgba(15,23,42,0.35);">
+            <div class="modal-custom-header"
+                style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); display: flex; align-items: center; justify-content: center; color: #38bdf8; font-size: 20px;">
+                        <i class="fa-solid fa-cow"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; color: #ffffff; font-weight: 800; font-size: 16px;" id="modalQuickFincaTitulo">Registrar Recolección</h3>
+                        <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 12px;" id="modalQuickFincaSubtitulo">Propietario / Ganadero</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close-custom" onclick="cerrarModalCustom('modalQuickRecoleccion')"
+                    style="color: #ffffff; opacity: 0.85; background: transparent; border: none; font-size: 26px; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+
+            <form id="formQuickRecoleccion" onsubmit="guardarQuickRecoleccion(event)" style="margin: 0;">
+                <input type="hidden" id="quickRecoleccionFincaId" value="">
+                <div class="modal-custom-body" style="padding: 20px; background: #ffffff; display: flex; flex-direction: column; gap: 14px;">
+                    <!-- Input Litros Destacado -->
+                    <div>
+                        <label for="quickRecoleccionLitros" style="display: block; font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 6px;">
+                            <i class="fa-solid fa-droplet" style="color: #2563eb;"></i> Litros Recolectados *
+                        </label>
+                        <div style="position: relative;">
+                            <input type="number" id="quickRecoleccionLitros" class="form-input" required min="1" step="1" placeholder="Ej: 450"
+                                style="height: 52px; font-size: 26px; font-weight: 900; text-align: center; color: #047857; background: #f0fdf4; border: 2px solid #86efac; border-radius: 10px; padding-right: 50px;">
+                            <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: 16px; color: #059669;">Lts</span>
+                        </div>
+                    </div>
+
+                    <!-- Tipo Leche (si es dual) -->
+                    <div id="groupQuickTipoLeche" style="display: none;">
+                        <label for="quickRecoleccionTipoLeche" style="display: block; font-size: 12px; font-weight: 700; color: #2563eb; margin-bottom: 4px;">
+                            <i class="fa-solid fa-cow"></i> Tipo de Leche *
+                        </label>
+                        <select id="quickRecoleccionTipoLeche" class="form-input" style="height: 38px; font-weight: 700; background: #eff6ff; border: 1.5px solid #bfdbfe;">
+                            <option value="VACA">🐄 VACA</option>
+                            <option value="BUFALA">🐃 BÚFALA</option>
+                        </select>
+                    </div>
+
+                    <!-- Leche Ácida Toggle -->
+                    <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px 14px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; font-weight: 700; color: #b45309;">
+                            <input type="checkbox" id="quickRecoleccionEsAcida" style="width: 18px; height: 18px; accent-color: #d97706;">
+                            <span><i class="fa-solid fa-flask" style="color: #d97706;"></i> ¿Leche Ácida / Descarte?</span>
+                        </label>
+                    </div>
+
+                    <!-- Observación Opcional -->
+                    <div>
+                        <label for="quickRecoleccionObservacion" style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+                            Observación (Opcional)
+                        </label>
+                        <input type="text" id="quickRecoleccionObservacion" class="form-input" placeholder="Ej: Recogida tanque 2, orden normal..." style="height: 38px; font-size: 13px;">
+                    </div>
+                </div>
+
+                <div class="modal-custom-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalQuickRecoleccion')" style="padding: 0 16px; height: 40px; font-weight: 600; border-radius: 8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btnGuardarQuickRecoleccion" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; padding: 0 20px; height: 40px; font-weight: 800; border-radius: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); display: inline-flex; align-items: gap: 8px; color: #ffffff;">
+                        <i class="fa-solid fa-floppy-disk"></i> Guardar Recolección
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL PARA AGREGAR FINCA FUERA DE RUTA AL TICKET -->
+    <div id="modalAgregarFincaExtra" class="custom-modal-backdrop" style="display: none;">
+        <div class="modal-custom-content"
+            style="max-width: 520px; width: 95%; background: #ffffff; color: #1e293b; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 25px 60px rgba(15,23,42,0.35);">
+            <div class="modal-custom-header"
+                style="background: linear-gradient(135deg, #4f46e5, #3730a3); padding: 16px 20px; border-bottom: 1px solid #4338ca; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 20px;">
+                        <i class="fa-solid fa-map-pin"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; color: #ffffff; font-weight: 800; font-size: 16px;">Agregar Finca Fuera de Ruta</h3>
+                        <p style="margin: 2px 0 0 0; color: #c7d2fe; font-size: 12px;">Vincular al Ticket #<span id="lblTicketFincaExtraNum">--</span></p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close-custom" onclick="cerrarModalCustom('modalAgregarFincaExtra')"
+                    style="color: #ffffff; opacity: 0.85; background: transparent; border: none; font-size: 26px; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+
+            <form id="formAgregarFincaExtra" onsubmit="guardarFincaExtra(event)" style="margin: 0;">
+                <div class="modal-custom-body" style="padding: 20px; background: #ffffff; display: flex; flex-direction: column; gap: 14px;">
+                    <div style="background: #f5f3ff; border: 1.5px solid #ddd6fe; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: #5b21b6; line-height: 1.4;">
+                        <i class="fa-solid fa-circle-info" style="margin-right: 4px;"></i>
+                        Usa esta opción si el chofer recibió instrucción de recoger una finca de otra zona o no asignada originalmente al ticket.
+                    </div>
+
+                    <!-- Selector Buscable de Finca -->
+                    <div>
+                        <label for="searchFincaExtraInput" style="display: block; font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+                            Seleccione Finca / Ganadero *
+                        </label>
+                        <div class="searchable-select" id="comboboxFincaExtra">
+                            <input type="hidden" id="selectFincaExtra" name="fincaId" value="">
+                            <div class="combobox-input-wrapper">
+                                <input type="text" class="form-input combobox-search"
+                                    id="searchFincaExtraInput" placeholder="BUSCAR CUALQUIER FINCA..."
+                                    autocomplete="off">
+                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                            </div>
+                            <div class="combobox-dropdown" id="dropdownFincaExtraList" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Input Litros -->
+                    <div>
+                        <label for="inputLitrosExtra" style="display: block; font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 6px;">
+                            <i class="fa-solid fa-droplet" style="color: #4f46e5;"></i> Litros Recolectados *
+                        </label>
+                        <div style="position: relative;">
+                            <input type="number" id="inputLitrosExtra" class="form-input" required min="1" step="1" placeholder="Ej: 300"
+                                style="height: 48px; font-size: 22px; font-weight: 900; text-align: center; color: #4338ca; background: #f5f3ff; border: 2px solid #c7d2fe; border-radius: 10px; padding-right: 50px;">
+                            <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: 16px; color: #6366f1;">Lts</span>
+                        </div>
+                    </div>
+
+                    <!-- Leche Ácida Toggle -->
+                    <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px 14px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; font-weight: 700; color: #b45309;">
+                            <input type="checkbox" id="checkFincaExtraEsAcida" style="width: 18px; height: 18px; accent-color: #d97706;">
+                            <span><i class="fa-solid fa-flask" style="color: #d97706;"></i> ¿Leche Ácida / Descarte?</span>
+                        </label>
+                    </div>
+
+                    <!-- Observación -->
+                    <div>
+                        <label for="inputObservacionExtra" style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+                            Observación (Opcional)
+                        </label>
+                        <input type="text" id="inputObservacionExtra" class="form-input" placeholder="Ej: Asignada por contingencia..." style="height: 38px; font-size: 13px;">
+                    </div>
+                </div>
+
+                <div class="modal-custom-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalAgregarFincaExtra')" style="padding: 0 16px; height: 40px; font-weight: 600; border-radius: 8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btnGuardarFincaExtra" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3730a3); border: none; padding: 0 20px; height: 40px; font-weight: 800; border-radius: 8px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); display: inline-flex; align-items: center; gap: 8px; color: #ffffff;">
+                        <i class="fa-solid fa-plus-circle"></i> Agregar al Viaje
+                    </button>
+                </div>
+            </form>
         </div>
     </div>

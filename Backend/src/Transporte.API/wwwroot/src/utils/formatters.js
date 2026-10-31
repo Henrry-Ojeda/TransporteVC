@@ -100,6 +100,41 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+function obtenerToleranciaMerma() {
+    if (typeof window !== 'undefined') {
+        if (window.state && window.state.toleranciaMermaPorc != null) {
+            return Number(window.state.toleranciaMermaPorc);
+        }
+        if (window.toleranciaMermaConfig != null) {
+            return Number(window.toleranciaMermaConfig);
+        }
+        const guardado = localStorage.getItem('app_tolerancia_merma');
+        if (guardado) return Number(guardado);
+    }
+    return 3.0;
+}
+
+function renderSemaforoMerma(pctMerma, difLitros, customTolerancia = null) {
+    pctMerma = Number(pctMerma) || 0;
+    difLitros = Number(difLitros) || 0;
+    const tol = customTolerancia != null ? Number(customTolerancia) : obtenerToleranciaMerma();
+
+    // 1. A favor (ganancia en destino o quesera)
+    if (difLitros < 0) {
+        return `<span class="badge semaforo-merma semaforo-verde" style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; font-weight: 800; font-size: 11px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Excedente a favor"><span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;"></span>+${Math.abs(pctMerma).toFixed(2)}%</span>`;
+    }
+    // 2. Exacto sin merma
+    if (difLitros === 0 || pctMerma === 0) {
+        return `<span class="badge semaforo-merma semaforo-verde" style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; font-weight: 800; font-size: 11px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Sin merma"><span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;"></span>0.00%</span>`;
+    }
+    // 3. Merma menor o igual a la tolerancia permitida (AMARILLO)
+    if (pctMerma <= tol) {
+        return `<span class="badge semaforo-merma semaforo-amarillo" style="background: #fffbeb; color: #b45309; border: 1.5px solid #fde68a; font-weight: 800; font-size: 11px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Merma dentro de la tolerancia permitida (${tol.toFixed(2)}%)"><span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>-${pctMerma.toFixed(2)}%</span>`;
+    }
+    // 4. Merma que supera la tolerancia permitida (ROJO)
+    return `<span class="badge semaforo-merma semaforo-rojo" style="background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca; font-weight: 800; font-size: 11px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="¡ALERTA! Merma supera la tolerancia permitida (${tol.toFixed(2)}%)"><span style="width: 7px; height: 7px; border-radius: 50%; background: #ef4444; display: inline-block;"></span><i class="fa-solid fa-triangle-exclamation" style="font-size: 9px; margin-right: 1px;"></i>-${pctMerma.toFixed(2)}%</span>`;
+}
+
 // Exportación global en Browser
 if (typeof window !== 'undefined') {
     window.escapeHtml = escapeHtml;
@@ -109,6 +144,8 @@ if (typeof window !== 'undefined') {
     window.formatearNumero = formatearNumero;
     window.formatearFechaTicket = formatearFechaTicket;
     window.formatearMarkdownAnalista = formatearMarkdownAnalista;
+    window.obtenerToleranciaMerma = obtenerToleranciaMerma;
+    window.renderSemaforoMerma = renderSemaforoMerma;
 }
 
 // Exportación modular para bundlers / Node
@@ -120,6 +157,8 @@ if (typeof module !== 'undefined' && module.exports) {
         formatearFechaLocal,
         formatearNumero,
         formatearFechaTicket,
-        formatearMarkdownAnalista
+        formatearMarkdownAnalista,
+        obtenerToleranciaMerma,
+        renderSemaforoMerma
     };
 }

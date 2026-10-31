@@ -295,12 +295,68 @@ async function cargarParametrosSistema(forceRefresh = false) {
     const res = await apiFetch('/configuracion/parametros');
     if (res.ok && Array.isArray(res.data)) {
         window.parametrosSistemaDataCache = res.data;
+
+        // Sincronizar tolerancia de merma operativa para el semáforo
+        const paramTol = res.data.find(p => p.clave === 'TOLERANCIA_MERMA_PORCENTAJE' || p.clave === 'MERMA_PORCENTAJE_ALERTA');
+        if (paramTol && paramTol.valor) {
+            const valNum = parseFloat(paramTol.valor) || 3.0;
+            state.toleranciaMermaPorc = valNum;
+            window.toleranciaMermaConfig = valNum;
+            localStorage.setItem('app_tolerancia_merma', valNum);
+            const inputTol = document.getElementById('inputToleranciaMermaRapida');
+            if (inputTol) inputTol.value = valNum.toFixed(2);
+        }
+
         renderTablaParametrosSistema(window.parametrosSistemaDataCache);
     } else {
         renderTableError('tbodyParametrosSistema', 6, res.error || 'Error al cargar los parámetros del sistema.');
     }
 }
 window.cargarParametrosSistema = cargarParametrosSistema;
+
+async function guardarToleranciaMermaConfig() {
+    const inputTol = document.getElementById('inputToleranciaMermaRapida');
+    if (!inputTol) return;
+    const val = parseFloat(inputTol.value);
+    if (isNaN(val) || val <= 0) {
+        Swal.fire('Atención', 'Ingresa un porcentaje de tolerancia válido mayor a 0 (ej: 0.50, 1.50, 3.00).', 'warning');
+        return;
+    }
+
+    Swal.fire({
+        title: 'Guardando Tolerancia...',
+        text: 'Actualizando semáforo operativo de merma en el sistema...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    const res = await apiFetch('/configuracion/parametros', {
+        method: 'POST',
+        body: {
+            clave: 'TOLERANCIA_MERMA_PORCENTAJE',
+            valor: val.toFixed(2),
+            descripcion: 'Porcentaje de tolerancia para el semáforo de mermas (ej: 3.00%)',
+            categoria: 'RUTAS'
+        }
+    });
+
+    if (res.ok) {
+        state.toleranciaMermaPorc = val;
+        window.toleranciaMermaConfig = val;
+        localStorage.setItem('app_tolerancia_merma', val);
+        Swal.fire({
+            icon: 'success',
+            title: '¡Tolerancia Actualizada!',
+            html: `La tolerancia de merma se estableció en <strong>${val.toFixed(2)}%</strong>.<br>El semáforo de rutas, tickets y mermas aplicará este umbral.`,
+            confirmButtonColor: '#0284c7'
+        });
+        await cargarParametrosSistema(true);
+        if (typeof cargarControlViajesTickets === 'function') cargarControlViajesTickets();
+    } else {
+        Swal.fire('Error', res.error || 'No se pudo guardar la tolerancia de merma.', 'error');
+    }
+}
+window.guardarToleranciaMermaConfig = guardarToleranciaMermaConfig;
 
 /**
  * Genera el HTML de las filas de parámetros del sistema con diseño moderno.

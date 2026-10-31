@@ -51,6 +51,52 @@
 
                     <!-- 1. CONTENIDO: PARÁMETROS GLOBALES -->
                     <div id="subtab-config-parametros" class="config-subtab-pane">
+                        <!-- TARJETA ESPECIAL: SEMÁFORO DE TOLERANCIA DE MERMA -->
+                        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 14px; padding: 20px 24px; margin-bottom: 22px; color: #ffffff; border: 1.5px solid #334155; box-shadow: 0 10px 25px rgba(15,23,42,0.25);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                                <div style="display: flex; align-items: center; gap: 14px; max-width: 620px;">
+                                    <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(245, 158, 11, 0.2); border: 1.5px solid rgba(245, 158, 11, 0.4); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #f59e0b; flex-shrink: 0;">
+                                        <i class="fa-solid fa-traffic-light"></i>
+                                    </div>
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #ffffff; letter-spacing: -0.2px;">
+                                            Semáforo Operativo de Tolerancia de Merma
+                                        </h3>
+                                        <p style="margin: 4px 0 0 0; font-size: 12.5px; color: #cbd5e1; line-height: 1.4;">
+                                            Define el porcentaje máximo de pérdida permitido en las rutas. Los tickets se colorean automáticamente en el sistema:
+                                        </p>
+                                        <div style="display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; font-size: 11.5px; font-weight: 700;">
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; color: #34d399;">
+                                                <i class="fa-solid fa-circle" style="font-size: 8px;"></i> Verde: Sin merma o ganancia (0.00%)
+                                            </span>
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; color: #fbbf24;">
+                                                <i class="fa-solid fa-circle" style="font-size: 8px;"></i> Amarillo: Faltante &le; Tolerancia
+                                            </span>
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; color: #f87171;">
+                                                <i class="fa-solid fa-circle" style="font-size: 8px;"></i> Rojo: Alerta / Faltante &gt; Tolerancia
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="background: rgba(255,255,255,0.06); padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; gap: 12px;">
+                                    <div>
+                                        <label for="inputToleranciaMermaRapida" style="display: block; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">
+                                            Tolerancia Permitida (%)
+                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            <input type="number" id="inputToleranciaMermaRapida" step="0.01" min="0.01" max="25" value="3.00"
+                                                style="width: 95px; height: 38px; text-align: center; font-size: 17px; font-weight: 900; background: #0f172a; color: #38bdf8; border: 1.5px solid #0284c7; border-radius: 8px; outline: none;">
+                                            <span style="font-size: 18px; font-weight: 800; color: #38bdf8;">%</span>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-primary" onclick="guardarToleranciaMermaConfig()"
+                                        style="height: 40px; padding: 0 16px; font-weight: 700; background: linear-gradient(135deg, #0284c7, #0369a1); border: none; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(2,132,199,0.3); cursor: pointer; color: #fff;">
+                                        <i class="fa-solid fa-floppy-disk"></i> Guardar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="content-card"
                             style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
                             <div

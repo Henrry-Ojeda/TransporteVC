@@ -5,5 +5,8 @@
   "scripts": {
     "build": "node build_components.js",
     "watch": "node -e \"const fs=require('fs'); console.log('👀 Observando cambios en Frontend/src/...'); fs.watch('src', {recursive:true}, (e,f)=>{ if(f && !f.includes('index.html')) { console.log('⚡ Modificación en:', f); try { require('child_process').execSync('node build_components.js', {stdio:'inherit'}); } catch(err){} } });\""
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }

@@ -1418,6 +1418,7 @@ function onUserAuthenticated(user, isFreshLogin = false) {
     cargarCicloActivo();
     cargarCatalogos();
     initBcvSyncButton();
+    cargarToleranciaMermaGlobal();
 
     initNavigation();
 
@@ -1432,6 +1433,26 @@ function onUserAuthenticated(user, isFreshLogin = false) {
 
     irAPestana(targetTab, false);
 }
+
+async function cargarToleranciaMermaGlobal() {
+    try {
+        const res = await apiFetch('/configuracion/parametros');
+        if (res.ok && Array.isArray(res.data)) {
+            const p = res.data.find(x => x.clave === 'TOLERANCIA_MERMA_PORCENTAJE' || x.clave === 'MERMA_PORCENTAJE_ALERTA');
+            if (p && p.valor) {
+                const val = parseFloat(p.valor) || 3.0;
+                state.toleranciaMermaPorc = val;
+                window.toleranciaMermaConfig = val;
+                localStorage.setItem('app_tolerancia_merma', val);
+                const inputTol = document.getElementById('inputToleranciaMermaRapida');
+                if (inputTol) inputTol.value = val.toFixed(2);
+            }
+        }
+    } catch(e) {
+        console.warn('No se pudo cargar la tolerancia de merma:', e);
+    }
+}
+window.cargarToleranciaMermaGlobal = cargarToleranciaMermaGlobal;
 
 function toggleMobileSidebar(forceState) {
     const sidebar = document.getElementById('mainSidebar') || document.querySelector('.sidebar');
@@ -1618,6 +1639,16 @@ function irAPestana(tabId, updateUrlOrEvent = true) {
         cargarAdministracionGeneral();
     } else if (cleanTabId === 'configuracion-sistema' || cleanTabId === 'parametros-sistema' || cleanTabId === 'parametrizacion') {
         cargarModuloConfiguracionSistema();
+    } else if (cleanTabId === 'rutas-planificacion' || cleanTabId === 'planificacion-rutas') {
+        if (typeof cargarRutasPlanificacion === 'function') cargarRutasPlanificacion();
+    } else if (cleanTabId === 'combustible') {
+        if (typeof cargarModuloCombustible === 'function') cargarModuloCombustible();
+    } else if (cleanTabId === 'historial-camiones' || cleanTabId === 'mantenimiento-flota') {
+        if (typeof cargarModuloMantenimiento === 'function') cargarModuloMantenimiento();
+    } else if (cleanTabId === 'repuestos' || cleanTabId === 'inventario-repuestos') {
+        if (typeof cargarModuloRepuestos === 'function') cargarModuloRepuestos();
+    } else if (cleanTabId === 'gestion-data' || cleanTabId === 'data' || cleanTabId === 'importar-data') {
+        if (typeof inicializarModuloGestionData === 'function') inicializarModuloGestionData();
     }
 }
 window.irAPestana = irAPestana;

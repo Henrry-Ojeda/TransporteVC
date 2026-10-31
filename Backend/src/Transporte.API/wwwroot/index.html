@@ -248,7 +248,7 @@
                     <div class="nav-accordion-group" id="grp-flota">
                         <div class="nav-accordion-header" onclick="toggleAccordionClick('grp-flota')">
                             <div class="header-main">
-                                <i class="fa-solid fa-truck-wrench group-icon" style="color: #f97316;"></i>
+                                <i class="fa-solid fa-screwdriver-wrench group-icon icon-op"></i>
                                 <span class="group-title">Flota &amp; Mantenimiento</span>
                             </div>
                             <i class="fa-solid fa-chevron-right group-chevron"></i>
@@ -409,6 +409,11 @@
                                     onclick="irAPestana('configuracion-sistema', event); return false;">
                                     <i class="fa-solid fa-sliders" style="color: #a855f7;"></i>
                                     <span>Parametrización Global</span>
+                                </a>
+                                <a href="#gestion-data" class="nav-item" data-tab="gestion-data"
+                                    onclick="irAPestana('gestion-data', event); return false;">
+                                    <i class="fa-solid fa-file-excel" style="color: #10b981;"></i>
+                                    <span>Gesti&oacute;n de Data (Excel)</span>
                                 </a>
                                 <a href="javascript:void(0)" class="nav-item" data-tab="configuracion-sesion"
                                     onclick="abrirModalConfiguracionSesion(event); return false;">
@@ -1215,6 +1220,52 @@
 
                     <!-- 1. CONTENIDO: PARÁMETROS GLOBALES -->
                     <div id="subtab-config-parametros" class="config-subtab-pane">
+                        <!-- TARJETA ESPECIAL: SEMÁFORO DE TOLERANCIA DE MERMA -->
+                        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 14px; padding: 20px 24px; margin-bottom: 22px; color: #ffffff; border: 1.5px solid #334155; box-shadow: 0 10px 25px rgba(15,23,42,0.25);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                                <div style="display: flex; align-items: center; gap: 14px; max-width: 620px;">
+                                    <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(245, 158, 11, 0.2); border: 1.5px solid rgba(245, 158, 11, 0.4); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #f59e0b; flex-shrink: 0;">
+                                        <i class="fa-solid fa-traffic-light"></i>
+                                    </div>
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #ffffff; letter-spacing: -0.2px;">
+                                            Semáforo Operativo de Tolerancia de Merma
+                                        </h3>
+                                        <p style="margin: 4px 0 0 0; font-size: 12.5px; color: #cbd5e1; line-height: 1.4;">
+                                            Define el porcentaje máximo de pérdida permitido en las rutas. Los tickets se colorean automáticamente en el sistema:
+                                        </p>
+                                        <div style="display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; font-size: 11.5px; font-weight: 700;">
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; color: #34d399;">
+                                                <i class="fa-solid fa-circle" style="font-size: 8px;"></i> Verde: Sin merma o ganancia (0.00%)
+                                            </span>
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; color: #fbbf24;">
+                                                <i class="fa-solid fa-circle" style="font-size: 8px;"></i> Amarillo: Faltante &le; Tolerancia
+                                            </span>
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; color: #f87171;">
+                                                <i class="fa-solid fa-circle" style="font-size: 8px;"></i> Rojo: Alerta / Faltante &gt; Tolerancia
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="background: rgba(255,255,255,0.06); padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; gap: 12px;">
+                                    <div>
+                                        <label for="inputToleranciaMermaRapida" style="display: block; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">
+                                            Tolerancia Permitida (%)
+                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            <input type="number" id="inputToleranciaMermaRapida" step="0.01" min="0.01" max="25" value="3.00"
+                                                style="width: 95px; height: 38px; text-align: center; font-size: 17px; font-weight: 900; background: #0f172a; color: #38bdf8; border: 1.5px solid #0284c7; border-radius: 8px; outline: none;">
+                                            <span style="font-size: 18px; font-weight: 800; color: #38bdf8;">%</span>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-primary" onclick="guardarToleranciaMermaConfig()"
+                                        style="height: 40px; padding: 0 16px; font-weight: 700; background: linear-gradient(135deg, #0284c7, #0369a1); border: none; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(2,132,199,0.3); cursor: pointer; color: #fff;">
+                                        <i class="fa-solid fa-floppy-disk"></i> Guardar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="content-card"
                             style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
                             <div
@@ -1568,6 +1619,171 @@
 
                     <!-- VISTA B: FORMULARIO Y TABLA DETALLADA (ENVUELTOS EN CONTENEDOR) -->
                     <div id="seccionFincasDetalleRutas" style="display: none;">
+
+                        <!-- PANEL VISUAL DE RECOLECCIÓN EN RUTA (MODERNO PARA CHOFER / TICKETS) -->
+                        <div id="panelRecoleccionVisualRuta" style="display: none; margin-bottom: 24px;">
+                            <!-- MANDO SUPERIOR DEL TICKET ACTIVO -->
+                            <div class="content-card" style="padding: 0; overflow: hidden; border-radius: 14px; margin-bottom: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1.5px solid #cbd5e1;">
+                                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e1b4b 100%); padding: 18px 24px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                                    <div>
+                                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px;">
+                                            <span style="background: #2563eb; color: #fff; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
+                                                <i class="fa-solid fa-ticket"></i> TICKET #<span id="lblVisualTicketId">--</span>
+                                            </span>
+                                            <span id="badgeVisualRutaNombre" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(147, 197, 253, 0.4); color: #93c5fd; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">
+                                                <i class="fa-solid fa-route"></i> Ruta: <span id="lblVisualRutaNombre">Cargando...</span>
+                                            </span>
+                                            <span id="badgeVisualChoferNombre" style="background: rgba(255, 255, 255, 0.1); color: #f1f5f9; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px;">
+                                                <i class="fa-solid fa-user"></i> Chofer: <span id="lblVisualChoferNombre">--</span>
+                                            </span>
+                                            <span id="badgeVisualFecha" style="background: rgba(255, 255, 255, 0.1); color: #cbd5e1; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px;">
+                                                <i class="fa-regular fa-calendar"></i> <span id="lblVisualFecha">--</span>
+                                            </span>
+                                        </div>
+                                        <h2 style="margin: 0; font-size: 21px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fa-solid fa-truck-droplet" style="color: #38bdf8;"></i> Recolecci&oacute;n en Ruta en Vivo
+                                        </h2>
+                                    </div>
+                                    
+                                    <!-- Botones de Acción Superior -->
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <button type="button" class="btn" onclick="abrirModalAgregarFincaExtra()"
+                                            style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; font-weight: 700; font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: none; box-shadow: 0 4px 12px rgba(109,40,217,0.3); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s ease;">
+                                            <i class="fa-solid fa-plus-circle"></i> + Agregar Otra Finca (Fuera de Ruta)
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="abrirModalRutasMasivo()"
+                                            style="background: rgba(255,255,255,0.08); color: #ffffff; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                                            <i class="fa-solid fa-bolt" style="color: #facc15;"></i> Carga Masiva
+                                        </button>
+                                        <button type="button" class="btn btn-outline" id="btnToggleFormularioManual" onclick="toggleFormularioManualVisual()"
+                                            style="background: rgba(255,255,255,0.08); color: #ffffff; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;"
+                                            title="Ver formulario manual clásico">
+                                            <i class="fa-solid fa-sliders"></i> Formulario Manual
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="conmutarVistaRutas('viajes')"
+                                            style="background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.2); font-weight: 600; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                                            <i class="fa-solid fa-arrow-left"></i> Volver a Viajes
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- KPIS EN TIEMPO REAL Y BARRA DE PROGRESO -->
+                                <div style="background: #ffffff; padding: 16px 24px; border-bottom: 1px solid #f1f5f9; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; align-items: center;">
+                                    <!-- KPI 1: Litros en Tanque -->
+                                    <div style="display: flex; align-items: center; gap: 14px; background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 10px 16px;">
+                                        <div style="width: 44px; height: 44px; border-radius: 10px; background: #dcfce7; display: flex; align-items: center; justify-content: center; color: #15803d; font-size: 20px;">
+                                            <i class="fa-solid fa-gas-pump"></i>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Litros en Tanque</div>
+                                            <div style="font-size: 22px; font-weight: 900; color: #15803d; line-height: 1.1;">
+                                                <span id="kpiVisualLitrosTanque">0</span> <span style="font-size: 14px; font-weight: 700;">Lts</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- KPI 2: Fincas Recogidas -->
+                                    <div style="display: flex; align-items: center; gap: 14px; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 10px 16px;">
+                                        <div style="width: 44px; height: 44px; border-radius: 10px; background: #dbeafe; display: flex; align-items: center; justify-content: center; color: #1d4ed8; font-size: 20px;">
+                                            <i class="fa-solid fa-list-check"></i>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 11px; font-weight: 700; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px;">Fincas Recogidas</div>
+                                            <div style="font-size: 20px; font-weight: 900; color: #1d4ed8; line-height: 1.1;">
+                                                <span id="kpiVisualFincasConteo">0 / 0</span> <span style="font-size: 13px; font-weight: 600; color: #64748b;">fincas</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- KPI 3: Progreso Porcentual -->
+                                    <div style="grid-column: span 2; min-width: 250px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                            <span style="font-size: 12px; font-weight: 700; color: #475569;">
+                                                <i class="fa-solid fa-chart-line" style="color: #2563eb;"></i> Avance de la Ruta:
+                                            </span>
+                                            <span id="lblVisualPorcentajeAvance" style="font-size: 13.5px; font-weight: 800; color: #2563eb;">0%</span>
+                                        </div>
+                                        <div style="height: 10px; width: 100%; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                                            <div id="barVisualProgresoRuta" style="height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.4s ease; border-radius: 999px;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- FILTRO DE PESTAÑAS Y BUSCADOR VISUAL DE FINCAS -->
+                                <div style="background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                                    <div style="display: inline-flex; background: #ffffff; padding: 3px; border-radius: 8px; border: 1px solid #cbd5e1; gap: 4px;">
+                                        <button type="button" class="btn btn-sm btn-visual-tab active" id="tabVisualFincas_todas" onclick="filtrarVisualFincasTab('todas')"
+                                            style="font-weight: 700; height: 32px; padding: 0 14px; border-radius: 6px; border: none; background: #2563eb; color: #ffffff; cursor: pointer; font-size: 12.5px; transition: all 0.2s ease;">
+                                            Todas (<span id="cntVisualTab_todas">0</span>)
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-visual-tab" id="tabVisualFincas_pendientes" onclick="filtrarVisualFincasTab('pendientes')"
+                                            style="font-weight: 600; height: 32px; padding: 0 14px; border-radius: 6px; border: none; background: transparent; color: #475569; cursor: pointer; font-size: 12.5px; transition: all 0.2s ease;">
+                                            ⏳ Pendientes (<span id="cntVisualTab_pendientes">0</span>)
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-visual-tab" id="tabVisualFincas_recogidas" onclick="filtrarVisualFincasTab('recogidas')"
+                                            style="font-weight: 600; height: 32px; padding: 0 14px; border-radius: 6px; border: none; background: transparent; color: #166534; cursor: pointer; font-size: 12.5px; transition: all 0.2s ease;">
+                                            ✓ Recogidas (<span id="cntVisualTab_recogidas">0</span>)
+                                        </button>
+                                    </div>
+
+                                    <div style="position: relative; min-width: 260px; max-width: 420px; flex: 1;">
+                                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px;"></i>
+                                        <input type="text" id="inputBuscarVisualFincas" class="form-input" placeholder="Buscar finca por nombre o propietario..."
+                                            oninput="onFiltrarVisualFincasInput(this.value)"
+                                            style="height: 36px; padding-left: 36px; font-size: 13px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px;">
+                                    </div>
+                                </div>
+
+                                <!-- CONTENEDOR EN REJILLA DE TARJETAS DE FINCAS -->
+                                <div id="gridVisualFincasAsignadas" style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; background: #f8fafc; min-height: 180px;">
+                                    <div style="grid-column: 1 / -1; text-align: center; padding: 30px; color: #94a3b8; font-size: 14px;">
+                                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px; display: block; color: #3b82f6;"></i>
+                                        Cargando fincas asignadas de la ruta...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- HISTORIAL EN VIVO DE RECOLECCIONES DE ESTE VIAJE -->
+                            <div class="content-card" style="padding: 0; overflow: hidden; border-radius: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: 1.5px solid #cbd5e1;">
+                                <div style="background: #ffffff; padding: 14px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                    <div style="font-size: 15px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fa-solid fa-clock-rotate-left" style="color: #2563eb;"></i> Historial en Vivo de Recolecciones
+                                        <span class="badge" id="badgeTotalRecoleccionesHistorial" style="background: #eff6ff; color: #1d4ed8; font-weight: 800; font-size: 12px; padding: 3px 9px; border-radius: 6px;">0</span>
+                                    </div>
+                                    <div style="font-size: 12.5px; color: #64748b; font-weight: 600;">
+                                        Registro cronol&oacute;gico en tiempo real de la leche ingresada
+                                    </div>
+                                </div>
+                                <div class="table-responsive" style="padding: 0; margin: 0; max-height: 380px; overflow-y: auto;">
+                                    <table class="modern-table" style="margin: 0; border: none; width: 100%;" id="tablaHistorialEnVivoTicket">
+                                        <thead>
+                                            <tr style="background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 700; text-transform: uppercase;">
+                                                <th style="width: 48px; text-align: center;">#</th>
+                                                <th>FINCA / GANADERO</th>
+                                                <th style="text-align: right; width: 120px;">LITROS</th>
+                                                <th style="text-align: center; width: 120px;">TIPO / CONDICIÓN</th>
+                                                <th>OBSERVACIÓN</th>
+                                                <th style="width: 110px; text-align: center;">ACCIONES</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbodyHistorialEnVivoTicket">
+                                            <tr>
+                                                <td colspan="6" style="text-align: center; padding: 24px; color: #94a3b8; font-size: 13px;">
+                                                    A&uacute;n no se han registrado recolecciones en este viaje. Selecciona una finca para comenzar.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot id="tfootHistorialEnVivoTicket" style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1; display: none;">
+                                            <tr>
+                                                <td colspan="2" style="text-align: right; padding: 10px 16px; color: #1e293b; font-size: 13px;">TOTAL EN CAMIÓN:</td>
+                                                <td style="text-align: right; padding: 10px 16px; color: #15803d; font-size: 15px;" id="lblHistorialTotalLitros">0 Lts</td>
+                                                <td colspan="3"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- CARD 1: FORMULARIO DE CAPTURA (RUTAS) -->
                         <div class="content-card" id="cardFormularioCapturaRutas"
@@ -1949,6 +2165,220 @@
 <!-- FIN COMPONENTE: rutas/Rutas -->
 
             
+<!-- INICIO COMPONENTE: rutas/RutasPlanificacion -->
+<section id="tab-rutas-planificacion" class="tab-content">
+    <div class="view-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 22px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                </div>
+                <div>
+                    <h1 class="view-title" style="margin: 0; font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.3px;">Planificación de Rutas y Zonas</h1>
+                    <p class="view-subtitle" style="margin: 2px 0 0 0; font-size: 13px; color: #64748b;">Gestión de zonas de recolección (Zona Sur, La Playa, Zona Norte, etc.) y asignación de fincas operativas</p>
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" class="btn btn-secondary" onclick="cargarRutasPlanificacion()" style="height: 38px; padding: 0 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #334155;">
+                <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+            </button>
+            <button type="button" class="btn btn-primary" onclick="abrirModalNuevaRutaLogistica()" style="height: 38px; padding: 0 18px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; border-radius: 8px; color: #ffffff; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(37,99,235,0.35);">
+                <i class="fa-solid fa-plus-circle"></i> Nueva Ruta / Zona
+            </button>
+        </div>
+    </div>
+
+    <!-- TARJETAS DE INDICADORES (KPIS) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div style="background: #ffffff; border-radius: 14px; border: 1.5px solid #e2e8f0; padding: 18px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Rutas / Zonas Activas</span>
+                <div id="kpiTotalRutasActivas" style="font-size: 26px; font-weight: 900; color: #1e293b; margin-top: 4px;">0</div>
+                <span style="font-size: 11.5px; color: #2563eb; font-weight: 600;">Circuitos de recolección</span>
+            </div>
+            <div style="width: 48px; height: 48px; border-radius: 12px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 22px;">
+                <i class="fa-solid fa-route"></i>
+            </div>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 14px; border: 1.5px solid #e2e8f0; padding: 18px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Fincas Vinculadas a Rutas</span>
+                <div id="kpiTotalFincasEnRutas" style="font-size: 26px; font-weight: 900; color: #059669; margin-top: 4px;">0</div>
+                <span style="font-size: 11.5px; color: #059669; font-weight: 600;">Asignadas a un circuito</span>
+            </div>
+            <div style="width: 48px; height: 48px; border-radius: 12px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 22px;">
+                <i class="fa-solid fa-cow"></i>
+            </div>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 14px; border: 1.5px solid #e2e8f0; padding: 18px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Fincas Sin Ruta Asignada</span>
+                <div id="kpiTotalFincasSinRuta" style="font-size: 26px; font-weight: 900; color: #d97706; margin-top: 4px;">0</div>
+                <span style="font-size: 11.5px; color: #d97706; font-weight: 600;">Pendientes de asignación</span>
+            </div>
+            <div style="width: 48px; height: 48px; border-radius: 12px; background: #fffbeb; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 22px;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABLA PRINCIPAL DE RUTAS LOGÍSTICAS -->
+    <div style="background: #ffffff; border-radius: 14px; border: 1.5px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,0.03); overflow: hidden;">
+        <!-- BARRA DE BÚSQUEDA Y ACCIONES -->
+        <div style="padding: 16px 20px; border-bottom: 1.5px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; background: #fafafa;">
+            <div style="position: relative; width: 320px; max-width: 100%;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 14px;"></i>
+                <input type="text" id="filtroBuscadorRutasPlan" placeholder="Buscar por nombre o código de ruta..." oninput="filtrarTablaRutasPlan(this.value)"
+                    style="width: 100%; height: 38px; padding-left: 38px; padding-right: 14px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13px; color: #1e293b; background: #ffffff;">
+            </div>
+            <div style="font-size: 12.5px; color: #64748b; font-weight: 600;">
+                <span id="lblTotalRutasRegistradas">0</span> rutas registradas
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; margin: 0;">
+                <thead>
+                    <tr style="background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569;">
+                        <th style="padding: 14px 18px; width: 60px;">Color</th>
+                        <th style="padding: 14px 18px;">Ruta / Zona</th>
+                        <th style="padding: 14px 18px;">Código</th>
+                        <th style="padding: 14px 18px;">Descripción</th>
+                        <th style="padding: 14px 18px; text-align: center;">Fincas Vinculadas</th>
+                        <th style="padding: 14px 18px; text-align: center;">Estado</th>
+                        <th style="padding: 14px 18px; text-align: right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyRutasPlanificacion">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 30px; color: #64748b;">
+                            <i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Cargando rutas logísticas...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ======================================================================= -->
+<!-- MODALES DEL MÓDULO DE PLANIFICACIÓN DE RUTAS -->
+<!-- ======================================================================= -->
+
+<!-- 1. MODAL CREAR / EDITAR RUTA LOGÍSTICA -->
+<div id="modalRutaLogisticaForm" class="custom-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.65); backdrop-filter: blur(4px); z-index: 1050; align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: #ffffff; border-radius: 16px; border: 1.5px solid #e2e8f0; width: 100%; max-width: 520px; box-shadow: 0 25px 60px rgba(15,23,42,0.3); overflow: hidden; display: flex; flex-direction: column;">
+        <div style="padding: 16px 22px; background: linear-gradient(135deg, #1e293b, #0f172a); color: #fff; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fa-solid fa-map-location-dot" style="color: #60a5fa; font-size: 18px;"></i>
+                <h3 id="modalRutaFormTitulo" style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Nueva Ruta / Zona</h3>
+            </div>
+            <button type="button" onclick="cerrarModalCustom('modalRutaLogisticaForm')" style="background: transparent; border: none; color: #cbd5e1; font-size: 24px; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+        <form id="formRutaLogistica" onsubmit="guardarRutaLogistica(event)" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; margin: 0;">
+            <input type="hidden" id="inputRutaId" value="">
+            
+            <div>
+                <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase;">Nombre de la Ruta / Zona *</label>
+                <input type="text" id="inputRutaNombre" required placeholder="Ej: Zona Sur, La Playa, Zona Norte..."
+                    style="width: 100%; height: 38px; padding: 0 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13.5px; font-weight: 600; color: #0f172a;">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                    <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase;">Código Identificador</label>
+                    <input type="text" id="inputRutaCodigo" placeholder="Ej: RUTA_SUR"
+                        style="width: 100%; height: 38px; padding: 0 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-weight: 600; color: #0f172a; text-transform: uppercase;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase;">Color de Identificación</label>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="color" id="inputRutaColor" value="#2563eb" style="width: 44px; height: 38px; padding: 2px; border: 1.5px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;">
+                        <span id="lblRutaColorHex" style="font-family: monospace; font-size: 12px; font-weight: 700; color: #475569;">#2563eb</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; text-transform: uppercase;">Descripción Operativa (Opcional)</label>
+                <textarea id="inputRutaDescripcion" rows="2" placeholder="Detalles de sectores, puntos de referencia o fincas clave..."
+                    style="width: 100%; padding: 8px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13px; color: #0f172a; resize: vertical;"></textarea>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <input type="checkbox" id="checkRutaActiva" checked style="width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer;">
+                <label for="checkRutaActiva" style="font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; margin: 0;">Ruta activa y disponible para viajes</label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 14px; border-top: 1.5px solid #f1f5f9;">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalCustom('modalRutaLogisticaForm')" style="height: 38px; padding: 0 16px; border-radius: 8px;">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="height: 38px; padding: 0 20px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; border-radius: 8px; color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Ruta
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 2. MODAL ASIGNAR FINCAS A RUTA -->
+<div id="modalAsignarFincasRuta" class="custom-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.65); backdrop-filter: blur(4px); z-index: 1050; align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: #ffffff; border-radius: 16px; border: 1.5px solid #e2e8f0; width: 100%; max-width: 680px; max-height: 90vh; box-shadow: 0 25px 60px rgba(15,23,42,0.3); overflow: hidden; display: flex; flex-direction: column;">
+        <div style="padding: 16px 22px; background: linear-gradient(135deg, #1e293b, #0f172a); color: #fff; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="modalAsignarColorBadge" style="width: 16px; height: 16px; border-radius: 50%; background: #2563eb; border: 2px solid #fff;"></div>
+                <div>
+                    <h3 id="modalAsignarRutaTitulo" style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Asignar Fincas a Ruta: Zona Sur</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 11.5px; color: #94a3b8;">Marca las fincas que pertenecen a este recorrido para que el chofer las vea al abrir el ticket</p>
+                </div>
+            </div>
+            <button type="button" onclick="cerrarModalCustom('modalAsignarFincasRuta')" style="background: transparent; border: none; color: #cbd5e1; font-size: 24px; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+
+        <!-- BARRA DE ACCIÓN Y BÚSQUEDA RÁPIDA DE FINCAS -->
+        <div style="padding: 12px 18px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; flex-shrink: 0;">
+            <div style="position: relative; width: 280px; max-width: 100%;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px;"></i>
+                <input type="text" id="filtroBuscadorFincasAsignar" placeholder="Buscar finca por nombre o código..." oninput="filtrarListaFincasAsignar(this.value)"
+                    style="width: 100%; height: 34px; padding-left: 34px; padding-right: 12px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 12.5px; color: #0f172a; background: #ffffff;">
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-sm" onclick="marcarTodasFincasRuta(true)" style="height: 32px; padding: 0 10px; font-size: 11.5px; font-weight: 700; border: 1px solid #cbd5e1; background: #ffffff; color: #2563eb; border-radius: 6px;">
+                    <i class="fa-solid fa-check-double"></i> Marcar Todas
+                </button>
+                <button type="button" class="btn btn-sm" onclick="marcarTodasFincasRuta(false)" style="height: 32px; padding: 0 10px; font-size: 11.5px; font-weight: 700; border: 1px solid #cbd5e1; background: #ffffff; color: #64748b; border-radius: 6px;">
+                    <i class="fa-solid fa-square-minus"></i> Desmarcar
+                </button>
+                <span id="badgeContadorFincasSeleccionadas" style="padding: 4px 10px; border-radius: 20px; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 800; border: 1px solid #bfdbfe;">
+                    0 Seleccionadas
+                </span>
+            </div>
+        </div>
+
+        <!-- LISTA CON CHECKBOXES CON SCROLL -->
+        <div id="listaFincasAsignarWrapper" style="padding: 14px 18px; overflow-y: auto; flex: 1; min-height: 280px; max-height: 55vh; display: flex; flex-direction: column; gap: 8px;">
+            <div style="text-align: center; padding: 30px; color: #64748b;">
+                <i class="fa-solid fa-spinner fa-spin"></i> Cargando lista de fincas...
+            </div>
+        </div>
+
+        <div style="padding: 14px 20px; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <span style="font-size: 12px; color: #64748b;">Las fincas desmarcadas quedarán sin ruta asignada.</span>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalCustom('modalAsignarFincasRuta')" style="height: 38px; padding: 0 16px; border-radius: 8px;">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarAsignacionFincasRuta()" style="height: 38px; padding: 0 20px; font-weight: 700; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 8px; color: #fff; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
+                    <i class="fa-solid fa-check"></i> Confirmar Asignación
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FIN COMPONENTE: rutas/RutasPlanificacion -->
+
+            
 <!-- INICIO COMPONENTE: receptoria/Receptoria -->
                 <!-- VISTA 2.5: RECEPTORIA (ENTREGAS EN COMPAÑÍAS / PLANTAS) -->
                 <section id="tab-receptoria" class="tab-content">
@@ -2255,9 +2685,10 @@
                                         style="color: #fde047; font-weight: 800; font-size: 15px;">0</strong> Lts
                                 </span>
                                 <span
-                                    style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(255, 255, 255, 0.3); padding: 5px 12px; border-radius: 8px; font-weight: 600; color: #ffffff;">
+                                    style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(255, 255, 255, 0.3); padding: 5px 12px; border-radius: 8px; font-weight: 600; color: #ffffff; display: inline-flex; align-items: center; gap: 6px;">
                                     Diferencia: <strong id="kpiDiferenciaReceptoriaHeader"
                                         style="color: #34d399; font-weight: 800; font-size: 15px;">0 Lts</strong>
+                                    <span id="kpiSemaforoReceptoriaHeader"></span>
                                 </span>
                                 <span id="badgeTotalFiltradoEntregas"
                                     style="display: none; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(56, 189, 248, 0.5); padding: 5px 12px; border-radius: 8px; font-weight: 600; color: #ffffff;">
@@ -5952,7 +6383,8 @@
                                         <th style="text-align: center; width: 130px;">PLACA</th>
                                         <th>MARCA / MODELO</th>
                                         <th style="text-align: center; width: 140px;">COMPARTIMIENTOS</th>
-                                        <th style="text-align: right; width: 150px;">CAPACIDAD</th>
+                                        <th style="text-align: right; width: 140px;">CAP. CARGA</th>
+                                        <th style="text-align: center; width: 150px;">COMBUSTIBLE / KM</th>
                                         <th>CHOFER ASIGNADO</th>
                                         <th>OBSERVACIONES</th>
                                         <th style="text-align: center; width: 100px;">ESTADO</th>
@@ -7257,13 +7689,1062 @@
                         </div>
                     </div>
                 </section>
-            </main>
-        </div>
-    </div>
 
 <!-- FIN COMPONENTE: configuracion/HistorialBcv -->
 
+            
+<!-- INICIO COMPONENTE: combustible/Combustible -->
+<!-- ===================================================================== -->
+<!-- TAB: GESTIÓN DE COMBUSTIBLE (Inventario, Compras y Despachos)         -->
+<!-- ===================================================================== -->
+<section id="tab-combustible" class="tab-content">
+    <div class="content-header" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h1 style="display: flex; align-items: center; gap: 10px; margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
+                    <i class="fa-solid fa-gas-pump" style="color: #0284c7;"></i>
+                    Gestión y Control de Combustible
+                </h1>
+                <p style="margin: 4px 0 0; color: #64748b; font-size: 13.5px;">
+                    Control de niveles en tanques de almacenamiento, registro de compras y suministros a la flota cisterna
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline" onclick="abrirModalAjusteCombustible()" style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-sliders"></i> Ajustar Tanque
+                </button>
+                <button type="button" class="btn btn-primary" onclick="abrirModalCompraCombustible()" style="display: flex; align-items: center; gap: 8px; background: #059669; border-color: #059669;">
+                    <i class="fa-solid fa-cart-plus"></i> Registrar Compra / Ingreso
+                </button>
+                <button type="button" class="btn btn-primary" onclick="abrirModalDespachoCombustible()" style="display: flex; align-items: center; gap: 8px; background: #0284c7; border-color: #0284c7;">
+                    <i class="fa-solid fa-truck-droplet"></i> Despachar a Camión
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TARJETAS DE NIVELES DE TANQUE (KPIS DINÁMICOS) -->
+    <div id="contenedorTanquesCombustible" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-bottom: 24px;">
+        <!-- Se renderizan dinámicamente -->
+        <div class="card" style="padding: 24px; text-align: center; color: #94a3b8;">
+            <i class="fa-solid fa-spinner fa-spin"></i> Cargando inventario de combustible...
+        </div>
+    </div>
+
+    <!-- TABLA DE HISTORIAL DE MOVIMIENTOS -->
+    <div class="card" style="padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; border-bottom: 1px solid #f1f5f9; padding-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 38px; height: 38px; border-radius: 8px; background: #e0f2fe; color: #0369a1; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div>
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #0f172a;">Historial de Movimientos de Combustible</h3>
+                    <p style="margin: 2px 0 0; color: #64748b; font-size: 12px;">Despachos a vehículos cisterna, ingresos por compra y ajustes de stock</p>
+                </div>
+            </div>
+
+            <!-- FILTROS -->
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <select id="filtroTipoMovCombustible" class="form-input" onchange="cargarHistorialCombustible()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Movimientos --</option>
+                    <option value="DESPACHO_CAMION">Despachos a Camión</option>
+                    <option value="COMPRA_INGRESO">Compras / Ingresos</option>
+                    <option value="AJUSTE">Ajustes de Inventario</option>
+                </select>
+
+                <select id="filtroTipoCombustible" class="form-input" onchange="cargarHistorialCombustible()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Tipos --</option>
+                    <option value="GASOIL">GASOIL (Diésel)</option>
+                    <option value="GASOLINA">GASOLINA</option>
+                </select>
+
+                <select id="filtroCamionCombustible" class="form-input" onchange="cargarHistorialCombustible()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Camiones --</option>
+                </select>
+
+                <button type="button" class="btn btn-outline" onclick="cargarModuloCombustible()" title="Refrescar datos" style="height: 38px; padding: 0 12px;">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="modern-table" id="tablaHistorialCombustible">
+                <thead>
+                    <tr>
+                        <th style="width: 90px;">FECHA</th>
+                        <th style="text-align: center; width: 140px;">TIPO</th>
+                        <th style="text-align: center; width: 110px;">COMBUSTIBLE</th>
+                        <th style="text-align: right; width: 120px;">LITROS</th>
+                        <th style="text-align: right; width: 130px;">STOCK NUEVO</th>
+                        <th>DESTINO / VEHÍCULO</th>
+                        <th style="text-align: right; width: 120px;">ODÓMETRO</th>
+                        <th>DETALLES / PROVEEDOR</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyHistorialCombustible">
+                    <tr>
+                        <td colspan="8" class="text-center" style="padding: 24px; color: #94a3b8;">
+                            <i class="fa-solid fa-spinner fa-spin"></i> Cargando movimientos de combustible...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- MODAL REGISTRAR COMPRA / INGRESO -->
+<div id="modalCompraCombustible" class="modal-custom-overlay" style="display: none;">
+    <div class="modal-custom-card" style="max-width: 500px;">
+        <div class="modal-custom-header" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);">
+            <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+                    <i class="fa-solid fa-cart-plus"></i>
+                </div>
+                <div>
+                    <h2>Registrar Compra / Ingreso</h2>
+                    <p>Recarga de tanque de combustible en base operativa</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="cerrarModalCustom('modalCompraCombustible')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="guardarCompraCombustibleSubmit(event)">
+            <div class="modal-custom-body" style="padding: 20px 24px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Tipo Combustible <span style="color: #e11d48;">*</span>
+                        </label>
+                        <select id="modalCompraTipoCombustible" class="form-input" required style="height: 42px; font-weight: 700;">
+                            <option value="GASOIL">GASOIL (Diésel)</option>
+                            <option value="GASOLINA">GASOLINA</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Fecha de Compra <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="date" id="modalCompraFecha" class="form-input" required style="height: 42px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Litros Recargados <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="number" step="0.01" min="1" id="modalCompraLitros" class="form-input" required placeholder="Ej: 2000" style="height: 42px; font-size: 14px; font-weight: 800; color: #047857;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Costo por Litro (USD)
+                        </label>
+                        <input type="number" step="0.0001" min="0" id="modalCompraCostoUSD" class="form-input" placeholder="Ej: 0.50" style="height: 42px; font-size: 14px; font-weight: 700;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Proveedor / Distribuidor
+                    </label>
+                    <input type="text" id="modalCompraProveedor" class="form-input" placeholder="Ej: PDVSA / Estación de Servicio El Cruce" style="height: 40px;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Observaciones / N° Guía o Factura
+                    </label>
+                    <input type="text" id="modalCompraObservaciones" class="form-input" placeholder="Ej: Cisterna N° 45, Factura #10842" style="height: 40px;">
+                </div>
+            </div>
+            <div class="modal-custom-footer">
+                <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalCompraCombustible')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="background: #059669; border-color: #059669;">
+                    <i class="fa-solid fa-check"></i> Registrar Ingreso
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL DESPACHAR A CAMIÓN -->
+<div id="modalDespachoCombustible" class="modal-custom-overlay" style="display: none;">
+    <div class="modal-custom-card" style="max-width: 520px;">
+        <div class="modal-custom-header" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
+            <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+                    <i class="fa-solid fa-truck-droplet"></i>
+                </div>
+                <div>
+                    <h2>Despachar a Camión</h2>
+                    <p>Suministro de combustible a vehículo cisterna de la flota</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="cerrarModalCustom('modalDespachoCombustible')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="guardarDespachoCombustibleSubmit(event)">
+            <div class="modal-custom-body" style="padding: 20px 24px;">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Camión Receptor <span style="color: #e11d48;">*</span>
+                    </label>
+                    <select id="modalDespachoCamionId" class="form-input" required onchange="alSeleccionarCamionDespacho()" style="height: 42px; font-weight: 700;">
+                        <option value="">-- Seleccionar Camión --</option>
+                    </select>
+                    <small id="modalDespachoInfoCamion" style="display: block; margin-top: 5px; font-size: 12px; color: #0284c7; font-weight: 600;"></small>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Tipo Combustible <span style="color: #e11d48;">*</span>
+                        </label>
+                        <select id="modalDespachoTipoCombustible" class="form-input" required style="height: 42px; font-weight: 700;">
+                            <option value="GASOIL">GASOIL (Diésel)</option>
+                            <option value="GASOLINA">GASOLINA</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Fecha de Despacho <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="date" id="modalDespachoFecha" class="form-input" required style="height: 42px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Litros Suministrados <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="number" step="0.1" min="1" id="modalDespachoLitros" class="form-input" required placeholder="Ej: 150" style="height: 42px; font-size: 14px; font-weight: 800; color: #0284c7;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Odómetro Actual (Km)
+                        </label>
+                        <input type="number" step="0.1" min="0" id="modalDespachoOdometro" class="form-input" placeholder="Ej: 125430" style="height: 42px; font-size: 13.5px; font-weight: 700;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Observaciones
+                    </label>
+                    <input type="text" id="modalDespachoObservaciones" class="form-input" placeholder="Ej: Tanque lleno antes de ruta sur" style="height: 40px;">
+                </div>
+            </div>
+            <div class="modal-custom-footer">
+                <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalDespachoCombustible')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="background: #0284c7; border-color: #0284c7;">
+                    <i class="fa-solid fa-check"></i> Registrar Despacho
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL AJUSTE DE STOCK -->
+<div id="modalAjusteCombustible" class="modal-custom-overlay" style="display: none;">
+    <div class="modal-custom-card" style="max-width: 460px;">
+        <div class="modal-custom-header" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);">
+            <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+                    <i class="fa-solid fa-sliders"></i>
+                </div>
+                <div>
+                    <h2>Ajuste de Tanque</h2>
+                    <p>Calibración o corrección por aforo físico</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="cerrarModalCustom('modalAjusteCombustible')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="guardarAjusteCombustibleSubmit(event)">
+            <div class="modal-custom-body" style="padding: 20px 24px;">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Tanque / Combustible <span style="color: #e11d48;">*</span>
+                    </label>
+                    <select id="modalAjusteTipoCombustible" class="form-input" required style="height: 42px; font-weight: 700;">
+                        <option value="GASOIL">GASOIL (Diésel)</option>
+                        <option value="GASOLINA">GASOLINA</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Nuevo Stock Medido en Tanque (Litros) <span style="color: #e11d48;">*</span>
+                    </label>
+                    <input type="number" step="0.01" min="0" id="modalAjusteNuevoStock" class="form-input" required placeholder="Ej: 3450" style="height: 42px; font-size: 15px; font-weight: 800; color: #d97706;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Motivo del Ajuste <span style="color: #e11d48;">*</span>
+                    </label>
+                    <input type="text" id="modalAjusteMotivo" class="form-input" required placeholder="Ej: Calibración por varilla de aforo" style="height: 40px;">
+                </div>
+            </div>
+            <div class="modal-custom-footer">
+                <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalAjusteCombustible')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="background: #d97706; border-color: #d97706;">
+                    <i class="fa-solid fa-check"></i> Aplicar Ajuste
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- FIN COMPONENTE: combustible/Combustible -->
+
+            
+<!-- INICIO COMPONENTE: mantenimiento/MantenimientoCamiones -->
+<!-- ===================================================================== -->
+<!-- TAB: HISTORIAL Y MANTENIMIENTO DE FLOTA DE CAMIONES                   -->
+<!-- ===================================================================== -->
+<section id="tab-historial-camiones" class="tab-content">
+    <div class="content-header" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h1 style="display: flex; align-items: center; gap: 10px; margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
+                    <i class="fa-solid fa-truck-wrench" style="color: #2563eb;"></i>
+                    Historial de Mantenimiento y Flota
+                </h1>
+                <p style="margin: 4px 0 0; color: #64748b; font-size: 13.5px;">
+                    Control preventivo de servicios mecánicos, cambios de aceite, reemplazo de cauchos y alertas por kilometraje
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline" onclick="cargarModuloMantenimiento()" style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="abrirModalCrearMantenimiento()" style="display: flex; align-items: center; gap: 8px; background: #2563eb; border-color: #2563eb;">
+                    <i class="fa-solid fa-plus"></i> Registrar Mantenimiento
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL DE ALERTAS PREVENTIVAS POR CAMIÓN -->
+    <div style="margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <i class="fa-solid fa-triangle-exclamation" style="color: #f59e0b; font-size: 16px;"></i>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a;">Semáforo de Alertas Preventivas de Flota</h3>
+        </div>
+        <div id="contenedorAlertasMantenimiento" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+            <div class="card" style="padding: 20px; text-align: center; color: #94a3b8;">
+                <i class="fa-solid fa-spinner fa-spin"></i> Evaluando odómetros y alertas de servicio...
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORIAL COMPLETO DE SERVICIOS -->
+    <div class="card" style="padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; border-bottom: 1px solid #f1f5f9; padding-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 38px; height: 38px; border-radius: 8px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                </div>
+                <div>
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #0f172a;">Bitácora de Servicios y Reparaciones</h3>
+                    <p style="margin: 2px 0 0; color: #64748b; font-size: 12px;">Registro detallado de intervenciones, talleres mecánicos y costos de mantenimiento</p>
+                </div>
+            </div>
+
+            <!-- FILTROS -->
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <select id="filtroCamionMantenimiento" class="form-input" onchange="cargarMantenimientosLista()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Camiones --</option>
+                </select>
+
+                <select id="filtroTipoEventoMantenimiento" class="form-input" onchange="cargarMantenimientosLista()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Eventos --</option>
+                    <option value="CAMBIO_ACEITE">Cambio de Aceite / Filtros</option>
+                    <option value="CAUCHOS">Cauchos / Neumáticos</option>
+                    <option value="PREVENTIVO">Mantenimiento Preventivo</option>
+                    <option value="CORRECTIVO">Reparación Correctiva</option>
+                    <option value="SINIESTRO_CHOFER">Siniestro / Incidente Chofer</option>
+                </select>
+
+                <select id="filtroEstadoMantenimiento" class="form-input" onchange="cargarMantenimientosLista()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Estados --</option>
+                    <option value="RESUELTO">Resuelto / Completado</option>
+                    <option value="EN_TALLER">En Taller</option>
+                    <option value="REPORTADO_CHOFER">Reportado / Pendiente</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="modern-table" id="tablaHistorialMantenimiento">
+                <thead>
+                    <tr>
+                        <th style="width: 90px;">FECHA</th>
+                        <th style="text-align: center; width: 120px;">CAMIÓN</th>
+                        <th style="text-align: center; width: 140px;">TIPO SERVICIO</th>
+                        <th>DESCRIPCIÓN DEL EVENTO</th>
+                        <th style="text-align: right; width: 130px;">KM / PRÓXIMO</th>
+                        <th>TALLER / MECÁNICO</th>
+                        <th style="text-align: right; width: 110px;">COSTO (USD)</th>
+                        <th style="text-align: center; width: 120px;">ESTADO</th>
+                        <th style="text-align: center; width: 90px;">ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyHistorialMantenimiento">
+                    <tr>
+                        <td colspan="9" class="text-center" style="padding: 24px; color: #94a3b8;">
+                            <i class="fa-solid fa-spinner fa-spin"></i> Cargando historial de mantenimiento...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- MODAL REGISTRAR / EDITAR MANTENIMIENTO -->
+<div id="modalMantenimientoCamion" class="modal-custom-overlay" style="display: none;">
+    <div class="modal-custom-card" style="max-width: 580px;">
+        <div class="modal-custom-header" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);">
+            <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+                    <i class="fa-solid fa-wrench"></i>
+                </div>
+                <div>
+                    <h2 id="modalMantenimientoTitle">Registrar Mantenimiento</h2>
+                    <p>Evento mecánico, preventivo o correctivo de la flota</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="cerrarModalCustom('modalMantenimientoCamion')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="guardarMantenimientoSubmit(event)">
+            <input type="hidden" id="modalMantenimientoId">
+            <div class="modal-custom-body" style="padding: 20px 24px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Camión <span style="color: #e11d48;">*</span>
+                        </label>
+                        <select id="modalMantenimientoCamionId" class="form-input" required onchange="alCambiarCamionMantenimiento()" style="height: 42px; font-weight: 700;">
+                            <option value="">-- Seleccionar --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Tipo de Evento <span style="color: #e11d48;">*</span>
+                        </label>
+                        <select id="modalMantenimientoTipoEvento" class="form-input" required onchange="sugerirProximoKm()" style="height: 42px; font-weight: 700;">
+                            <option value="CAMBIO_ACEITE">Cambio de Aceite / Filtros</option>
+                            <option value="CAUCHOS">Cambio / Rotación de Cauchos</option>
+                            <option value="PREVENTIVO">Mantenimiento Preventivo General</option>
+                            <option value="CORRECTIVO">Reparación Correctiva</option>
+                            <option value="SINIESTRO_CHOFER">Siniestro / Incidente Chofer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Título del Servicio <span style="color: #e11d48;">*</span>
+                    </label>
+                    <input type="text" id="modalMantenimientoTitulo" class="form-input" required placeholder="Ej: Cambio de aceite 15W40 y filtros de diésel" style="height: 40px; font-weight: 600;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Fecha Evento <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="date" id="modalMantenimientoFecha" class="form-input" required style="height: 40px;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Km Actual
+                        </label>
+                        <input type="number" step="0.1" min="0" id="modalMantenimientoOdometro" class="form-input" oninput="sugerirProximoKm()" placeholder="Ej: 125000" style="height: 40px; font-weight: 700;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #059669; margin-bottom: 5px; display: block;">
+                            Próximo Km
+                        </label>
+                        <input type="number" step="0.1" min="0" id="modalMantenimientoProximoKm" class="form-input" placeholder="Ej: 135000" style="height: 40px; font-weight: 800; color: #059669; background: #f0fdf4; border-color: #86efac;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Taller / Mecánico
+                        </label>
+                        <input type="text" id="modalMantenimientoTaller" class="form-input" placeholder="Ej: Taller Central / Mecánico Juan" style="height: 40px;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Costo Total (USD)
+                        </label>
+                        <input type="number" step="0.01" min="0" id="modalMantenimientoCosto" class="form-input" placeholder="Ej: 180.00" style="height: 40px; font-weight: 700; color: #0284c7;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Estado del Mantenimiento
+                        </label>
+                        <select id="modalMantenimientoEstado" class="form-input" style="height: 40px; font-weight: 700;">
+                            <option value="RESUELTO">Resuelto / Completado</option>
+                            <option value="EN_TALLER">En Taller Mecánico</option>
+                            <option value="REPORTADO_CHOFER">Reportado / Pendiente</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Próxima Fecha Sugerida
+                        </label>
+                        <input type="date" id="modalMantenimientoProximaFecha" class="form-input" style="height: 40px;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Detalles / Repuestos Utilizados
+                    </label>
+                    <textarea id="modalMantenimientoDescripcion" class="form-input" rows="2" placeholder="Ej: Se cambiaron 4 filtros, 15 litros de aceite 15W40 y se ajustaron frenos delanteros." style="font-size: 13px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-custom-footer">
+                <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalMantenimientoCamion')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="background: #2563eb; border-color: #2563eb;">
+                    <i class="fa-solid fa-check"></i> Guardar Registro
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- FIN COMPONENTE: mantenimiento/MantenimientoCamiones -->
+
+            
+<!-- INICIO COMPONENTE: repuestos/Repuestos -->
+<!-- ===================================================================== -->
+<!-- TAB: INVENTARIO DE REPUESTOS Y MOVIMIENTOS DE ALMACÉN                 -->
+<!-- ===================================================================== -->
+<section id="tab-repuestos" class="tab-content">
+    <div class="content-header" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h1 style="display: flex; align-items: center; gap: 10px; margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
+                    <i class="fa-solid fa-boxes-stacked" style="color: #10b981;"></i>
+                    Inventario de Repuestos y Almacén
+                </h1>
+                <p style="margin: 4px 0 0; color: #64748b; font-size: 13.5px;">
+                    Control de existencias, alerta de stock crítico y suministro de piezas para el mantenimiento de camiones
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline" onclick="abrirModalMovimientoRepuesto('SALIDA_MANTENIMIENTO')" style="display: flex; align-items: center; gap: 8px; color: #dc2626; border-color: #fca5a5; background: #fef2f2;">
+                    <i class="fa-solid fa-arrow-up-from-bracket"></i> Salida a Camión
+                </button>
+                <button type="button" class="btn btn-outline" onclick="abrirModalMovimientoRepuesto('ENTRADA_COMPRA')" style="display: flex; align-items: center; gap: 8px; color: #059669; border-color: #86efac; background: #f0fdf4;">
+                    <i class="fa-solid fa-cart-plus"></i> Entrada / Compra
+                </button>
+                <button type="button" class="btn btn-primary" onclick="abrirModalCrearRepuesto()" style="display: flex; align-items: center; gap: 8px; background: #10b981; border-color: #10b981;">
+                    <i class="fa-solid fa-plus"></i> Nuevo Repuesto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIS DE STOCK -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 22px;">
+        <div class="card" style="padding: 18px 20px; border-radius: 12px; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #10b981;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Repuestos</span>
+                    <h2 id="kpiTotalRepuestos" style="margin: 4px 0 0; font-size: 26px; font-weight: 900; color: #0f172a;">-</h2>
+                </div>
+                <div style="width: 44px; height: 44px; border-radius: 10px; background: #dcfce7; color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                    <i class="fa-solid fa-boxes-packing"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="padding: 18px 20px; border-radius: 12px; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #f59e0b;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">Stock Mínimo / Alerta</span>
+                    <h2 id="kpiStockBajoRepuestos" style="margin: 4px 0 0; font-size: 26px; font-weight: 900; color: #d97706;">-</h2>
+                </div>
+                <div style="width: 44px; height: 44px; border-radius: 10px; background: #fef3c7; color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="padding: 18px 20px; border-radius: 12px; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #3b82f6;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">Valorizado Almacén</span>
+                    <h2 id="kpiValorizadoAlmacen" style="margin: 4px 0 0; font-size: 26px; font-weight: 900; color: #0f172a;">$-</h2>
+                </div>
+                <div style="width: 44px; height: 44px; border-radius: 10px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                    <i class="fa-solid fa-dollar-sign"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIONES / SUB-PESTAÑAS -->
+    <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 2px;">
+        <button type="button" id="btnSubtabCatalogoRepuestos" class="btn btn-primary" onclick="cambiarSubtabRepuestos('catalogo')" style="border-radius: 8px 8px 0 0; font-weight: 700; font-size: 13.5px; height: 38px;">
+            <i class="fa-solid fa-list-check"></i> Catálogo y Stock Actual
+        </button>
+        <button type="button" id="btnSubtabMovimientosRepuestos" class="btn btn-outline" onclick="cambiarSubtabRepuestos('movimientos')" style="border-radius: 8px 8px 0 0; font-weight: 700; font-size: 13.5px; height: 38px;">
+            <i class="fa-solid fa-clock-rotate-left"></i> Historial de Movimientos (Kárdex)
+        </button>
+    </div>
+
+    <!-- SUBTAB 1: CATÁLOGO Y STOCK -->
+    <div id="subtabCatalogoRepuestos" class="card" style="padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="buscarRepuestoInput" class="form-input" oninput="filtrarTablaRepuestos()" placeholder="Buscar por código, nombre..." style="height: 38px; width: 240px; font-size: 13px;">
+                <select id="filtroCategoriaRepuesto" class="form-input" onchange="cargarRepuestosLista()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todas las Categorías --</option>
+                    <option value="LUBRICANTES">Lubricantes / Aceites</option>
+                    <option value="FILTROS">Filtros (Aceite, Combustible, Aire)</option>
+                    <option value="CAUCHOS">Cauchos / Neumáticos</option>
+                    <option value="MOTOR">Motor / Inyección</option>
+                    <option value="FRENOS">Frenos y Suspensión</option>
+                    <option value="ELECTRICIDAD">Electricidad / Baterías</option>
+                    <option value="OTROS">Otros Repuestos</option>
+                </select>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="cargarModuloRepuestos()" title="Refrescar">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="modern-table" id="tablaCatalogoRepuestos">
+                <thead>
+                    <tr>
+                        <th style="width: 130px;">CÓDIGO</th>
+                        <th>NOMBRE / DESCRIPCIÓN</th>
+                        <th style="text-align: center; width: 140px;">CATEGORÍA</th>
+                        <th style="text-align: right; width: 110px;">STOCK</th>
+                        <th style="text-align: right; width: 100px;">MÍNIMO</th>
+                        <th style="text-align: right; width: 120px;">COSTO (USD)</th>
+                        <th>UBICACIÓN</th>
+                        <th style="text-align: center; width: 90px;">ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyCatalogoRepuestos">
+                    <tr>
+                        <td colspan="8" class="text-center" style="padding: 24px; color: #94a3b8;">
+                            <i class="fa-solid fa-spinner fa-spin"></i> Cargando catálogo de repuestos...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SUBTAB 2: HISTORIAL DE MOVIMIENTOS -->
+    <div id="subtabMovimientosRepuestos" class="card" style="display: none; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <select id="filtroMovRepuestoId" class="form-input" onchange="cargarMovimientosRepuestosLista()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Repuestos --</option>
+                </select>
+                <select id="filtroMovCamionId" class="form-input" onchange="cargarMovimientosRepuestosLista()" style="height: 38px; font-size: 13px; font-weight: 600;">
+                    <option value="">-- Todos los Camiones --</option>
+                </select>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="cargarMovimientosRepuestosLista()" title="Refrescar">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="modern-table" id="tablaMovimientosRepuestos">
+                <thead>
+                    <tr>
+                        <th style="width: 90px;">FECHA</th>
+                        <th style="text-align: center; width: 140px;">TIPO MOVIMIENTO</th>
+                        <th>REPUESTO</th>
+                        <th style="text-align: right; width: 100px;">CANTIDAD</th>
+                        <th style="text-align: right; width: 110px;">COSTO UNIT.</th>
+                        <th>DESTINO / CAMIÓN</th>
+                        <th>OBSERVACIONES</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyMovimientosRepuestos">
+                    <tr>
+                        <td colspan="7" class="text-center" style="padding: 24px; color: #94a3b8;">
+                            <i class="fa-solid fa-spinner fa-spin"></i> Cargando movimientos de almacén...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- MODAL CREAR / EDITAR REPUESTO -->
+<div id="modalRepuesto" class="modal-custom-overlay" style="display: none;">
+    <div class="modal-custom-card" style="max-width: 520px;">
+        <div class="modal-custom-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+            <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+                <div>
+                    <h2 id="modalRepuestoTitle">Registrar Nuevo Repuesto</h2>
+                    <p>Catálogo de piezas e inventario de almacén central</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="cerrarModalCustom('modalRepuesto')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="guardarRepuestoSubmit(event)">
+            <input type="hidden" id="modalRepuestoId">
+            <div class="modal-custom-body" style="padding: 20px 24px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Código de Pieza <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="text" id="modalRepuestoCodigo" class="form-input" required placeholder="Ej: REP-ACE-15W40" style="height: 40px; font-weight: 800; text-transform: uppercase;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Categoría <span style="color: #e11d48;">*</span>
+                        </label>
+                        <select id="modalRepuestoCategoria" class="form-input" required style="height: 40px; font-weight: 700;">
+                            <option value="LUBRICANTES">Lubricantes / Aceites</option>
+                            <option value="FILTROS">Filtros</option>
+                            <option value="CAUCHOS">Cauchos / Neumáticos</option>
+                            <option value="MOTOR">Motor / Inyección</option>
+                            <option value="FRENOS">Frenos y Suspensión</option>
+                            <option value="ELECTRICIDAD">Electricidad / Baterías</option>
+                            <option value="OTROS">Otros</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Nombre / Descripción del Repuesto <span style="color: #e11d48;">*</span>
+                    </label>
+                    <input type="text" id="modalRepuestoNombre" class="form-input" required placeholder="Ej: Aceite 15W40 Mineral 1 Galón" style="height: 40px; font-weight: 600;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Stock Actual <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="number" step="1" min="0" id="modalRepuestoStockActual" class="form-input" required placeholder="Ej: 20" style="height: 40px; font-weight: 800; color: #059669;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12px; font-weight: 700; color: #d97706; margin-bottom: 5px; display: block;">
+                            Stock Mínimo <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="number" step="1" min="1" id="modalRepuestoStockMinimo" class="form-input" required placeholder="Ej: 5" style="height: 40px; font-weight: 800; color: #d97706;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 12px; font-weight: 700; color: #0284c7; margin-bottom: 5px; display: block;">
+                            Costo Unit. (USD)
+                        </label>
+                        <input type="number" step="0.01" min="0" id="modalRepuestoCosto" class="form-input" placeholder="Ej: 25.00" style="height: 40px; font-weight: 700; color: #0284c7;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Ubicación en Almacén
+                    </label>
+                    <input type="text" id="modalRepuestoUbicacion" class="form-input" placeholder="Ej: Estante A, Nivel 2" style="height: 40px;">
+                </div>
+            </div>
+            <div class="modal-custom-footer">
+                <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalRepuesto')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="background: #10b981; border-color: #10b981;">
+                    <i class="fa-solid fa-check"></i> Guardar Repuesto
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL REGISTRAR MOVIMIENTO (ENTRADA / SALIDA) -->
+<div id="modalMovimientoRepuesto" class="modal-custom-overlay" style="display: none;">
+    <div class="modal-custom-card" style="max-width: 500px;">
+        <div class="modal-custom-header" id="modalMovimientoHeader" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);">
+            <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+                    <i class="fa-solid fa-right-left" id="modalMovimientoIcon"></i>
+                </div>
+                <div>
+                    <h2 id="modalMovimientoTitle">Movimiento de Almacén</h2>
+                    <p id="modalMovimientoSubtitle">Entrada por compra o salida para mantenimiento</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="cerrarModalCustom('modalMovimientoRepuesto')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="guardarMovimientoRepuestoSubmit(event)">
+            <input type="hidden" id="modalMovimientoTipo">
+            <div class="modal-custom-body" style="padding: 20px 24px;">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Seleccionar Repuesto <span style="color: #e11d48;">*</span>
+                    </label>
+                    <select id="modalMovimientoRepuestoId" class="form-input" required onchange="alCambiarRepuestoMovimiento()" style="height: 42px; font-weight: 700;">
+                        <option value="">-- Seleccionar --</option>
+                    </select>
+                    <small id="modalMovimientoStockInfo" style="display: block; margin-top: 4px; font-size: 12px; font-weight: 700; color: #059669;"></small>
+                </div>
+
+                <div id="grupoCamionDestino" class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Camión Receptor <span style="color: #e11d48;">*</span>
+                    </label>
+                    <select id="modalMovimientoCamionId" class="form-input" style="height: 40px; font-weight: 700;">
+                        <option value="">-- Seleccionar Camión --</option>
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Cantidad <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="number" step="1" min="1" id="modalMovimientoCantidad" class="form-input" required placeholder="Ej: 2" style="height: 40px; font-size: 15px; font-weight: 800;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                            Fecha <span style="color: #e11d48;">*</span>
+                        </label>
+                        <input type="date" id="modalMovimientoFecha" class="form-input" required style="height: 40px;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Costo Unitario USD
+                    </label>
+                    <input type="number" step="0.01" min="0" id="modalMovimientoCostoUSD" class="form-input" placeholder="Ej: 25.00" style="height: 40px; font-weight: 700;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: block;">
+                        Observaciones / Proveedor
+                    </label>
+                    <input type="text" id="modalMovimientoObservaciones" class="form-input" placeholder="Ej: Factura #9812 / Instalado por mecánico Pedro" style="height: 40px;">
+                </div>
+            </div>
+            <div class="modal-custom-footer">
+                <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalMovimientoRepuesto')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarMovimiento" style="background: #10b981; border-color: #10b981;">
+                    <i class="fa-solid fa-check"></i> Procesar Movimiento
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- FIN COMPONENTE: repuestos/Repuestos -->
+
+            
+<!-- INICIO COMPONENTE: data/GestionData -->
+<!-- ========================================================================== -->
+<!-- COMPONENTE: GESTIÓN DE DATA (IMPORTAR / EXPORTAR EXCEL)                   -->
+<!-- ========================================================================== -->
+<section id="tab-gestion-data" class="tab-pane">
+    <div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
+
+        <!-- BANNER DE ENCABEZADO -->
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 16px; padding: 22px 26px; color: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(16, 185, 129, 0.15); border: 1.5px solid rgba(16, 185, 129, 0.4); display: flex; align-items: center; justify-content: center; font-size: 26px; color: #34d399;">
+                    <i class="fa-solid fa-file-excel"></i>
+                </div>
+                <div>
+                    <h1 style="font-size: 22px; font-weight: 900; margin: 0; color: #ffffff; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px;">
+                        Gestión de Data: Importar &amp; Exportar Excel
+                        <span style="font-size: 11.5px; font-weight: 800; background: #059669; color: #ffffff; padding: 3px 10px; border-radius: 20px; text-transform: uppercase;">Módulo Masivo</span>
+                    </h1>
+                    <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 13.5px; font-weight: 500;">
+                        Descarga plantillas oficiales, sube archivos Excel con previsualización inteligente y exporta catálogos completos en un clic.
+                    </p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn" onclick="recargarEstadoPrerequisitosData()" style="background: rgba(255,255,255,0.1); color: #ffffff; border: 1px solid rgba(255,255,255,0.2); font-weight: 700; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar Prerrequisitos
+                </button>
+            </div>
+        </div>
+
+        <!-- SELECTOR DE PESTAÑAS DE ENTIDAD -->
+        <div style="display: flex; gap: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-tab-entidad active" data-entidad="FINCAS" onclick="seleccionarEntidadData('FINCAS')"
+                style="padding: 10px 20px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border: none; transition: all 0.2s; background: #2563eb; color: #ffffff;">
+                <i class="fa-solid fa-cow"></i> Fincas
+            </button>
+            <button type="button" class="btn-tab-entidad" data-entidad="PROPIETARIOS" onclick="seleccionarEntidadData('PROPIETARIOS')"
+                style="padding: 10px 20px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border: none; transition: all 0.2s; background: #f1f5f9; color: #475569;">
+                <i class="fa-solid fa-user-tie"></i> Propietarios
+            </button>
+            <button type="button" class="btn-tab-entidad" data-entidad="COMPANIAS" onclick="seleccionarEntidadData('COMPANIAS')"
+                style="padding: 10px 20px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border: none; transition: all 0.2s; background: #f1f5f9; color: #475569;">
+                <i class="fa-solid fa-truck"></i> Compañías / Receptorías
+            </button>
+            <button type="button" class="btn-tab-entidad" data-entidad="BANCOS" onclick="seleccionarEntidadData('BANCOS')"
+                style="padding: 10px 20px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border: none; transition: all 0.2s; background: #f1f5f9; color: #475569;">
+                <i class="fa-solid fa-building-columns"></i> Bancos
+            </button>
+        </div>
+
+        <!-- TARJETA PRINCIPAL DEL CATÁLOGO ACTIVO -->
+        <div style="background: #ffffff; border-radius: 14px; border: 1.5px solid #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.04); overflow: hidden;">
+            
+            <!-- HEADER DE ENTIDAD Y BOTONES DE ACCIÓN -->
+            <div style="padding: 18px 24px; border-bottom: 1.5px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                <div>
+                    <h2 id="lblTituloEntidadActiva" style="margin: 0; font-size: 18px; font-weight: 900; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-cow" style="color: #2563eb;"></i> Importación &amp; Exportación de Fincas
+                    </h2>
+                    <p id="lblSubtituloEntidadActiva" style="margin: 3px 0 0 0; font-size: 12.5px; color: #64748b; font-weight: 500;">
+                        Carga el catálogo de fincas, sus códigos, precios por litro y asocia cada finca con su propietario.
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <!-- BOTÓN DESCARGAR PLANTILLA EXCEL FÍSICA -->
+                    <a id="btnDescargarPlantillaXlsx" href="/api/data/descargar-plantilla/FINCAS?formato=xlsx" download="Plantilla_Importacion_FINCAS.xlsx"
+                        style="background: #059669; color: #ffffff; text-decoration: none; font-weight: 800; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(5,150,105,0.25); transition: all 0.15s;">
+                        <i class="fa-solid fa-file-excel"></i> Plantilla Excel (.xlsx)
+                    </a>
+
+                    <!-- BOTÓN DESCARGAR PLANTILLA CSV FÍSICA -->
+                    <a id="btnDescargarPlantillaCsv" href="/api/data/descargar-plantilla/FINCAS?formato=csv" download="Plantilla_Importacion_FINCAS.csv"
+                        style="background: #047857; color: #ffffff; text-decoration: none; font-weight: 800; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 10px rgba(4,120,87,0.25); transition: all 0.15s;">
+                        <i class="fa-solid fa-file-csv"></i> Plantilla CSV (.csv)
+                    </a>
+
+                    <!-- BOTÓN EXPORTAR DATA ACTUAL -->
+                    <button type="button" class="btn" onclick="exportarDataActualExcel()"
+                        style="background: #0284c7; color: #ffffff; border: none; font-weight: 800; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(2,132,199,0.25); transition: all 0.15s;">
+                        <i class="fa-solid fa-file-export"></i> Exportar Data (.xlsx)
+                    </button>
+                </div>
+            </div>
+
+            <!-- CONTENEDOR DE PRERREQUISITOS / ORDEN RECOMENDADO -->
+            <div id="contenedorAlertaPrerequisitoData" style="padding: 16px 24px; border-bottom: 1.5px solid #e2e8f0; background: #fffbeb;">
+                <!-- Dinámico generado por JavaScript -->
+            </div>
+
+            <!-- ZONA DE CARGA DE ARCHIVO (DROPZONE) -->
+            <div style="padding: 24px;">
+                <div id="dropzoneExcelData"
+                    onclick="document.getElementById('inputArchivoExcelData').click()"
+                    ondragover="onDragOverExcel(event)"
+                    ondragleave="onDragLeaveExcel(event)"
+                    ondrop="onDropExcel(event)"
+                    style="border: 2.5px dashed #94a3b8; border-radius: 12px; padding: 36px 20px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.2s;">
+                    
+                    <input type="file" id="inputArchivoExcelData" accept=".xlsx, .xls, .csv" style="display: none;" onchange="onSeleccionarArchivoExcel(event)">
+                    
+                    <div style="width: 60px; height: 60px; border-radius: 50%; background: #e0f2fe; color: #0284c7; font-size: 28px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+
+                    <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 800; color: #0f172a;">
+                        Haz clic para seleccionar o arrastra aquí tu archivo Excel
+                    </h3>
+                    <p style="margin: 0; font-size: 13px; color: #64748b;">
+                        Formatos soportados: <strong>.xlsx</strong>, <strong>.xls</strong> o <strong>.csv</strong>. Si no conoces el formato, usa el botón <strong>"Descargar Plantilla Excel"</strong>.
+                    </p>
+
+                    <div id="infoArchivoSeleccionadoData" style="display: none; margin-top: 14px;">
+                        <span class="badge" style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; font-size: 13px; font-weight: 800; padding: 6px 14px; border-radius: 8px;">
+                            <i class="fa-solid fa-file-circle-check"></i> <span id="lblNombreArchivoData">archivo.xlsx</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL DE PREVISUALIZACIÓN Y VALIDACIÓN (SE MUESTRA TRAS SUBIR EL ARCHIVO) -->
+            <div id="panelPrevisualizacionData" style="display: none; border-top: 2px solid #e2e8f0;">
+                
+                <!-- RESUMEN DE VALIDACIÓN -->
+                <div style="padding: 16px 24px; background: #f1f5f9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                        <span style="font-size: 13.5px; font-weight: 800; color: #0f172a;">
+                            Total Filas: <strong id="lblTotalFilasLeidas" style="font-size: 16px; color: #2563eb;">0</strong>
+                        </span>
+                        <span class="badge" style="background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 6px;">
+                            <i class="fa-solid fa-circle-check"></i> <span id="lblFilasValidas">0</span> Listas para guardar
+                        </span>
+                        <span class="badge" style="background: #fefce8; color: #854d0e; border: 1px solid #fef08a; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 6px;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> <span id="lblFilasAdvertencias">0</span> Advertencias
+                        </span>
+                        <span class="badge" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 6px;">
+                            <i class="fa-solid fa-circle-xmark"></i> <span id="lblFilasErrores">0</span> Errores
+                        </span>
+                    </div>
+
+                    <!-- OPCIÓN DE AUTO-CREAR DEPENDENCIAS -->
+                    <div id="contenedorCheckAutoCrearData" style="display: flex; align-items: center; gap: 8px;">
+                        <label style="font-size: 13px; font-weight: 700; color: #1e293b; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkAutoCrearDependencias" checked style="width: 16px; height: 16px; accent-color: #2563eb;">
+                            Auto-crear Propietarios nuevos si no existen
+                        </label>
+                    </div>
+                </div>
+
+                <!-- TABLA PREVIEW -->
+                <div class="table-responsive" style="margin: 0; max-height: 480px; overflow-y: auto;">
+                    <table class="table-reporte-demarcada" style="width: 100%; margin-bottom: 0;">
+                        <thead id="theadPreviewData">
+                            <!-- Columnas dinámicas generadas según la entidad -->
+                        </thead>
+                        <tbody id="tbodyPreviewData">
+                            <!-- Filas dinámicas -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ACCIONES INFERIORES -->
+                <div style="padding: 16px 24px; background: #ffffff; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <button type="button" class="btn" onclick="cancelarPrevisualizacionData()"
+                        style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 700; padding: 9px 18px; border-radius: 8px; font-size: 13px; cursor: pointer;">
+                        <i class="fa-solid fa-xmark"></i> Cancelar / Subir otro archivo
+                    </button>
+
+                    <button type="button" class="btn btn-primary" id="btnConfirmarImportacionData" onclick="ejecutarImportacionMasivaData()"
+                        style="background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; border: none; font-weight: 900; padding: 11px 26px; border-radius: 8px; font-size: 14.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(5,150,105,0.35);">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Confirmar e Importar Data a Base de Datos
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+</section>
+
+<!-- FIN COMPONENTE: data/GestionData -->
+
         </main>
+        </div>
+    </div>
 
         <!-- ============================================================== -->
         <!-- COMPONENTES DE MODALES DEL SISTEMA                             -->
@@ -7315,12 +8796,11 @@
 
                 <!-- CABECERA DE DATOS GENERALES (COMPACTA) -->
                 <div
-                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #ffffff; padding: 10px 14px; border-radius: 10px; margin-bottom: 10px; border: 1.5px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); position: relative; z-index: 50;">
+                    style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 12px; background: #ffffff; padding: 10px 14px; border-radius: 10px; margin-bottom: 10px; border: 1.5px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); position: relative; z-index: 50;">
                     <div>
                         <label
                             style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <i class="fa-solid fa-calendar-day" style="color: #2563eb; margin-right: 4px;"></i> FECHA DE
-                            RECOLECCIÓN *
+                            <i class="fa-solid fa-calendar-day" style="color: #2563eb; margin-right: 4px;"></i> FECHA *
                         </label>
                         <input type="date" id="inputMasivoFecha" class="form-input"
                             style="height: 36px; background: #ffffff; color: #0f172a; border: 1.5px solid #cbd5e1; border-radius: 7px; font-weight: 600; font-size: 13px;">
@@ -7341,6 +8821,16 @@
                             <div class="combobox-dropdown" id="dropdownMasivoConductorList" style="display: none;">
                             </div>
                         </div>
+                    </div>
+                    <div>
+                        <label
+                            style="font-size: 11px; font-weight: 700; color: #475569; display: block; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fa-solid fa-map-location-dot" style="color: #059669; margin-right: 4px;"></i> RUTA / ZONA *
+                        </label>
+                        <select id="selectMasivoRutaLogistica" class="form-input" onchange="onCambiarRutaMasivo(this.value)"
+                            style="height: 36px; background: #ffffff; color: #0f172a; border: 1.5px solid #cbd5e1; border-radius: 7px; font-weight: 600; font-size: 13px; cursor: pointer;">
+                            <option value="">-- TODAS LAS FINCAS --</option>
+                        </select>
                     </div>
                 </div>
 
@@ -7593,13 +9083,32 @@
                                 style="display: none;"></div>
                         </div>
                     </div>
+                    <div class="iniciar-viaje-field">
+                        <label for="searchIniciarViajeRutaLogisticaInput" class="iniciar-viaje-label">
+                            <i class="fa-solid fa-map-location-dot" style="color: #059669; font-size: 14px;"></i> Ruta / Zona Asignada *
+                        </label>
+                        <div class="searchable-select" id="comboboxIniciarViajeRutaLogistica" style="position: relative;">
+                            <input type="hidden" id="selectIniciarViajeRutaLogistica" name="rutaLogisticaId" value="">
+                            <div class="combobox-input-wrapper">
+                                <input type="text" class="iniciar-viaje-input combobox-search"
+                                    id="searchIniciarViajeRutaLogisticaInput" placeholder="SELECCIONE O BUSQUE RUTA / ZONA..."
+                                    autocomplete="off">
+                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                            </div>
+                            <div class="combobox-dropdown" id="dropdownIniciarViajeRutaLogisticaList"
+                                style="display: none;"></div>
+                        </div>
+                        <div id="infoFincasRutaViaje" style="margin-top: 6px; font-size: 12px; color: #059669; font-weight: 600; display: none;">
+                            <i class="fa-solid fa-circle-check"></i> <span id="lblFincasRutaViaje">0 fincas asociadas</span>
+                        </div>
+                    </div>
                     <div class="iniciar-viaje-field" style="margin-bottom: 0;">
                         <label for="inputIniciarViajeObs" class="iniciar-viaje-label">
                             <i class="fa-regular fa-comment-dots" style="color: #64748b; font-size: 14px;"></i>
                             Observación Inicial (Opcional)
                         </label>
                         <input type="text" id="inputIniciarViajeObs" class="iniciar-viaje-input"
-                            placeholder="Ej: Ruta zona sur, salida 5:00 AM...">
+                            placeholder="Ej: Salida 5:00 AM...">
                     </div>
                 </div>
                 <div class="modal-custom-footer">
@@ -8690,6 +10199,164 @@
         </div>
     </div>
 
+    <!-- MODAL RÁPIDO DE REGISTRO DE RECOLECCIÓN POR FINCA (RECOLECCIÓN VISUAL) -->
+    <div id="modalQuickRecoleccion" class="custom-modal-backdrop" style="display: none;">
+        <div class="modal-custom-content"
+            style="max-width: 480px; width: 95%; background: #ffffff; color: #1e293b; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 25px 60px rgba(15,23,42,0.35);">
+            <div class="modal-custom-header"
+                style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); display: flex; align-items: center; justify-content: center; color: #38bdf8; font-size: 20px;">
+                        <i class="fa-solid fa-cow"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; color: #ffffff; font-weight: 800; font-size: 16px;" id="modalQuickFincaTitulo">Registrar Recolección</h3>
+                        <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 12px;" id="modalQuickFincaSubtitulo">Propietario / Ganadero</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close-custom" onclick="cerrarModalCustom('modalQuickRecoleccion')"
+                    style="color: #ffffff; opacity: 0.85; background: transparent; border: none; font-size: 26px; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+
+            <form id="formQuickRecoleccion" onsubmit="guardarQuickRecoleccion(event)" style="margin: 0;">
+                <input type="hidden" id="quickRecoleccionFincaId" value="">
+                <div class="modal-custom-body" style="padding: 20px; background: #ffffff; display: flex; flex-direction: column; gap: 14px;">
+                    <!-- Input Litros Destacado -->
+                    <div>
+                        <label for="quickRecoleccionLitros" style="display: block; font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 6px;">
+                            <i class="fa-solid fa-droplet" style="color: #2563eb;"></i> Litros Recolectados *
+                        </label>
+                        <div style="position: relative;">
+                            <input type="number" id="quickRecoleccionLitros" class="form-input" required min="1" step="1" placeholder="Ej: 450"
+                                style="height: 52px; font-size: 26px; font-weight: 900; text-align: center; color: #047857; background: #f0fdf4; border: 2px solid #86efac; border-radius: 10px; padding-right: 50px;">
+                            <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: 16px; color: #059669;">Lts</span>
+                        </div>
+                    </div>
+
+                    <!-- Tipo Leche (si es dual) -->
+                    <div id="groupQuickTipoLeche" style="display: none;">
+                        <label for="quickRecoleccionTipoLeche" style="display: block; font-size: 12px; font-weight: 700; color: #2563eb; margin-bottom: 4px;">
+                            <i class="fa-solid fa-cow"></i> Tipo de Leche *
+                        </label>
+                        <select id="quickRecoleccionTipoLeche" class="form-input" style="height: 38px; font-weight: 700; background: #eff6ff; border: 1.5px solid #bfdbfe;">
+                            <option value="VACA">🐄 VACA</option>
+                            <option value="BUFALA">🐃 BÚFALA</option>
+                        </select>
+                    </div>
+
+                    <!-- Leche Ácida Toggle -->
+                    <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px 14px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; font-weight: 700; color: #b45309;">
+                            <input type="checkbox" id="quickRecoleccionEsAcida" style="width: 18px; height: 18px; accent-color: #d97706;">
+                            <span><i class="fa-solid fa-flask" style="color: #d97706;"></i> ¿Leche Ácida / Descarte?</span>
+                        </label>
+                    </div>
+
+                    <!-- Observación Opcional -->
+                    <div>
+                        <label for="quickRecoleccionObservacion" style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+                            Observación (Opcional)
+                        </label>
+                        <input type="text" id="quickRecoleccionObservacion" class="form-input" placeholder="Ej: Recogida tanque 2, orden normal..." style="height: 38px; font-size: 13px;">
+                    </div>
+                </div>
+
+                <div class="modal-custom-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalQuickRecoleccion')" style="padding: 0 16px; height: 40px; font-weight: 600; border-radius: 8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btnGuardarQuickRecoleccion" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; padding: 0 20px; height: 40px; font-weight: 800; border-radius: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); display: inline-flex; align-items: gap: 8px; color: #ffffff;">
+                        <i class="fa-solid fa-floppy-disk"></i> Guardar Recolección
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL PARA AGREGAR FINCA FUERA DE RUTA AL TICKET -->
+    <div id="modalAgregarFincaExtra" class="custom-modal-backdrop" style="display: none;">
+        <div class="modal-custom-content"
+            style="max-width: 520px; width: 95%; background: #ffffff; color: #1e293b; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 25px 60px rgba(15,23,42,0.35);">
+            <div class="modal-custom-header"
+                style="background: linear-gradient(135deg, #4f46e5, #3730a3); padding: 16px 20px; border-bottom: 1px solid #4338ca; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 20px;">
+                        <i class="fa-solid fa-map-pin"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; color: #ffffff; font-weight: 800; font-size: 16px;">Agregar Finca Fuera de Ruta</h3>
+                        <p style="margin: 2px 0 0 0; color: #c7d2fe; font-size: 12px;">Vincular al Ticket #<span id="lblTicketFincaExtraNum">--</span></p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close-custom" onclick="cerrarModalCustom('modalAgregarFincaExtra')"
+                    style="color: #ffffff; opacity: 0.85; background: transparent; border: none; font-size: 26px; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+
+            <form id="formAgregarFincaExtra" onsubmit="guardarFincaExtra(event)" style="margin: 0;">
+                <div class="modal-custom-body" style="padding: 20px; background: #ffffff; display: flex; flex-direction: column; gap: 14px;">
+                    <div style="background: #f5f3ff; border: 1.5px solid #ddd6fe; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: #5b21b6; line-height: 1.4;">
+                        <i class="fa-solid fa-circle-info" style="margin-right: 4px;"></i>
+                        Usa esta opción si el chofer recibió instrucción de recoger una finca de otra zona o no asignada originalmente al ticket.
+                    </div>
+
+                    <!-- Selector Buscable de Finca -->
+                    <div>
+                        <label for="searchFincaExtraInput" style="display: block; font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+                            Seleccione Finca / Ganadero *
+                        </label>
+                        <div class="searchable-select" id="comboboxFincaExtra">
+                            <input type="hidden" id="selectFincaExtra" name="fincaId" value="">
+                            <div class="combobox-input-wrapper">
+                                <input type="text" class="form-input combobox-search"
+                                    id="searchFincaExtraInput" placeholder="BUSCAR CUALQUIER FINCA..."
+                                    autocomplete="off">
+                                <i class="fa-solid fa-chevron-down combobox-chevron"></i>
+                            </div>
+                            <div class="combobox-dropdown" id="dropdownFincaExtraList" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Input Litros -->
+                    <div>
+                        <label for="inputLitrosExtra" style="display: block; font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 6px;">
+                            <i class="fa-solid fa-droplet" style="color: #4f46e5;"></i> Litros Recolectados *
+                        </label>
+                        <div style="position: relative;">
+                            <input type="number" id="inputLitrosExtra" class="form-input" required min="1" step="1" placeholder="Ej: 300"
+                                style="height: 48px; font-size: 22px; font-weight: 900; text-align: center; color: #4338ca; background: #f5f3ff; border: 2px solid #c7d2fe; border-radius: 10px; padding-right: 50px;">
+                            <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: 16px; color: #6366f1;">Lts</span>
+                        </div>
+                    </div>
+
+                    <!-- Leche Ácida Toggle -->
+                    <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px 14px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; font-weight: 700; color: #b45309;">
+                            <input type="checkbox" id="checkFincaExtraEsAcida" style="width: 18px; height: 18px; accent-color: #d97706;">
+                            <span><i class="fa-solid fa-flask" style="color: #d97706;"></i> ¿Leche Ácida / Descarte?</span>
+                        </label>
+                    </div>
+
+                    <!-- Observación -->
+                    <div>
+                        <label for="inputObservacionExtra" style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+                            Observación (Opcional)
+                        </label>
+                        <input type="text" id="inputObservacionExtra" class="form-input" placeholder="Ej: Asignada por contingencia..." style="height: 38px; font-size: 13px;">
+                    </div>
+                </div>
+
+                <div class="modal-custom-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-outline" onclick="cerrarModalCustom('modalAgregarFincaExtra')" style="padding: 0 16px; height: 40px; font-weight: 600; border-radius: 8px;">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btnGuardarFincaExtra" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3730a3); border: none; padding: 0 20px; height: 40px; font-weight: 800; border-radius: 8px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); display: inline-flex; align-items: center; gap: 8px; color: #ffffff;">
+                        <i class="fa-solid fa-plus-circle"></i> Agregar al Viaje
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 <!-- FIN COMPONENTE: modals/ModalesRutasLogistica -->
 
             
@@ -9666,6 +11333,39 @@
                             <input type="text" id="modalStandaloneMarcaModelo" class="form-input"
                                 placeholder="Ej: Mack Granite / Ford Cargo"
                                 style="height: 42px; font-size: 13px; color: #0f172a;">
+                        </div>
+                    </div>
+
+                    <!-- FILA COMBUSTIBLE Y KILOMETRAJE -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="modalStandaloneCapacidadTanque"
+                                style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px; display: block;">
+                                <i class="fa-solid fa-gas-pump"></i> Tanque Diésel/Gas (L)
+                            </label>
+                            <input type="number" step="1" min="0" id="modalStandaloneCapacidadTanque" class="form-input"
+                                placeholder="Ej: 300"
+                                style="height: 38px; font-size: 13px; font-weight: 700; color: #0369a1;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="modalStandaloneTipoCombustible"
+                                style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px; display: block;">
+                                Tipo Combustible
+                            </label>
+                            <select id="modalStandaloneTipoCombustible" class="form-input"
+                                style="height: 38px; font-size: 12.5px; font-weight: 600;">
+                                <option value="GASOIL">GASOIL (Diésel)</option>
+                                <option value="GASOLINA">GASOLINA</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="modalStandaloneOdometro"
+                                style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px; display: block;">
+                                <i class="fa-solid fa-gauge-high"></i> Odómetro (Km)
+                            </label>
+                            <input type="number" step="0.1" min="0" id="modalStandaloneOdometro" class="form-input"
+                                placeholder="Ej: 125000"
+                                style="height: 38px; font-size: 13px; font-weight: 700; color: #0369a1;">
                         </div>
                     </div>
 
@@ -13704,30 +15404,36 @@
     <script>if (typeof html2canvas === 'undefined') { document.write('<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>'); }</script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <!-- SCRIPTS MODULARES (COMPONENTES REACT-LIKE) -->
-    <script src="src/utils/formatters.js?v=1.2.0"></script>
+    <script src="src/utils/formatters.js?v=1.4.0"></script>
     <script src="src/services/api.js?v=1.2.0"></script>
     <script src="src/modules/liquidaciones/liquidaciones.js?v=1.2.0"></script>
     <script src="src/modules/tiposLeche/tiposLeche.js?v=1.2.0"></script>
     <script src="src/components/core/AppCore.js?v=1.2.0"></script>
     <script src="src/components/dashboard/Dashboard.js?v=1.2.0"></script>
-    <script src="src/components/rutas/Rutas.js?v=1.2.0"></script>
+    <script src="src/components/rutas/Rutas.js?v=1.4.0"></script>
+    <script src="src/components/rutas/RutasLogistica.js?v=1.2.0"></script>
     <script src="src/components/semanas/Semanas.js?v=1.2.0"></script>
     <script src="src/components/adelantos/AbonosAdelantos.js?v=1.2.0"></script>
     <script src="src/components/adelantos/AdelantosCiclos.js?v=1.2.0"></script>
     <script src="src/components/catalogos/Catalogos.js?v=1.2.0"></script>
-    <script src="src/components/reportes/Reportes.js?v=1.2.0"></script>
+    <script src="src/components/reportes/Reportes.js?v=1.4.0"></script>
     <script src="src/components/chatbot/Chatbot.js?v=1.2.0"></script>
     <script src="src/components/seguridad/UsuariosCamiones.js?v=1.2.0"></script>
-    <script src="src/components/controlRutas/ViajesTickets.js?v=1.2.0"></script>
+    <script src="src/components/controlRutas/ViajesTickets.js?v=1.4.0"></script>
     <script src="src/components/controlRutas/ControlRutas.js?v=1.2.0"></script>
     <script src="src/components/balanceVolumetrico/BalanceVolumetrico.js?v=1.2.0"></script>
     <script src="src/components/rentabilidad/Rentabilidad.js?v=1.2.0"></script>
     <script src="src/components/pagosPersonal/PagosPersonal.js?v=1.2.0"></script>
-    <script src="src/components/seguridad/PermisosRbac.js?v=1.3.0"></script>
+    <script src="src/components/seguridad/PermisosRbac.js?v=1.4.0"></script>
     <script src="src/components/bufala/Bufala.js?v=1.2.0"></script>
     <script src="src/components/configuracion/ConfiguracionSistema.js?v=1.2.0"></script>
+    <script src="src/components/combustible/Combustible.js?v=1.2.0"></script>
+    <script src="src/components/mantenimiento/MantenimientoCamiones.js?v=1.2.0"></script>
+    <script src="src/components/repuestos/Repuestos.js?v=1.2.0"></script>
+    <script src="src/components/data/GestionData.js?v=1.4.1"></script>
     <script src="src/components/core/AppInit.js?v=1.2.0"></script>
 </body>
 

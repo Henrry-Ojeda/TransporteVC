@@ -7369,6 +7369,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     pt.Nombre AS NombreProceso,
                     pt.Color AS ColorProceso,
                     pt.Icono AS IconoProceso,
+                    cr.RutaLogisticaId,
+                    rl.Nombre AS RutaLogisticaNombre,
                     cr.TipoDestino,
                     cr.LitrosRecibidosReceptoria,
                     cr.DiferenciaReceptoria,
@@ -7388,6 +7390,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_PROCESOS_TICKET pt ON cr.ProcesoActualId = pt.Id
                 LEFT JOIN TB_COMPANIAS cp ON cr.CompaniaDestinoId = cp.Id
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
                 WHERE CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin
                   AND (@cicloId IS NULL OR cr.CicloId = @cicloId)
                   AND (@rol = 'ADMIN' OR cr.UsuarioId = @usuarioId)
@@ -7408,6 +7411,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                        pt.Nombre AS NombreProceso,
                        pt.Color AS ColorProceso,
                        pt.Icono AS IconoProceso,
+                       cr.RutaLogisticaId,
+                       rl.Nombre AS RutaLogisticaNombre,
                        cr.TipoDestino,
                        cr.LitrosRecibidosReceptoria,
                        cr.DiferenciaReceptoria,
@@ -7427,6 +7432,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_PROCESOS_TICKET pt ON cr.ProcesoActualId = pt.Id
                 LEFT JOIN TB_COMPANIAS cp ON cr.CompaniaDestinoId = cp.Id
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
                 WHERE cr.Id = @id";
             return await connection.QueryFirstOrDefaultAsync<ControlRutaDto>(sql, new { id });
         }
@@ -7477,15 +7483,17 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
             var sqlInsert = @"
                 INSERT INTO TB_CONTROL_RUTAS
-                (Fecha, UsuarioId, CicloId, TotalLitrosFinca, TotalLitrosReceptoria, DiferenciaLitros, PorcentajeMerma, Estado, ProcesoActualId, TipoDestino, Observacion, CreatedAt, CreatedBy)
-                VALUES (@fechaControl, @conductorEfectivo, @cicloId, @totalFinca, @totalReceptoria, @diferencia, @porcentaje, @estado, @procesoId, @tipoDestino, @observacion, GETDATE(), @usuarioId);
+                (Fecha, UsuarioId, CicloId, TotalLitrosFinca, TotalLitrosReceptoria, DiferenciaLitros, PorcentajeMerma, Estado, ProcesoActualId, TipoDestino, RutaLogisticaId, Observacion, CreatedAt, CreatedBy)
+                VALUES (@fechaControl, @conductorEfectivo, @cicloId, @totalFinca, @totalReceptoria, @diferencia, @porcentaje, @estado, @procesoId, @tipoDestino, @rutaLogisticaId, @observacion, GETDATE(), @usuarioId);
                 SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
             var nuevoId = await connection.ExecuteScalarAsync<long>(sqlInsert, new
             {
                 fechaControl, conductorEfectivo, cicloId,
                 totalFinca = dto.TotalLitrosFinca, totalReceptoria = dto.TotalLitrosReceptoria,
-                diferencia, porcentaje, estado, procesoId, tipoDestino = dto.TipoDestino ?? "RECEPTORIA", observacion = dto.Observacion, usuarioId
+                diferencia, porcentaje, estado, procesoId, tipoDestino = dto.TipoDestino ?? "RECEPTORIA", 
+                rutaLogisticaId = dto.RutaLogisticaId,
+                observacion = dto.Observacion, usuarioId
             });
 
             // Registrar en historial inicial
@@ -7617,6 +7625,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     LitrosCargadosAdicional = ISNULL(@litrosCargadosAdicional, LitrosCargadosAdicional),
                     CompaniaDestinoId = ISNULL(@companiaDestinoId, CompaniaDestinoId),
                     LitrosEntregadosCompania = ISNULL(@litrosEntregadosCompania, LitrosEntregadosCompania),
+                    RutaLogisticaId = ISNULL(@rutaLogisticaId, RutaLogisticaId),
                     Observacion = @observacion, 
                     ModifiedAt = GETDATE(), 
                     ModifiedBy = @usuarioId
@@ -7629,6 +7638,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     litrosCargadosAdicional = dto.LitrosCargadosAdicional,
                     companiaDestinoId = dto.CompaniaDestinoId,
                     litrosEntregadosCompania = dto.LitrosEntregadosCompania,
+                    rutaLogisticaId = dto.RutaLogisticaId,
                     observacion = dto.Observacion, usuarioId, id
                 });
 
@@ -7888,13 +7898,15 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
             var sqlInsert = @"
                 INSERT INTO TB_CONTROL_RUTAS
-                (Fecha, UsuarioId, CicloId, TotalLitrosFinca, TotalLitrosReceptoria, DiferenciaLitros, PorcentajeMerma, Estado, ProcesoActualId, Observacion, CreatedAt, CreatedBy)
-                VALUES (@fecha, @conductorEfectivo, @cicloId, 0, 0, 0, 0, 'ABIERTO', 1, @observacion, GETDATE(), @usuarioId);
+                (Fecha, UsuarioId, CicloId, TotalLitrosFinca, TotalLitrosReceptoria, DiferenciaLitros, PorcentajeMerma, Estado, ProcesoActualId, RutaLogisticaId, Observacion, CreatedAt, CreatedBy)
+                VALUES (@fecha, @conductorEfectivo, @cicloId, 0, 0, 0, 0, 'ABIERTO', 1, @rutaLogisticaId, @observacion, GETDATE(), @usuarioId);
                 SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
             var nuevoId = await connection.ExecuteScalarAsync<long>(sqlInsert, new
             {
-                fecha, conductorEfectivo, cicloId, observacion = dto.Observacion ?? "Viaje iniciado por el chofer", usuarioId
+                fecha, conductorEfectivo, cicloId, 
+                rutaLogisticaId = dto.RutaLogisticaId,
+                observacion = dto.Observacion ?? "Viaje iniciado por el chofer", usuarioId
             });
 
             // Registrar en historial inicial

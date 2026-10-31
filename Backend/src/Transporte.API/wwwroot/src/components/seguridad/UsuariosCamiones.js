@@ -1080,7 +1080,7 @@ function renderTablaCamiones() {
     const paginatedItems = items.slice(startIdx, startIdx + state.datatableCamiones.pageSize);
 
     if (paginatedItems.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center" style="padding: 24px; color: #94a3b8;">No se encontraron camiones registrados</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 24px; color: #94a3b8;">No se encontraron camiones registrados</td></tr>`;
         renderPaginacionCamiones(totalPages, items.length, startIdx, 0);
         return;
     }
@@ -1089,6 +1089,16 @@ function renderTablaCamiones() {
         const placaBadge = `<span class="badge badge-primary" style="font-family: monospace; font-size: 13px; font-weight: 800; letter-spacing: 0.5px; padding: 4px 8px;">${c.placa}</span>`;
         const cap = Number(c.capacidadLitros || 0).toLocaleString();
         const compartimientosStr = `<span class="badge" style="background: #f1f5f9; color: #334155; font-weight: 700; font-size: 11px; border: 1px solid #cbd5e1;">${c.compartimientos} ${c.compartimientos === 1 ? 'Comp' : 'Comps'}</span>`;
+
+        const combustibleBadge = `
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
+                <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 11px; border: 1px solid #bae6fd;">
+                    <i class="fa-solid fa-gas-pump"></i> ${c.capacidadTanqueLitros || 0}L (${c.tipoCombustible || 'GASOIL'})
+                </span>
+                <span style="font-size: 11px; color: #64748b; font-weight: 600;">
+                    <i class="fa-solid fa-gauge-high" style="color: #0284c7;"></i> ${(c.odometroActualKm || 0).toLocaleString()} Km
+                </span>
+            </div>`;
 
         const choferBadge = c.usuarioId && c.choferNombre
             ? `<div style="display: flex; align-items: center; gap: 6px;">
@@ -1109,6 +1119,7 @@ function renderTablaCamiones() {
                 <td><strong style="color: #1e293b; font-size: 13px;">${c.marcaModelo || '<span style="color:#94a3b8;">Sin especificar</span>'}</strong></td>
                 <td style="text-align: center;">${compartimientosStr}</td>
                 <td style="text-align: right;"><strong style="color: #047857; font-size: 14px; font-weight: 800;">${cap} L</strong></td>
+                <td style="text-align: center;">${combustibleBadge}</td>
                 <td>${choferBadge}</td>
                 <td><span style="color: #64748b; font-size: 12px;">${c.observaciones || '-'}</span></td>
                 <td style="text-align: center;">
@@ -1227,6 +1238,9 @@ function abrirModalCrearCamion() {
     document.getElementById('modalStandaloneCapacidadLitros').value = '';
     document.getElementById('modalStandaloneCompartimientos').value = '1';
     document.getElementById('modalStandaloneMarcaModelo').value = '';
+    document.getElementById('modalStandaloneCapacidadTanque').value = '250';
+    document.getElementById('modalStandaloneTipoCombustible').value = 'GASOIL';
+    document.getElementById('modalStandaloneOdometro').value = '0';
     document.getElementById('modalStandaloneObservaciones').value = '';
     document.getElementById('modalStandaloneActivo').checked = true;
 
@@ -1272,6 +1286,9 @@ async function abrirModalEditarCamion(id) {
     document.getElementById('modalStandaloneCapacidadLitros').value = camion.capacidadLitros || '';
     document.getElementById('modalStandaloneCompartimientos').value = (camion.compartimientos || 1).toString();
     document.getElementById('modalStandaloneMarcaModelo').value = camion.marcaModelo || '';
+    document.getElementById('modalStandaloneCapacidadTanque').value = camion.capacidadTanqueLitros || 0;
+    document.getElementById('modalStandaloneTipoCombustible').value = camion.tipoCombustible || 'GASOIL';
+    document.getElementById('modalStandaloneOdometro').value = camion.odometroActualKm || 0;
     document.getElementById('modalStandaloneObservaciones').value = camion.observaciones || '';
     document.getElementById('modalStandaloneActivo').checked = camion.activo !== false;
 
@@ -1287,6 +1304,9 @@ async function guardarCamionStandaloneSubmit(e) {
     const capacidadLitros = parseFloat(document.getElementById('modalStandaloneCapacidadLitros').value) || 0;
     const compartimientos = parseInt(document.getElementById('modalStandaloneCompartimientos').value) || 1;
     const marcaModelo = document.getElementById('modalStandaloneMarcaModelo').value.trim() || null;
+    const capacidadTanqueLitros = parseFloat(document.getElementById('modalStandaloneCapacidadTanque').value) || 0;
+    const tipoCombustible = document.getElementById('modalStandaloneTipoCombustible').value || 'GASOIL';
+    const odometroActualKm = parseFloat(document.getElementById('modalStandaloneOdometro').value) || 0;
     const usuarioIdVal = document.getElementById('modalStandaloneChoferId').value;
     const usuarioId = usuarioIdVal ? parseInt(usuarioIdVal) : null;
     const observaciones = document.getElementById('modalStandaloneObservaciones').value.trim() || null;
@@ -1307,6 +1327,9 @@ async function guardarCamionStandaloneSubmit(e) {
         capacidadLitros,
         compartimientos,
         marcaModelo,
+        capacidadTanqueLitros,
+        tipoCombustible,
+        odometroActualKm,
         usuarioId,
         observaciones,
         activo

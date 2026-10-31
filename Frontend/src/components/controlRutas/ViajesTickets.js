@@ -261,6 +261,7 @@ window.cargarViajeActivoChofer = cargarViajeActivoChofer;
 
 // 2. ABRIR Y CONFIRMAR INICIAR VIAJE
 let comboboxIniciarViajeConductorInstance = null;
+let comboboxIniciarViajeRutaLogisticaInstance = null;
 function initIniciarViajeCombobox() {
     if (!comboboxIniciarViajeConductorInstance && document.getElementById('comboboxIniciarViajeConductor')) {
         comboboxIniciarViajeConductorInstance = setupCombobox({
@@ -279,6 +280,35 @@ function initIniciarViajeCombobox() {
                 await _verificarViajeActivoConductorModal(item.value, item.label);
             }
         });
+        window.comboboxIniciarViajeConductorInstance = comboboxIniciarViajeConductorInstance;
+    }
+
+    if (!comboboxIniciarViajeRutaLogisticaInstance && document.getElementById('comboboxIniciarViajeRutaLogistica')) {
+        comboboxIniciarViajeRutaLogisticaInstance = setupCombobox({
+            containerId: 'comboboxIniciarViajeRutaLogistica',
+            inputSearchId: 'searchIniciarViajeRutaLogisticaInput',
+            inputHiddenId: 'selectIniciarViajeRutaLogistica',
+            dropdownId: 'dropdownIniciarViajeRutaLogisticaList',
+            placeholder: 'SELECCIONE O BUSQUE RUTA / ZONA...',
+            getItemsFn: () => (window.cacheRutasLogistica?.rutas || [])
+                .filter(r => (r.activo !== undefined ? r.activo : r.Activo) !== false)
+                .map(r => {
+                    const id = r.id || r.Id;
+                    const nom = r.nombre || r.Nombre;
+                    const cant = Number(r.totalFincasAsignadas || r.TotalFincasAsignadas) || 0;
+                    return {
+                        value: id,
+                        label: nom,
+                        sub: `${cant} fincas asignadas`
+                    };
+                }),
+            onSelect: async (item) => {
+                if (typeof onSeleccionarRutaLogisticaEnViaje === 'function') {
+                    await onSeleccionarRutaLogisticaEnViaje(item ? item.value : null);
+                }
+            }
+        });
+        window.comboboxIniciarViajeRutaLogisticaInstance = comboboxIniciarViajeRutaLogisticaInstance;
     }
 }
 window.initIniciarViajeCombobox = initIniciarViajeCombobox;
@@ -424,6 +454,19 @@ function abrirModalIniciarViaje() {
     const obsInput = document.getElementById('inputIniciarViajeObs');
     if (obsInput) obsInput.value = '';
 
+    const selRuta = document.getElementById('selectIniciarViajeRutaLogistica');
+    if (selRuta) {
+        selRuta.value = '';
+    }
+    if (comboboxIniciarViajeRutaLogisticaInstance) {
+        comboboxIniciarViajeRutaLogisticaInstance.reset();
+    }
+    if (typeof poblarSelectoresRutasLogistica === 'function') {
+        poblarSelectoresRutasLogistica();
+    }
+    const infoRuta = document.getElementById('infoFincasRutaViaje');
+    if (infoRuta) infoRuta.style.display = 'none';
+
     abrirModalCustom('modalIniciarViaje');
 }
 window.abrirModalIniciarViaje = abrirModalIniciarViaje;
@@ -449,6 +492,7 @@ async function confirmarIniciarViaje(e) {
         return;
     }
 
+    const rutaLogisticaId = parseInt(document.getElementById('selectIniciarViajeRutaLogistica')?.value) || null;
     const observacion = document.getElementById('inputIniciarViajeObs')?.value || '';
 
     try {
@@ -458,7 +502,7 @@ async function confirmarIniciarViaje(e) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${state.token}`
             },
-            body: JSON.stringify({ fecha, conductorId, observacion })
+            body: JSON.stringify({ fecha, conductorId, rutaLogisticaId, observacion })
         });
 
         if (!res.ok) {
@@ -3110,17 +3154,13 @@ function renderizarDataTableTickets() {
             ? Number(v.porcentajeMerma)
             : (ltsBaseCalc > 0 && Math.abs(difVal) > 0 ? ((Math.abs(difVal) / ltsBaseCalc) * 100) : 0);
 
-        let badgePctMerma = '';
-        if (difVal < 0) {
-            // Ganancia / Excedente a favor en quesera o destino
-            badgePctMerma = `<span class="badge" style="background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-weight: 700; font-size: 11px;">+${Math.abs(pctMerma).toFixed(2)}%</span>`;
-        } else if (difVal === 0) {
-            badgePctMerma = `<span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 700; font-size: 11px;">0.00%</span>`;
-        } else if (pctMerma <= 1.0) {
-            badgePctMerma = `<span class="badge" style="background: #fffbeb; color: #d97706; border: 1px solid #fde68a; font-weight: 700; font-size: 11px;">-${pctMerma.toFixed(2)}%</span>`;
-        } else {
-            badgePctMerma = `<span class="badge" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 700; font-size: 11px;"><i class="fa-solid fa-triangle-exclamation"></i> -${pctMerma.toFixed(2)}%</span>`;
-        }
+        const badgePctMerma = (typeof renderSemaforoMerma === 'function')
+            ? renderSemaforoMerma(pctMerma, difVal)
+            : (difVal < 0 
+                ? `<span class="badge" style="background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-weight: 700; font-size: 11px;">+${Math.abs(pctMerma).toFixed(2)}%</span>`
+                : (pctMerma <= 3.0 
+                    ? `<span class="badge" style="background: #fffbeb; color: #d97706; border: 1px solid #fde68a; font-weight: 700; font-size: 11px;">-${pctMerma.toFixed(2)}%</span>`
+                    : `<span class="badge" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 700; font-size: 11px;"><i class="fa-solid fa-triangle-exclamation"></i> -${pctMerma.toFixed(2)}%</span>`));
 
         // Merma Total Litros (Pérdida con signo negativo)
         const mermaVal = v.mermaTotalLitros != null ? v.mermaTotalLitros : (v.diferenciaLitros || 0);
@@ -4254,6 +4294,7 @@ async function verTrazabilidadViaje(tipoOrId, maybeId) {
                             DIFERENCIA / MERMA
                         </div>
                         <div style="font-size: 20px; font-weight: 900; color: ${falla > 0 ? '#b91c1c' : '#047857'}; letter-spacing: -0.02em;">${falla > 0 ? `-${falla.toLocaleString('es-VE')} L` : (falla < 0 ? `+${Math.abs(falla).toLocaleString('es-VE')} L` : '0 L')}</div>
+                        <div style="margin-top: 3px; display: flex; justify-content: center;">${typeof renderSemaforoMerma === 'function' ? renderSemaforoMerma(despachados > 0 ? (Math.abs(falla) / despachados) * 100 : 0, falla) : ''}</div>
                     </div>
                     <div style="background: #ffffff; border: 1.5px solid #bae6fd; border-radius: 14px; padding: 14px 12px; text-align: center; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.05); position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 4px;">
                         <div style="position: absolute; top: 0; left: 0; right: 0; height: 3.5px; background: linear-gradient(90deg, #0284c7, #38bdf8);"></div>
@@ -5258,10 +5299,53 @@ function abrirModalAgregarFincaControl(ticketId) {
                         sub: prop ? `Propietario: ${prop}` : ''
                     };
                 }),
-            onSelect: (item) => {
+            onSelect: async (item) => {
                 const groupTipo = document.getElementById('groupAddControlTipoLeche');
                 const selectTipo = document.getElementById('selectAddControlTipoLeche');
                 if (item) {
+                    // Verificación si ya fue registrada hoy con litros
+                    const fechaActual = state.rutasFechaFiltro || new Date().toISOString().split('T')[0];
+                    const recoleccionesPrevias = (state.rutas || []).filter(r => 
+                        Number(r.fincaId || r.FincaId) === Number(item.value) && 
+                        (r.fecha ? r.fecha.split('T')[0] === fechaActual : true) &&
+                        (Number(r.litros || 0) > 0)
+                    );
+
+                    if (recoleccionesPrevias.length > 0) {
+                        const previa = recoleccionesPrevias[0];
+                        const choferPrevio = previa.conductorNombre || 'otro chofer';
+                        const litrosPrevios = Number(previa.litros || 0).toLocaleString('es-VE');
+                        const ticketPrevio = previa.controlRutaId || previa.ControlRutaId ? `Ticket #${previa.controlRutaId || previa.ControlRutaId}` : 'otro viaje';
+
+                        const conf = await Swal.fire({
+                            icon: 'info',
+                            title: 'Finca Ya Recolectada Hoy',
+                            html: `
+                                <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #f8fafc;">
+                                    El chofer <strong style="color: #38bdf8;">${choferPrevio}</strong> ya registró una recolección de 
+                                    <strong style="color: #34d399;">${litrosPrevios} Litros</strong> para esta finca el día de hoy (${ticketPrevio}).
+                                    <br><br>
+                                    <span style="color: #fbbf24; font-size: 12.5px;">
+                                        <i class="fa-solid fa-circle-info"></i> Recuerde que algunas fincas ordeñan 2 veces al día. 
+                                        ¿Desea confirmar y agregar un segundo ticket/recolección para esta finca?
+                                    </span>
+                                </div>
+                            `,
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="fa-solid fa-check"></i> Sí, Recoger / Agregar',
+                            cancelButtonText: '<i class="fa-solid fa-xmark"></i> Cancelar',
+                            confirmButtonColor: '#0284c7',
+                            cancelButtonColor: '#64748b',
+                            background: '#1e293b',
+                            color: '#f8fafc'
+                        });
+
+                        if (!conf.isConfirmed) {
+                            if (comboboxAddControlFincaInstance) comboboxAddControlFincaInstance.clear();
+                            return;
+                        }
+                    }
+
                     const matched = (state.fincas || []).find(x => (x.id || x.Id) == item.value);
                     const esDual = !!(matched?.tieneDosTiposLeche || matched?.TieneDosTiposLeche);
                     if (groupTipo) groupTipo.style.display = esDual ? 'block' : 'none';
@@ -5518,6 +5602,9 @@ function conmutarVistaRutas(modo) {
         }
         const fechaFiltro = document.getElementById('filtroFechaGlobalRutas')?.value || document.getElementById('filtroFechaRutas')?.value || state.rutasFechaFiltro || new Date().toISOString().split('T')[0];
         cargarRutasHoy(fechaFiltro);
+        if (typeof cargarViajesRutasDelDia === 'function') {
+            cargarViajesRutasDelDia(fechaFiltro);
+        }
     } else {
         if (seccionViajes) seccionViajes.style.display = 'none';
         if (seccionFincas) seccionFincas.style.display = 'block';
@@ -6131,9 +6218,9 @@ function renderizarTarjetasViajesTickets() {
                                 <strong style="font-size: 15px; font-weight: 800; color: ${item._diferencia > 0 ? '#dc2626' : (item._diferencia === 0 ? '#16a34a' : '#2563eb')};">
                                     ${item._diferencia > 0 ? `-${Math.abs(item._diferencia).toLocaleString('es-VE')}` : (item._diferencia < 0 ? `+${Math.abs(item._diferencia).toLocaleString('es-VE')}` : '0')} Lts
                                 </strong>
-                                <span style="font-size: 10.5px; font-weight: 700; color: ${item._diferencia > 0 ? '#dc2626' : (item._diferencia === 0 ? '#16a34a' : '#2563eb')}; display: block;">
-                                    (${item._porcentajeMerma}% merma)
-                                </span>
+                                <div style="margin-top: 3px;">
+                                    ${typeof renderSemaforoMerma === 'function' ? renderSemaforoMerma(item._porcentajeMerma, item._diferencia) : `<span style="font-size: 10.5px; font-weight: 700;">(${item._porcentajeMerma}% merma)</span>`}
+                                </div>
                             </div>
                         </div>
                     ` : ''}
@@ -6166,8 +6253,8 @@ function renderizarTarjetasViajesTickets() {
                                         <i class="fa-solid fa-right-left"></i> Traspaso
                                     </button>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline" onclick="conmutarAFincasFiltradas(${item.id})" style="width: 100%; border-color: #cbd5e1; background: #ffffff; color: #1e293b; font-weight: 700; padding: 8px 12px; font-size: 12.5px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s ease;">
-                                    <i class="fa-solid fa-pen-to-square" style="color: #2563eb;"></i> Ver y Editar Fincas de este Viaje (${item.totalFincas || 0})
+                                <button type="button" class="btn btn-sm btn-outline" onclick="conmutarAFincasFiltradas(${item.id})" style="width: 100%; border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; font-weight: 800; padding: 8px 12px; font-size: 13px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(37,99,235,0.1);">
+                                    <i class="fa-solid fa-cow" style="color: #2563eb;"></i> Recolectar Fincas de la Ruta (${item.totalFincas || 0} fincas)
                                 </button>
                             ` : item.procesoActualId === 2 ? `
                                 <button type="button" class="btn btn-sm btn-primary" onclick="irAReceptoriaParaTicket(${item.id})" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; border: none; padding: 8px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">
@@ -7097,10 +7184,21 @@ async function filtrarRutasPorTicket(ticketId) {
 
     renderTablaRutas();
 
-    // Scroll suave hacia la tabla
-    const cardTabla = document.getElementById('bannerFiltroTicketRutas');
-    if (cardTabla) {
-        cardTabla.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Invocar panel visual de recolección en ruta si existe
+    if (typeof cargarPanelRecoleccionVisual === 'function') {
+        cargarPanelRecoleccionVisual(ticketId);
+    }
+    const panelVisual = document.getElementById('panelRecoleccionVisualRuta');
+    const cardForm = document.getElementById('cardFormularioCapturaRutas');
+    if (panelVisual) {
+        panelVisual.style.display = 'block';
+        if (cardForm) cardForm.style.display = 'none'; // colapsar formulario manual por defecto para experiencia visual limpia
+        panelVisual.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        const cardTabla = document.getElementById('bannerFiltroTicketRutas');
+        if (cardTabla) {
+            cardTabla.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }
 }
 window.filtrarRutasPorTicket = filtrarRutasPorTicket;
@@ -7109,6 +7207,13 @@ async function quitarFiltroTicketRutas() {
     state.filtroTicketId = null;
     const banner = document.getElementById('bannerFiltroTicketRutas');
     if (banner) banner.style.display = 'none';
+    const panelVisual = document.getElementById('panelRecoleccionVisualRuta');
+    if (panelVisual) panelVisual.style.display = 'none';
+    const cardForm = document.getElementById('cardFormularioCapturaRutas');
+    if (cardForm) cardForm.style.display = 'block';
+    const btnToggle = document.getElementById('btnToggleFormularioManual');
+    if (btnToggle) btnToggle.innerHTML = '<i class="fa-solid fa-sliders"></i> Formulario Manual';
+
     sincronizarBloqueoTicketFormulario(null);
     if (comboboxFiltroChoferInstance) {
         comboboxFiltroChoferInstance.selectItem('', '');

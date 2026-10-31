@@ -281,7 +281,7 @@ function agregarFilaMasivaRuta(fincaIdSugerida = '', litrosSugeridos = '', obser
                     sub: esChofer ? `Propietario: ${f.propietario || '-'}` : `Propietario: ${f.propietario} | USD/L: $${f.precioLitroUSD || 0}`
                 };
             }),
-        onSelect: () => {
+        onSelect: async (item) => {
             const searchInputEl = document.getElementById(`inputMasivoFincaSearch_${rowId}`);
             const alertBadgeEl = document.getElementById(`alertBadge_${rowId}`);
             if (searchInputEl) {
@@ -293,6 +293,55 @@ function agregarFilaMasivaRuta(fincaIdSugerida = '', litrosSugeridos = '', obser
                 alertBadgeEl.style.display = 'none';
             }
             const hiddenEl = document.getElementById(`inputMasivoFincaHidden_${rowId}`);
+            const selectedFincaId = hiddenEl ? hiddenEl.value : (item ? item.value : null);
+
+            // Verificación: ¿Esta finca ya fue recogida hoy por otro chofer o en otro ticket?
+            if (selectedFincaId) {
+                const fechaActual = document.getElementById('inputMasivoFecha')?.value || state.rutasFechaFiltro || new Date().toISOString().split('T')[0];
+                const recoleccionesPrevias = (state.rutas || []).filter(r => 
+                    Number(r.fincaId || r.FincaId) === Number(selectedFincaId) && 
+                    (r.fecha ? r.fecha.split('T')[0] === fechaActual : true) &&
+                    (Number(r.litros || 0) > 0)
+                );
+
+                if (recoleccionesPrevias.length > 0) {
+                    const previa = recoleccionesPrevias[0];
+                    const choferPrevio = previa.conductorNombre || 'otro chofer';
+                    const litrosPrevios = Number(previa.litros || 0).toLocaleString('es-VE');
+                    const ticketPrevio = previa.controlRutaId || previa.ControlRutaId ? `Ticket #${previa.controlRutaId || previa.ControlRutaId}` : 'otro viaje';
+
+                    const conf = await Swal.fire({
+                        icon: 'info',
+                        title: 'Finca Ya Recolectada Hoy',
+                        html: `
+                            <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #f8fafc;">
+                                El chofer <strong style="color: #38bdf8;">${choferPrevio}</strong> ya registró una recolección de 
+                                <strong style="color: #34d399;">${litrosPrevios} Litros</strong> para esta finca el día de hoy (${ticketPrevio}).
+                                <br><br>
+                                <span style="color: #fbbf24; font-size: 12.5px;">
+                                    <i class="fa-solid fa-circle-info"></i> Recuerde que algunas fincas ordeñan 2 veces al día. 
+                                    ¿Desea confirmar y agregar un segundo ticket/recolección para esta finca?
+                                </span>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: '<i class="fa-solid fa-check"></i> Sí, Recoger / Agregar',
+                        cancelButtonText: '<i class="fa-solid fa-xmark"></i> Cancelar',
+                        confirmButtonColor: '#0284c7',
+                        cancelButtonColor: '#64748b',
+                        background: '#1e293b',
+                        color: '#f8fafc'
+                    });
+
+                    if (!conf.isConfirmed) {
+                        // Limpiar selección de esta fila
+                        if (hiddenEl) hiddenEl.value = '';
+                        if (searchInputEl) searchInputEl.value = '';
+                        return;
+                    }
+                }
+            }
+
             const tipoSelect = tr.querySelector('.masivo-tipo-select');
             if (tipoSelect && hiddenEl) {
                 const matchedF = (state.fincas || []).find(f => (f.id || f.Id) == hiddenEl.value);
@@ -1190,17 +1239,27 @@ async function actualizarBalanceReceptoria() {
     entregasDia.forEach(e => { totalLitrosReceptoria += Number(e.litros || e.Litros || 0); });
 
     const diferencia = totalLitrosReceptoria - totalLitrosRuta;
+    const falla = -diferencia;
+    const pctMermaTotal = totalLitrosRuta > 0 ? (Math.abs(diferencia) / totalLitrosRuta) * 100 : 0;
+    const semaforoBalanceBadge = typeof renderSemaforoMerma === 'function'
+        ? renderSemaforoMerma(pctMermaTotal, falla)
+        : '';
 
-    // Actualizar indicador de Diferencia en el encabezado superior (SI Y SOLO SI existe diferencia)
+    // Actualizar indicador de Diferencia en el encabezado superior con semáforo
     const kpiHeaderDif = document.getElementById('kpiDiferenciaReceptoriaHeader');
+    const kpiSemaforoEl = document.getElementById('kpiSemaforoReceptoriaHeader');
     if (kpiHeaderDif) {
         const parentSpan = kpiHeaderDif.parentElement;
         if (diferencia === 0) {
-            if (parentSpan) parentSpan.style.display = 'none';
+            if (parentSpan) parentSpan.style.display = 'inline-flex';
+            kpiHeaderDif.innerText = '0 Lts';
+            kpiHeaderDif.style.color = '#34d399';
+            if (kpiSemaforoEl) kpiSemaforoEl.innerHTML = semaforoBalanceBadge;
         } else {
-            if (parentSpan) parentSpan.style.display = 'inline-block';
+            if (parentSpan) parentSpan.style.display = 'inline-flex';
             kpiHeaderDif.innerText = `${diferencia > 0 ? '+' : ''}${diferencia.toLocaleString('es-VE')} Lts`;
             kpiHeaderDif.style.color = diferencia < 0 ? '#f87171' : '#60a5fa';
+            if (kpiSemaforoEl) kpiSemaforoEl.innerHTML = semaforoBalanceBadge;
         }
     }
 
@@ -1221,17 +1280,17 @@ async function actualizarBalanceReceptoria() {
             badgeDiag.style.background = 'rgba(16, 185, 129, 0.15)';
             badgeDiag.style.borderColor = '#10b981';
             badgeDiag.style.color = '#34d399';
-            badgeDiag.innerHTML = '<i class="fa-solid fa-circle-check" style="font-size: 15px;"></i> <span id="lblDiagnosticoTexto">CUADRE PERFECTO</span>';
+            badgeDiag.innerHTML = `<i class="fa-solid fa-circle-check" style="font-size: 15px;"></i> <span id="lblDiagnosticoTexto">CUADRE PERFECTO</span> ${semaforoBalanceBadge}`;
         } else if (diferencia < 0) {
             badgeDiag.style.background = 'rgba(239, 68, 68, 0.2)';
             badgeDiag.style.borderColor = '#ef4444';
             badgeDiag.style.color = '#f87171';
-            badgeDiag.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="font-size: 15px;"></i> <span id="lblDiagnosticoTexto">FALLA / FALTANTE: ${diferencia.toLocaleString('es-VE')} Lts</span>`;
+            badgeDiag.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="font-size: 15px;"></i> <span id="lblDiagnosticoTexto">FALLA / FALTANTE: ${diferencia.toLocaleString('es-VE')} Lts</span> ${semaforoBalanceBadge}`;
         } else {
             badgeDiag.style.background = 'rgba(59, 130, 246, 0.2)';
             badgeDiag.style.borderColor = '#3b82f6';
             badgeDiag.style.color = '#60a5fa';
-            badgeDiag.innerHTML = `<i class="fa-solid fa-circle-plus" style="font-size: 15px;"></i> <span id="lblDiagnosticoTexto">SOBRA / EXCEDENTE: +${diferencia.toLocaleString('es-VE')} Lts</span>`;
+            badgeDiag.innerHTML = `<i class="fa-solid fa-circle-plus" style="font-size: 15px;"></i> <span id="lblDiagnosticoTexto">SOBRA / EXCEDENTE: +${diferencia.toLocaleString('es-VE')} Lts</span> ${semaforoBalanceBadge}`;
         }
     }
 }
@@ -1569,34 +1628,29 @@ function renderTablaEntregas() {
 
         let badgeMermaHtml = `<span style="color: #94a3b8; font-size: 11px; font-weight: 600;">-</span>`;
         if (difLitros !== null) {
-            if (difLitros === 0) {
-                badgeMermaHtml = `
-                    <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <span class="badge" style="background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; font-weight: 800; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
-                            <i class="fa-solid fa-circle-check" style="color: #10b981;"></i> 0 L (0.00%)
-                        </span>
-                        <small style="font-size: 10px; font-weight: 700; color: #15803d; text-transform: uppercase;">Sin Merma / Exacto</small>
-                    </div>
-                `;
-            } else if (difLitros > 0) {
-                badgeMermaHtml = `
-                    <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <span class="badge" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-weight: 800; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
-                            <i class="fa-solid fa-arrow-trend-down" style="color: #ef4444;"></i> -${difLitros.toLocaleString('es-VE')} L
-                        </span>
-                        <small style="font-size: 10px; font-weight: 700; color: #b91c1c; text-transform: uppercase;">-${pctMerma.toFixed(2)}% Merma</small>
-                    </div>
-                `;
-            } else {
-                badgeMermaHtml = `
-                    <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <span class="badge" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-weight: 800; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
-                            <i class="fa-solid fa-arrow-trend-up" style="color: #2563eb;"></i> +${Math.abs(difLitros).toLocaleString('es-VE')} L
-                        </span>
-                        <small style="font-size: 10px; font-weight: 700; color: #1d4ed8; text-transform: uppercase;">+${pctMerma.toFixed(2)}% Excedente</small>
-                    </div>
-                `;
+            const semaforoBadge = typeof renderSemaforoMerma === 'function'
+                ? renderSemaforoMerma(pctMerma, difLitros)
+                : `<span class="badge">${pctMerma.toFixed(2)}%</span>`;
+
+            let difTexto = '0 L';
+            let difColor = '#166534';
+            if (difLitros > 0) {
+                difTexto = `-${difLitros.toLocaleString('es-VE')} L`;
+                const tol = typeof obtenerToleranciaMerma === 'function' ? obtenerToleranciaMerma() : 3.0;
+                difColor = pctMerma <= tol ? '#b45309' : '#b91c1c';
+            } else if (difLitros < 0) {
+                difTexto = `+${Math.abs(difLitros).toLocaleString('es-VE')} L`;
+                difColor = '#047857';
             }
+
+            badgeMermaHtml = `
+                <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 3px;">
+                    <span style="font-weight: 800; font-size: 12px; color: ${difColor};">
+                        ${difTexto}
+                    </span>
+                    ${semaforoBadge}
+                </div>
+            `;
         }
 
         return `
@@ -5436,3 +5490,702 @@ async function activarSemana(id) {
         Swal.fire({ icon: 'error', title: 'Error', text: err.message, background: '#1e293b', color: '#fff' });
     }
 }
+
+// =========================================================================
+// PANEL VISUAL DE RECOLECCIÓN EN RUTA EN VIVO (TICKETS & CHOFER)
+// =========================================================================
+
+let stateRecoleccionVisual = {
+    ticketId: null,
+    viaje: null,
+    fincasAsignadas: [],
+    recoleccionesDelTicket: [],
+    todasLasFincasVisual: [],
+    filtroTab: 'todas',
+    busquedaTexto: ''
+};
+let comboboxFincaExtraInstance = null;
+
+async function cargarPanelRecoleccionVisual(ticketId) {
+    if (!ticketId) return;
+    stateRecoleccionVisual.ticketId = ticketId;
+    state.filtroTicketId = ticketId;
+    state.ticketAsignadoActivo = ticketId;
+
+    const panel = document.getElementById('panelRecoleccionVisualRuta');
+    if (panel) panel.style.display = 'block';
+
+    // Obtener información del Viaje / Ticket
+    let viaje = (state.viajesDelDia || state.todosLosViajesReceptoria || state.cacheTicketsViajes?.todos || []).find(v => (v.id || v.Id) == ticketId);
+    if (!viaje) {
+        try {
+            const resV = await fetch(`${API_BASE}/control-rutas/${ticketId}`, {
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            if (resV.ok) viaje = await resV.json();
+        } catch (e) {
+            console.warn('Error al cargar ticket:', e);
+        }
+    }
+    stateRecoleccionVisual.viaje = viaje;
+
+    // Actualizar Encabezado
+    const lblTicketId = document.getElementById('lblVisualTicketId');
+    if (lblTicketId) lblTicketId.textContent = ticketId;
+
+    const lblRutaNombre = document.getElementById('lblVisualRutaNombre');
+    const badgeRuta = document.getElementById('badgeVisualRutaNombre');
+    const rutaNombre = viaje?.nombreRutaLogistica || viaje?.rutaNombre || viaje?.rutaLogisticaNombre || 'Sin Ruta Asignada';
+    if (lblRutaNombre) lblRutaNombre.textContent = rutaNombre;
+    if (badgeRuta && viaje?.colorRutaLogistica) {
+        badgeRuta.style.borderColor = viaje.colorRutaLogistica;
+    }
+
+    const lblChofer = document.getElementById('lblVisualChoferNombre');
+    if (lblChofer) lblChofer.textContent = capitalizarTexto(viaje?.nombreConductor || viaje?.conductorNombre || state.user?.nombreCompleto || 'Chofer');
+
+    const lblFecha = document.getElementById('lblVisualFecha');
+    const fechaTicket = viaje?.fecha ? viaje.fecha.split('T')[0] : (state.rutasFechaFiltro || new Date().toISOString().split('T')[0]);
+    if (lblFecha) lblFecha.textContent = fechaTicket;
+
+    // 1. Cargar recolecciones YA registradas en este ticket
+    let recsTicket = [];
+    try {
+        const resRecs = await fetch(`${API_BASE}/control-rutas/${ticketId}/fincas`, {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (resRecs.ok) {
+            recsTicket = await resRecs.json();
+        }
+    } catch (e) {
+        console.warn('Error al cargar fincas del ticket:', e);
+    }
+    stateRecoleccionVisual.recoleccionesDelTicket = recsTicket || [];
+
+    // 2. Cargar fincas asignadas a la ruta del ticket
+    let fincasRuta = [];
+    const rutaId = viaje?.rutaLogisticaId || viaje?.RutaLogisticaId;
+    if (rutaId) {
+        try {
+            const resFincasRuta = await fetch(`${API_BASE}/rutas-logistica/${rutaId}/fincas`, {
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            if (resFincasRuta.ok) {
+                const todas = await resFincasRuta.json();
+                fincasRuta = (todas || []).filter(f => Number(f.asignada || f.Asignada || 0) === 1);
+            }
+        } catch (e) {
+            console.warn('Error al cargar fincas de ruta logística:', e);
+        }
+    }
+
+    // Si la ruta logística no trajo o el ticket no tenía ruta específica, buscar en state.fincas
+    if (fincasRuta.length === 0 && rutaId && Array.isArray(state.fincas)) {
+        fincasRuta = state.fincas.filter(f => (f.rutaId || f.RutaId) == rutaId);
+    }
+    stateRecoleccionVisual.fincasAsignadas = fincasRuta;
+
+    // 3. Cruzar fincas asignadas con recolecciones registradas
+    const mapRecogidasPorFinca = new Map();
+    (stateRecoleccionVisual.recoleccionesDelTicket || []).forEach(r => {
+        const fid = Number(r.fincaId || r.FincaId);
+        mapRecogidasPorFinca.set(fid, r);
+    });
+
+    const listaVisual = [];
+    const idsFincasProcesadas = new Set();
+
+    // Agregar fincas de la ruta
+    fincasRuta.forEach(f => {
+        const fid = Number(f.id || f.Id);
+        idsFincasProcesadas.add(fid);
+        const recogida = mapRecogidasPorFinca.get(fid);
+        if (recogida) {
+            listaVisual.push({
+                fincaId: fid,
+                nombre: f.nombre || f.Nombre,
+                propietario: f.propietario || f.Propietario || '',
+                codigo: f.codigo || f.Codigo || '',
+                estado: 'RECOGIDA',
+                litros: Number(recogida.litros || recogida.Litros || 0),
+                esAcida: Boolean(recogida.esAcida || recogida.EsAcida),
+                tipoLeche: recogida.tipoLeche || recogida.TipoLeche || 'VACA',
+                tieneDosTiposLeche: Boolean(f.tieneDosTiposLeche || f.TieneDosTiposLeche || recogida.tieneDosTiposLeche),
+                recoleccionId: recogida.id || recogida.Id,
+                observacion: recogida.observacion || recogida.Observacion || '',
+                esFueraDeRuta: false
+            });
+        } else {
+            listaVisual.push({
+                fincaId: fid,
+                nombre: f.nombre || f.Nombre,
+                propietario: f.propietario || f.Propietario || '',
+                codigo: f.codigo || f.Codigo || '',
+                estado: 'PENDIENTE',
+                litros: 0,
+                esAcida: false,
+                tipoLeche: 'VACA',
+                tieneDosTiposLeche: Boolean(f.tieneDosTiposLeche || f.TieneDosTiposLeche),
+                recoleccionId: null,
+                observacion: '',
+                esFueraDeRuta: false
+            });
+        }
+    });
+
+    // Agregar fincas recogidas que estaban FUERA de la ruta asignada
+    (stateRecoleccionVisual.recoleccionesDelTicket || []).forEach(r => {
+        const fid = Number(r.fincaId || r.FincaId);
+        if (!idsFincasProcesadas.has(fid)) {
+            listaVisual.push({
+                fincaId: fid,
+                nombre: r.fincaNombre || r.FincaNombre || 'Finca Fuera de Ruta',
+                propietario: r.propietario || r.Propietario || '',
+                codigo: '',
+                estado: 'RECOGIDA',
+                litros: Number(r.litros || r.Litros || 0),
+                esAcida: Boolean(r.esAcida || r.EsAcida),
+                tipoLeche: r.tipoLeche || r.TipoLeche || 'VACA',
+                tieneDosTiposLeche: Boolean(r.tieneDosTiposLeche),
+                recoleccionId: r.id || r.Id,
+                observacion: r.observacion || r.Observacion || '',
+                esFueraDeRuta: true
+            });
+        }
+    });
+
+    stateRecoleccionVisual.todasLasFincasVisual = listaVisual;
+
+    // Calcular Métricas
+    const totalLitros = (stateRecoleccionVisual.recoleccionesDelTicket || []).reduce((acc, r) => acc + Number(r.litros || r.Litros || 0), 0);
+    const totalAsignadas = fincasRuta.length;
+    const totalRecogidas = listaVisual.filter(f => f.estado === 'RECOGIDA').length;
+    const porcentaje = totalAsignadas > 0 ? Math.min(100, Math.round((totalRecogidas / totalAsignadas) * 100)) : (totalRecogidas > 0 ? 100 : 0);
+
+    const kpiLitros = document.getElementById('kpiVisualLitrosTanque');
+    if (kpiLitros) kpiLitros.textContent = totalLitros.toLocaleString('es-VE');
+
+    const kpiConteo = document.getElementById('kpiVisualFincasConteo');
+    if (kpiConteo) kpiConteo.textContent = `${totalRecogidas} / ${totalAsignadas}`;
+
+    const lblPct = document.getElementById('lblVisualPorcentajeAvance');
+    if (lblPct) lblPct.textContent = `${porcentaje}%`;
+
+    const barProgreso = document.getElementById('barVisualProgresoRuta');
+    if (barProgreso) barProgreso.style.width = `${porcentaje}%`;
+
+    // Actualizar badges de pestañas
+    const cntTodas = document.getElementById('cntVisualTab_todas');
+    if (cntTodas) cntTodas.textContent = listaVisual.length;
+
+    const cntPendientes = document.getElementById('cntVisualTab_pendientes');
+    const pendientesCount = listaVisual.filter(f => f.estado === 'PENDIENTE').length;
+    if (cntPendientes) cntPendientes.textContent = pendientesCount;
+
+    const cntRecogidas = document.getElementById('cntVisualTab_recogidas');
+    if (cntRecogidas) cntRecogidas.textContent = totalRecogidas;
+
+    renderVisualFincasCards();
+    renderHistorialEnVivoTicket();
+}
+window.cargarPanelRecoleccionVisual = cargarPanelRecoleccionVisual;
+
+function filtrarVisualFincasTab(tab) {
+    stateRecoleccionVisual.filtroTab = tab;
+    document.querySelectorAll('.btn-visual-tab').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+        b.style.color = '#475569';
+        b.style.fontWeight = '600';
+    });
+    const btnActivo = document.getElementById(`tabVisualFincas_${tab}`);
+    if (btnActivo) {
+        btnActivo.classList.add('active');
+        btnActivo.style.background = tab === 'recogidas' ? '#16a34a' : '#2563eb';
+        btnActivo.style.color = '#ffffff';
+        btnActivo.style.fontWeight = '700';
+    }
+    renderVisualFincasCards();
+}
+window.filtrarVisualFincasTab = filtrarVisualFincasTab;
+
+function onFiltrarVisualFincasInput(val) {
+    stateRecoleccionVisual.busquedaTexto = (val || '').toLowerCase().trim();
+    renderVisualFincasCards();
+}
+window.onFiltrarVisualFincasInput = onFiltrarVisualFincasInput;
+
+function renderVisualFincasCards() {
+    const container = document.getElementById('gridVisualFincasAsignadas');
+    if (!container) return;
+
+    let items = stateRecoleccionVisual.todasLasFincasVisual || [];
+
+    // Filtro por pestaña
+    if (stateRecoleccionVisual.filtroTab === 'pendientes') {
+        items = items.filter(f => f.estado === 'PENDIENTE');
+    } else if (stateRecoleccionVisual.filtroTab === 'recogidas') {
+        items = items.filter(f => f.estado === 'RECOGIDA');
+    }
+
+    // Filtro por búsqueda
+    if (stateRecoleccionVisual.busquedaTexto) {
+        const q = stateRecoleccionVisual.busquedaTexto;
+        items = items.filter(f => 
+            (f.nombre || '').toLowerCase().includes(q) ||
+            (f.propietario || '').toLowerCase().includes(q) ||
+            (f.codigo || '').toLowerCase().includes(q)
+        );
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #94a3b8; background: #ffffff; border-radius: 12px; border: 1.5px dashed #cbd5e1;">
+                <i class="fa-solid fa-cow" style="font-size: 32px; color: #cbd5e1; margin-bottom: 10px; display: block;"></i>
+                <div style="font-size: 15px; font-weight: 700; color: #475569; margin-bottom: 4px;">No se encontraron fincas en esta vista</div>
+                <div style="font-size: 12.5px; color: #64748b;">
+                    ${stateRecoleccionVisual.busquedaTexto ? 'Prueba con otro término de búsqueda o limpia el buscador.' : 'No hay fincas con el filtro seleccionado.'}
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = items.map(f => {
+        const nombreEscapado = (f.nombre || '').replace(/'/g, "\\'");
+        const propEscapado = (f.propietario || '').replace(/'/g, "\\'");
+
+        if (f.estado === 'RECOGIDA') {
+            return `
+                <div class="finca-card-visual" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; box-shadow: 0 2px 6px rgba(16,185,129,0.08); transition: transform 0.15s ease, box-shadow 0.15s ease;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
+                        <div style="font-weight: 800; font-size: 14px; color: #166534; line-height: 1.25;">
+                            <i class="fa-solid fa-cow" style="color: #10b981; margin-right: 4px;"></i> ${f.nombre}
+                            ${f.esFueraDeRuta ? '<span class="badge" style="background: #fef3c7; color: #b45309; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">📍 Fuera Zona</span>' : ''}
+                        </div>
+                        <span class="badge" style="background: #10b981; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">
+                            ✓ RECOGIDA
+                        </span>
+                    </div>
+                    <div style="font-size: 12px; color: #475569;">
+                        ${f.propietario ? `<i class="fa-solid fa-user" style="font-size: 10.5px; color: #64748b; margin-right: 3px;"></i> ${f.propietario}` : ''}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; background: #ffffff; padding: 8px 12px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                        <div>
+                            <span style="font-size: 22px; font-weight: 900; color: #15803d; line-height: 1;">
+                                ${f.litros.toLocaleString('es-VE')}
+                            </span>
+                            <span style="font-size: 13px; font-weight: 700; color: #166534; margin-left: 2px;">Lts</span>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            ${f.esAcida ? '<span class="badge" style="background: #fee2e2; color: #dc2626; font-size: 10.5px; font-weight: 800; padding: 2px 6px;">⚠️ ÁCIDA</span>' : ''}
+                            <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-size: 10px; font-weight: 700; padding: 2px 6px;">${f.tipoLeche}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px; margin-top: 2px;">
+                        <button type="button" class="btn btn-sm btn-outline" onclick="abrirModalEditarRutaCompleta(${f.recoleccionId})"
+                            style="flex: 1; height: 30px; font-size: 12px; border-color: #86efac; color: #166534; font-weight: 700; background: #ffffff; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border-radius: 6px; cursor: pointer;">
+                            <i class="fa-solid fa-pen-to-square"></i> Editar Litros
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="eliminarRutaRegistro(${f.recoleccionId})"
+                            style="height: 30px; width: 34px; padding: 0; font-size: 12px; border-color: #fca5a5; color: #dc2626; background: #ffffff; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer;" title="Eliminar recolección">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="finca-card-visual" onclick="abrirModalQuickRecoleccion(${f.fincaId}, '${nombreEscapado}', '${propEscapado}', ${f.tieneDosTiposLeche})"
+                    style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.2s ease;"
+                    onmouseover="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 4px 14px rgba(59,130,246,0.12)'; this.style.transform='translateY(-2px)';"
+                    onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.03)'; this.style.transform='none';">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
+                        <div style="font-weight: 800; font-size: 14px; color: #0f172a; line-height: 1.25;">
+                            <i class="fa-solid fa-cow" style="color: #64748b; margin-right: 4px;"></i> ${f.nombre}
+                        </div>
+                        <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px;">
+                            ⏳ PENDIENTE
+                        </span>
+                    </div>
+                    <div style="font-size: 12px; color: #64748b;">
+                        ${f.propietario ? `<i class="fa-solid fa-user" style="font-size: 10.5px; margin-right: 3px;"></i> ${f.propietario}` : '<span style="font-style: italic;">Sin propietario</span>'}
+                    </div>
+                    <button type="button" class="btn btn-sm"
+                        style="width: 100%; background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; font-weight: 700; font-size: 12.5px; border-radius: 8px; padding: 7px 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.2s ease;">
+                        <i class="fa-solid fa-plus-circle" style="color: #2563eb;"></i> Registrar Litros
+                    </button>
+                </div>
+            `;
+        }
+    }).join('');
+}
+window.renderVisualFincasCards = renderVisualFincasCards;
+
+function renderHistorialEnVivoTicket() {
+    const tbody = document.getElementById('tbodyHistorialEnVivoTicket');
+    const tfoot = document.getElementById('tfootHistorialEnVivoTicket');
+    const badgeHistorial = document.getElementById('badgeTotalRecoleccionesHistorial');
+    const lblTotal = document.getElementById('lblHistorialTotalLitros');
+    if (!tbody) return;
+
+    const items = stateRecoleccionVisual.recoleccionesDelTicket || [];
+    if (badgeHistorial) badgeHistorial.textContent = items.length;
+
+    if (items.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 28px; color: #94a3b8; font-size: 13.5px;">
+                    <i class="fa-solid fa-clipboard-list" style="font-size: 26px; color: #cbd5e1; margin-bottom: 8px; display: block;"></i>
+                    A&uacute;n no se han registrado recolecciones en este viaje. Selecciona una finca asignada arriba para comenzar.
+                </td>
+            </tr>
+        `;
+        if (tfoot) tfoot.style.display = 'none';
+        return;
+    }
+
+    let sumaTotal = 0;
+    tbody.innerHTML = items.map((r, idx) => {
+        const litros = Number(r.litros || r.Litros || 0);
+        sumaTotal += litros;
+        const rid = r.id || r.Id;
+        const fNom = r.fincaNombre || r.FincaNombre || 'Finca';
+        const prop = r.propietario || r.Propietario || '';
+        const esAcida = Boolean(r.esAcida || r.EsAcida);
+        const tipoLeche = r.tipoLeche || r.TipoLeche || 'VACA';
+        const obs = r.observacion || r.Observacion || '';
+
+        return `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="text-align: center; font-weight: 800; color: #64748b; font-size: 12px;">#${idx + 1}</td>
+                <td>
+                    <div style="font-weight: 800; font-size: 13.5px; color: #0f172a;">${fNom}</div>
+                    ${prop ? `<div style="font-size: 11.5px; color: #64748b;">${prop}</div>` : ''}
+                </td>
+                <td style="text-align: right;">
+                    <span style="font-size: 15px; font-weight: 900; color: #15803d;">
+                        ${litros.toLocaleString('es-VE')} <span style="font-size: 11.5px; font-weight: 700;">Lts</span>
+                    </span>
+                </td>
+                <td style="text-align: center;">
+                    <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center;">
+                        <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-weight: 700; font-size: 10.5px; padding: 2px 6px;">${tipoLeche}</span>
+                        ${esAcida ? '<span class="badge" style="background: #fee2e2; color: #dc2626; font-weight: 800; font-size: 10px; padding: 2px 6px;">ÁCIDA</span>' : ''}
+                    </div>
+                </td>
+                <td style="font-size: 12px; color: #64748b; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${obs || '<span style="color: #cbd5e1;">-</span>'}
+                </td>
+                <td style="text-align: center;">
+                    <div style="display: inline-flex; gap: 4px;">
+                        <button type="button" class="btn btn-sm btn-outline" onclick="abrirModalEditarRutaCompleta(${rid})"
+                            style="height: 28px; width: 28px; padding: 0; font-size: 11.5px; border-color: #cbd5e1; color: #2563eb; background: #fff; cursor: pointer;" title="Editar Litros">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="eliminarRutaRegistro(${rid})"
+                            style="height: 28px; width: 28px; padding: 0; font-size: 11.5px; border-color: #fca5a5; color: #dc2626; background: #fff; cursor: pointer;" title="Eliminar Recolección">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    if (tfoot) {
+        tfoot.style.display = 'table-footer-group';
+        if (lblTotal) lblTotal.textContent = `${sumaTotal.toLocaleString('es-VE')} Lts`;
+    }
+}
+window.renderHistorialEnVivoTicket = renderHistorialEnVivoTicket;
+
+function abrirModalQuickRecoleccion(fincaId, nombre, propietario, tieneDosTiposLeche) {
+    const hid = document.getElementById('quickRecoleccionFincaId');
+    if (hid) hid.value = fincaId;
+
+    const tit = document.getElementById('modalQuickFincaTitulo');
+    if (tit) tit.textContent = nombre;
+
+    const sub = document.getElementById('modalQuickFincaSubtitulo');
+    if (sub) sub.textContent = propietario ? `Ganadero: ${propietario}` : 'Ganadero';
+
+    const groupTipo = document.getElementById('groupQuickTipoLeche');
+    if (groupTipo) {
+        groupTipo.style.display = tieneDosTiposLeche ? 'block' : 'none';
+    }
+
+    const inpLitros = document.getElementById('quickRecoleccionLitros');
+    if (inpLitros) {
+        inpLitros.value = '';
+    }
+
+    const chkAcida = document.getElementById('quickRecoleccionEsAcida');
+    if (chkAcida) chkAcida.checked = false;
+
+    const inpObs = document.getElementById('quickRecoleccionObservacion');
+    if (inpObs) inpObs.value = '';
+
+    abrirModalCustom('modalQuickRecoleccion');
+    if (inpLitros) {
+        setTimeout(() => inpLitros.focus(), 100);
+    }
+}
+window.abrirModalQuickRecoleccion = abrirModalQuickRecoleccion;
+
+async function guardarQuickRecoleccion(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+
+    const btn = document.getElementById('btnGuardarQuickRecoleccion');
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btn.disabled = true;
+    }
+
+    const fincaId = parseInt(document.getElementById('quickRecoleccionFincaId')?.value);
+    const litros = parseInt(document.getElementById('quickRecoleccionLitros')?.value);
+    const esAcida = document.getElementById('quickRecoleccionEsAcida')?.checked || false;
+    const tipoLeche = document.getElementById('quickRecoleccionTipoLeche')?.value || 'VACA';
+    const observacion = (document.getElementById('quickRecoleccionObservacion')?.value || '').trim();
+
+    const currentTicket = stateRecoleccionVisual.ticketId || state.filtroTicketId || state.ticketAsignadoActivo;
+    const viaje = stateRecoleccionVisual.viaje;
+    const fecha = viaje?.fecha ? viaje.fecha.split('T')[0] : (state.rutasFechaFiltro || new Date().toISOString().split('T')[0]);
+    const conductorId = viaje?.usuarioId || viaje?.conductorId || state.user?.id;
+
+    if (!fincaId || isNaN(fincaId) || isNaN(litros) || litros <= 0) {
+        Swal.fire({ icon: 'warning', title: 'Datos Inválidos', text: 'Por favor ingresa los litros recolectados.', background: '#1e293b', color: '#fff' });
+        if (btn) { btn.innerHTML = oldHtml; btn.disabled = false; }
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/rutas`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({
+                fecha,
+                fincaId,
+                conductorId,
+                litros,
+                tipoLeche,
+                esAcida,
+                observacion,
+                controlRutaId: currentTicket
+            })
+        });
+
+        if (res.ok) {
+            cerrarModalCustom('modalQuickRecoleccion');
+            const fObj = stateRecoleccionVisual.todasLasFincasVisual.find(f => f.fincaId === fincaId);
+            const fincaNom = fObj ? fObj.nombre : 'Finca';
+            showToast(`✓ Recolección registrada: ${litros.toLocaleString('es-VE')} Lts en ${fincaNom}`);
+
+            await cargarPanelRecoleccionVisual(currentTicket);
+
+            if (typeof cargarRutasHoy === 'function') {
+                cargarRutasHoy(fecha);
+            }
+            if (typeof cargarViajesRutasDelDia === 'function') {
+                cargarViajesRutasDelDia(fecha);
+            }
+        } else {
+            const errData = await res.json().catch(() => ({}));
+            Swal.fire({ icon: 'error', title: 'Error al Guardar', text: errData.message || 'No se pudo guardar la recolección.', background: '#1e293b', color: '#fff' });
+        }
+    } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Error de Red', text: err.message, background: '#1e293b', color: '#fff' });
+    } finally {
+        if (btn) {
+            btn.innerHTML = oldHtml;
+            btn.disabled = false;
+        }
+    }
+}
+window.guardarQuickRecoleccion = guardarQuickRecoleccion;
+
+function inicializarComboboxFincaExtra() {
+    if (!comboboxFincaExtraInstance && document.getElementById('comboboxFincaExtra')) {
+        comboboxFincaExtraInstance = setupCombobox({
+            containerId: 'comboboxFincaExtra',
+            inputSearchId: 'searchFincaExtraInput',
+            inputHiddenId: 'selectFincaExtra',
+            dropdownId: 'dropdownFincaExtraList',
+            placeholder: 'BUSCAR CUALQUIER FINCA...',
+            getItemsFn: () => (state.fincas || [])
+                .filter(f => f.activo !== false && f.Activo !== false)
+                .map(f => {
+                    const id = f.id || f.Id;
+                    const nombre = capitalizarTexto(f.nombre || f.Nombre);
+                    const prop = capitalizarTexto(f.propietario || f.Propietario);
+                    return {
+                        value: id,
+                        label: prop ? `${nombre} (${prop})` : nombre,
+                        sub: f.codigo || ''
+                    };
+                }),
+            onSelect: async (item) => {
+                if (item && item.value) {
+                    const fid = Number(item.value);
+                    const fechaHoy = stateRecoleccionVisual.viaje?.fecha ? stateRecoleccionVisual.viaje.fecha.split('T')[0] : new Date().toISOString().split('T')[0];
+                    const uid = state.user?.id || stateRecoleccionVisual.viaje?.usuarioId;
+                    const previa = (state.rutas || []).find(r => 
+                        Number(r.fincaId || r.FincaId) === fid && 
+                        (r.fecha || '').startsWith(fechaHoy) && 
+                        Number(r.conductorId || r.ConductorId || r.usuarioId || r.UsuarioId) !== Number(uid)
+                    );
+                    if (previa) {
+                        const otroChofer = previa.conductorNombre || previa.nombreConductor || 'Otro Chofer';
+                        const litrosPrevios = previa.litros || previa.Litros || 0;
+                        const conf = await Swal.fire({
+                            title: '¡Finca ya recogida hoy!',
+                            html: `
+                                <div style="text-align: left; font-size: 13.5px; line-height: 1.5; color: #f8fafc;">
+                                    <p>El chofer <strong>${otroChofer}</strong> ya registró una recolección de 
+                                    <strong style="color: #4ade80;">${litrosPrevios.toLocaleString('es-VE')} Lts</strong> en esta finca hoy.</p>
+                                    <p style="margin-top: 8px; color: #fbbf24;">
+                                        ¿Deseas registrar una <strong>segunda recolección</strong> (segundo ordeño del día) para este viaje?
+                                    </p>
+                                </div>
+                            `,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="fa-solid fa-cow"></i> Sí, es 2do Ordeño',
+                            cancelButtonText: 'Cancelar Selección',
+                            confirmButtonColor: '#2563eb',
+                            cancelButtonColor: '#64748b',
+                            background: '#1e293b',
+                            color: '#fff'
+                        });
+                        if (!conf.isConfirmed) {
+                            comboboxFincaExtraInstance.reset();
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function abrirModalAgregarFincaExtra() {
+    const lblTicket = document.getElementById('lblTicketFincaExtraNum');
+    if (lblTicket) lblTicket.textContent = stateRecoleccionVisual.ticketId || '--';
+
+    inicializarComboboxFincaExtra();
+    if (comboboxFincaExtraInstance && typeof comboboxFincaExtraInstance.reset === 'function') {
+        comboboxFincaExtraInstance.reset();
+    }
+
+    const inpLitros = document.getElementById('inputLitrosExtra');
+    if (inpLitros) inpLitros.value = '';
+
+    const chkAcida = document.getElementById('checkFincaExtraEsAcida');
+    if (chkAcida) chkAcida.checked = false;
+
+    const inpObs = document.getElementById('inputObservacionExtra');
+    if (inpObs) inpObs.value = '';
+
+    abrirModalCustom('modalAgregarFincaExtra');
+    const inpSearch = document.getElementById('searchFincaExtraInput');
+    if (inpSearch) {
+        setTimeout(() => inpSearch.focus(), 100);
+    }
+}
+window.abrirModalAgregarFincaExtra = abrirModalAgregarFincaExtra;
+
+async function guardarFincaExtra(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+
+    const btn = document.getElementById('btnGuardarFincaExtra');
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btn.disabled = true;
+    }
+
+    const fincaId = parseInt(document.getElementById('selectFincaExtra')?.value);
+    const litros = parseInt(document.getElementById('inputLitrosExtra')?.value);
+    const esAcida = document.getElementById('checkFincaExtraEsAcida')?.checked || false;
+    const observacion = (document.getElementById('inputObservacionExtra')?.value || '').trim();
+
+    const currentTicket = stateRecoleccionVisual.ticketId || state.filtroTicketId || state.ticketAsignadoActivo;
+    const viaje = stateRecoleccionVisual.viaje;
+    const fecha = viaje?.fecha ? viaje.fecha.split('T')[0] : (state.rutasFechaFiltro || new Date().toISOString().split('T')[0]);
+    const conductorId = viaje?.usuarioId || viaje?.conductorId || state.user?.id;
+
+    if (!fincaId || isNaN(fincaId) || isNaN(litros) || litros <= 0) {
+        Swal.fire({ icon: 'warning', title: 'Datos Incompletos', text: 'Por favor selecciona una finca e ingresa los litros.', background: '#1e293b', color: '#fff' });
+        if (btn) { btn.innerHTML = oldHtml; btn.disabled = false; }
+        return;
+    }
+
+    const fObj = (state.fincas || []).find(f => (f.id || f.Id) == fincaId);
+    const tipoLeche = (fObj && (fObj.tipoLeche || fObj.TipoLeche)) ? (fObj.tipoLeche || fObj.TipoLeche) : 'VACA';
+
+    try {
+        const res = await fetch(`${API_BASE}/rutas`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({
+                fecha,
+                fincaId,
+                conductorId,
+                litros,
+                tipoLeche,
+                esAcida,
+                observacion: observacion ? `[FUERA DE RUTA] ${observacion}` : '[FUERA DE RUTA]',
+                controlRutaId: currentTicket
+            })
+        });
+
+        if (res.ok) {
+            cerrarModalCustom('modalAgregarFincaExtra');
+            const fincaNom = fObj ? (fObj.nombre || fObj.Nombre) : 'Finca';
+            showToast(`✓ Finca fuera de ruta agregada: ${litros.toLocaleString('es-VE')} Lts en ${fincaNom}`);
+
+            await cargarPanelRecoleccionVisual(currentTicket);
+
+            if (typeof cargarRutasHoy === 'function') {
+                cargarRutasHoy(fecha);
+            }
+            if (typeof cargarViajesRutasDelDia === 'function') {
+                cargarViajesRutasDelDia(fecha);
+            }
+        } else {
+            const errData = await res.json().catch(() => ({}));
+            Swal.fire({ icon: 'error', title: 'Error al Guardar', text: errData.message || 'No se pudo guardar la recolección.', background: '#1e293b', color: '#fff' });
+        }
+    } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Error de Red', text: err.message, background: '#1e293b', color: '#fff' });
+    } finally {
+        if (btn) {
+            btn.innerHTML = oldHtml;
+            btn.disabled = false;
+        }
+    }
+}
+window.guardarFincaExtra = guardarFincaExtra;
+
+function toggleFormularioManualVisual() {
+    const cardForm = document.getElementById('cardFormularioCapturaRutas');
+    const btn = document.getElementById('btnToggleFormularioManual');
+    if (!cardForm) return;
+
+    const isOculto = cardForm.style.display === 'none' || getComputedStyle(cardForm).display === 'none';
+    if (isOculto) {
+        cardForm.style.display = 'block';
+        cardForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> Ocultar Formulario Manual';
+    } else {
+        cardForm.style.display = 'none';
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-sliders"></i> Formulario Manual';
+    }
+}
+window.toggleFormularioManualVisual = toggleFormularioManualVisual;

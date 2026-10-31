@@ -411,6 +411,39 @@
                         </div>
                     </div>
 
+                    <!-- FILA COMBUSTIBLE Y KILOMETRAJE -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="modalStandaloneCapacidadTanque"
+                                style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px; display: block;">
+                                <i class="fa-solid fa-gas-pump"></i> Tanque Diésel/Gas (L)
+                            </label>
+                            <input type="number" step="1" min="0" id="modalStandaloneCapacidadTanque" class="form-input"
+                                placeholder="Ej: 300"
+                                style="height: 38px; font-size: 13px; font-weight: 700; color: #0369a1;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="modalStandaloneTipoCombustible"
+                                style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px; display: block;">
+                                Tipo Combustible
+                            </label>
+                            <select id="modalStandaloneTipoCombustible" class="form-input"
+                                style="height: 38px; font-size: 12.5px; font-weight: 600;">
+                                <option value="GASOIL">GASOIL (Diésel)</option>
+                                <option value="GASOLINA">GASOLINA</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="modalStandaloneOdometro"
+                                style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px; display: block;">
+                                <i class="fa-solid fa-gauge-high"></i> Odómetro (Km)
+                            </label>
+                            <input type="number" step="0.1" min="0" id="modalStandaloneOdometro" class="form-input"
+                                placeholder="Ej: 125000"
+                                style="height: 38px; font-size: 13px; font-weight: 700; color: #0369a1;">
+                        </div>
+                    </div>
+
                     <!-- FILA 3: CHOFER ASIGNADO (BUSCABLE) -->
                     <div class="form-group" style="margin-bottom: 16px;">
                         <label

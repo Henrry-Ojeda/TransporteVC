@@ -101,6 +101,171 @@
                     <!-- VISTA B: FORMULARIO Y TABLA DETALLADA (ENVUELTOS EN CONTENEDOR) -->
                     <div id="seccionFincasDetalleRutas" style="display: none;">
 
+                        <!-- PANEL VISUAL DE RECOLECCIÓN EN RUTA (MODERNO PARA CHOFER / TICKETS) -->
+                        <div id="panelRecoleccionVisualRuta" style="display: none; margin-bottom: 24px;">
+                            <!-- MANDO SUPERIOR DEL TICKET ACTIVO -->
+                            <div class="content-card" style="padding: 0; overflow: hidden; border-radius: 14px; margin-bottom: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1.5px solid #cbd5e1;">
+                                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e1b4b 100%); padding: 18px 24px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                                    <div>
+                                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px;">
+                                            <span style="background: #2563eb; color: #fff; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
+                                                <i class="fa-solid fa-ticket"></i> TICKET #<span id="lblVisualTicketId">--</span>
+                                            </span>
+                                            <span id="badgeVisualRutaNombre" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(147, 197, 253, 0.4); color: #93c5fd; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">
+                                                <i class="fa-solid fa-route"></i> Ruta: <span id="lblVisualRutaNombre">Cargando...</span>
+                                            </span>
+                                            <span id="badgeVisualChoferNombre" style="background: rgba(255, 255, 255, 0.1); color: #f1f5f9; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px;">
+                                                <i class="fa-solid fa-user"></i> Chofer: <span id="lblVisualChoferNombre">--</span>
+                                            </span>
+                                            <span id="badgeVisualFecha" style="background: rgba(255, 255, 255, 0.1); color: #cbd5e1; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px;">
+                                                <i class="fa-regular fa-calendar"></i> <span id="lblVisualFecha">--</span>
+                                            </span>
+                                        </div>
+                                        <h2 style="margin: 0; font-size: 21px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fa-solid fa-truck-droplet" style="color: #38bdf8;"></i> Recolecci&oacute;n en Ruta en Vivo
+                                        </h2>
+                                    </div>
+                                    
+                                    <!-- Botones de Acción Superior -->
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <button type="button" class="btn" onclick="abrirModalAgregarFincaExtra()"
+                                            style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; font-weight: 700; font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: none; box-shadow: 0 4px 12px rgba(109,40,217,0.3); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s ease;">
+                                            <i class="fa-solid fa-plus-circle"></i> + Agregar Otra Finca (Fuera de Ruta)
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="abrirModalRutasMasivo()"
+                                            style="background: rgba(255,255,255,0.08); color: #ffffff; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                                            <i class="fa-solid fa-bolt" style="color: #facc15;"></i> Carga Masiva
+                                        </button>
+                                        <button type="button" class="btn btn-outline" id="btnToggleFormularioManual" onclick="toggleFormularioManualVisual()"
+                                            style="background: rgba(255,255,255,0.08); color: #ffffff; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;"
+                                            title="Ver formulario manual clásico">
+                                            <i class="fa-solid fa-sliders"></i> Formulario Manual
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="conmutarVistaRutas('viajes')"
+                                            style="background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.2); font-weight: 600; font-size: 12.5px; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                                            <i class="fa-solid fa-arrow-left"></i> Volver a Viajes
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- KPIS EN TIEMPO REAL Y BARRA DE PROGRESO -->
+                                <div style="background: #ffffff; padding: 16px 24px; border-bottom: 1px solid #f1f5f9; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; align-items: center;">
+                                    <!-- KPI 1: Litros en Tanque -->
+                                    <div style="display: flex; align-items: center; gap: 14px; background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 10px 16px;">
+                                        <div style="width: 44px; height: 44px; border-radius: 10px; background: #dcfce7; display: flex; align-items: center; justify-content: center; color: #15803d; font-size: 20px;">
+                                            <i class="fa-solid fa-gas-pump"></i>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Litros en Tanque</div>
+                                            <div style="font-size: 22px; font-weight: 900; color: #15803d; line-height: 1.1;">
+                                                <span id="kpiVisualLitrosTanque">0</span> <span style="font-size: 14px; font-weight: 700;">Lts</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- KPI 2: Fincas Recogidas -->
+                                    <div style="display: flex; align-items: center; gap: 14px; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 10px 16px;">
+                                        <div style="width: 44px; height: 44px; border-radius: 10px; background: #dbeafe; display: flex; align-items: center; justify-content: center; color: #1d4ed8; font-size: 20px;">
+                                            <i class="fa-solid fa-list-check"></i>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 11px; font-weight: 700; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px;">Fincas Recogidas</div>
+                                            <div style="font-size: 20px; font-weight: 900; color: #1d4ed8; line-height: 1.1;">
+                                                <span id="kpiVisualFincasConteo">0 / 0</span> <span style="font-size: 13px; font-weight: 600; color: #64748b;">fincas</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- KPI 3: Progreso Porcentual -->
+                                    <div style="grid-column: span 2; min-width: 250px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                            <span style="font-size: 12px; font-weight: 700; color: #475569;">
+                                                <i class="fa-solid fa-chart-line" style="color: #2563eb;"></i> Avance de la Ruta:
+                                            </span>
+                                            <span id="lblVisualPorcentajeAvance" style="font-size: 13.5px; font-weight: 800; color: #2563eb;">0%</span>
+                                        </div>
+                                        <div style="height: 10px; width: 100%; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                                            <div id="barVisualProgresoRuta" style="height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.4s ease; border-radius: 999px;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- FILTRO DE PESTAÑAS Y BUSCADOR VISUAL DE FINCAS -->
+                                <div style="background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                                    <div style="display: inline-flex; background: #ffffff; padding: 3px; border-radius: 8px; border: 1px solid #cbd5e1; gap: 4px;">
+                                        <button type="button" class="btn btn-sm btn-visual-tab active" id="tabVisualFincas_todas" onclick="filtrarVisualFincasTab('todas')"
+                                            style="font-weight: 700; height: 32px; padding: 0 14px; border-radius: 6px; border: none; background: #2563eb; color: #ffffff; cursor: pointer; font-size: 12.5px; transition: all 0.2s ease;">
+                                            Todas (<span id="cntVisualTab_todas">0</span>)
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-visual-tab" id="tabVisualFincas_pendientes" onclick="filtrarVisualFincasTab('pendientes')"
+                                            style="font-weight: 600; height: 32px; padding: 0 14px; border-radius: 6px; border: none; background: transparent; color: #475569; cursor: pointer; font-size: 12.5px; transition: all 0.2s ease;">
+                                            ⏳ Pendientes (<span id="cntVisualTab_pendientes">0</span>)
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-visual-tab" id="tabVisualFincas_recogidas" onclick="filtrarVisualFincasTab('recogidas')"
+                                            style="font-weight: 600; height: 32px; padding: 0 14px; border-radius: 6px; border: none; background: transparent; color: #166534; cursor: pointer; font-size: 12.5px; transition: all 0.2s ease;">
+                                            ✓ Recogidas (<span id="cntVisualTab_recogidas">0</span>)
+                                        </button>
+                                    </div>
+
+                                    <div style="position: relative; min-width: 260px; max-width: 420px; flex: 1;">
+                                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px;"></i>
+                                        <input type="text" id="inputBuscarVisualFincas" class="form-input" placeholder="Buscar finca por nombre o propietario..."
+                                            oninput="onFiltrarVisualFincasInput(this.value)"
+                                            style="height: 36px; padding-left: 36px; font-size: 13px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px;">
+                                    </div>
+                                </div>
+
+                                <!-- CONTENEDOR EN REJILLA DE TARJETAS DE FINCAS -->
+                                <div id="gridVisualFincasAsignadas" style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; background: #f8fafc; min-height: 180px;">
+                                    <div style="grid-column: 1 / -1; text-align: center; padding: 30px; color: #94a3b8; font-size: 14px;">
+                                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px; display: block; color: #3b82f6;"></i>
+                                        Cargando fincas asignadas de la ruta...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- HISTORIAL EN VIVO DE RECOLECCIONES DE ESTE VIAJE -->
+                            <div class="content-card" style="padding: 0; overflow: hidden; border-radius: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: 1.5px solid #cbd5e1;">
+                                <div style="background: #ffffff; padding: 14px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                    <div style="font-size: 15px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fa-solid fa-clock-rotate-left" style="color: #2563eb;"></i> Historial en Vivo de Recolecciones
+                                        <span class="badge" id="badgeTotalRecoleccionesHistorial" style="background: #eff6ff; color: #1d4ed8; font-weight: 800; font-size: 12px; padding: 3px 9px; border-radius: 6px;">0</span>
+                                    </div>
+                                    <div style="font-size: 12.5px; color: #64748b; font-weight: 600;">
+                                        Registro cronol&oacute;gico en tiempo real de la leche ingresada
+                                    </div>
+                                </div>
+                                <div class="table-responsive" style="padding: 0; margin: 0; max-height: 380px; overflow-y: auto;">
+                                    <table class="modern-table" style="margin: 0; border: none; width: 100%;" id="tablaHistorialEnVivoTicket">
+                                        <thead>
+                                            <tr style="background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 700; text-transform: uppercase;">
+                                                <th style="width: 48px; text-align: center;">#</th>
+                                                <th>FINCA / GANADERO</th>
+                                                <th style="text-align: right; width: 120px;">LITROS</th>
+                                                <th style="text-align: center; width: 120px;">TIPO / CONDICIÓN</th>
+                                                <th>OBSERVACIÓN</th>
+                                                <th style="width: 110px; text-align: center;">ACCIONES</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbodyHistorialEnVivoTicket">
+                                            <tr>
+                                                <td colspan="6" style="text-align: center; padding: 24px; color: #94a3b8; font-size: 13px;">
+                                                    A&uacute;n no se han registrado recolecciones en este viaje. Selecciona una finca para comenzar.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot id="tfootHistorialEnVivoTicket" style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1; display: none;">
+                                            <tr>
+                                                <td colspan="2" style="text-align: right; padding: 10px 16px; color: #1e293b; font-size: 13px;">TOTAL EN CAMIÓN:</td>
+                                                <td style="text-align: right; padding: 10px 16px; color: #15803d; font-size: 15px;" id="lblHistorialTotalLitros">0 Lts</td>
+                                                <td colspan="3"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- CARD 1: FORMULARIO DE CAPTURA (RUTAS) -->
                         <div class="content-card" id="cardFormularioCapturaRutas"
                             style="margin-bottom: 24px; padding: 0; overflow: visible;">

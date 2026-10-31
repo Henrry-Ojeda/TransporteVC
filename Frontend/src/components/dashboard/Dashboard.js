@@ -172,13 +172,13 @@ function onCambiarFechaGlobalRutas(fecha) {
     if (filtroDashboard && filtroDashboard.value !== fecha) filtroDashboard.value = fecha;
 
     const modoActual = state.vistaRutasModo || sessionStorage.getItem('rutasModoVista') || 'viajes';
+    if (typeof cargarViajesRutasDelDia === 'function') {
+        cargarViajesRutasDelDia(fecha);
+    }
     if (typeof conmutarVistaRutas === 'function') {
         conmutarVistaRutas(modoActual);
     } else {
         cargarRutasHoy(fecha);
-        if (typeof cargarViajesRutasDelDia === 'function') {
-            cargarViajesRutasDelDia(fecha);
-        }
     }
 }
 window.onCambiarFechaGlobalRutas = onCambiarFechaGlobalRutas;

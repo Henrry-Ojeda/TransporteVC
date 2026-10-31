@@ -681,6 +681,201 @@ function renderReporteDiarios(data, fechaDesde, fechaHasta) {
     const container = document.getElementById('contenedorResultadoReporte');
     if (!container) return;
 
+    // 1. Mapear y unificar todas las fechas de recolección (fincas) e ingreso (receptoría / plantas)
+    const mapFechas = {};
+    const getOrInit = (f) => {
+        if (!mapFechas[f]) {
+            mapFechas[f] = { fecha: f, rutas: 0, receptorias: 0, transpRutas: 0, transpRecep: 0 };
+        }
+        return mapFechas[f];
+    };
+
+    (data.diarioRutas || []).forEach(it => { if (it.fecha) getOrInit(it.fecha).rutas += Number(it.litros) || 0; });
+    (data.diarioReceptorias || []).forEach(it => { if (it.fecha) getOrInit(it.fecha).receptorias += Number(it.litros) || 0; });
+    (data.diarioTransporteRutas || []).forEach(it => { if (it.fecha) getOrInit(it.fecha).transpRutas += Number(it.litros) || 0; });
+    (data.diarioTransporteReceptorias || []).forEach(it => { if (it.fecha) getOrInit(it.fecha).transpRecep += Number(it.litros) || 0; });
+
+    const fechasOrdenadas = Object.keys(mapFechas).sort();
+
+    let totalRutasComp = 0;
+    let totalRecepComp = 0;
+    let filasComparativaHtml = '';
+
+    if (fechasOrdenadas.length === 0) {
+        filasComparativaHtml = `
+            <tr>
+                <td colspan="7" style="text-align: center; color: #94a3b8; padding: 24px; font-weight: 500;">
+                    No hay registros de recolección ni de entregas en este período (${formatearFechaLocal(fechaDesde)} al ${formatearFechaLocal(fechaHasta)})
+                </td>
+            </tr>
+        `;
+    } else {
+        fechasOrdenadas.forEach((f, idx) => {
+            const item = mapFechas[f];
+            const ltsRuta = item.rutas;
+            const ltsRecep = item.receptorias;
+            const dif = ltsRecep - ltsRuta; // Positivo = Excedente/Sobra, Negativo = Faltante/Pérdida
+            const falla = ltsRuta - ltsRecep; // Para semáforo de merma: positivo = pérdida/falta
+            const pctMerma = ltsRuta > 0 ? ((Math.abs(falla) / ltsRuta) * 100) : 0;
+
+            totalRutasComp += ltsRuta;
+            totalRecepComp += ltsRecep;
+
+            const semaforoBadge = typeof renderSemaforoMerma === 'function'
+                ? renderSemaforoMerma(pctMerma, falla)
+                : `<span class="badge">${pctMerma.toFixed(2)}%</span>`;
+
+            let difTexto = '0 L';
+            let difColor = '#475569';
+            let estadoTexto = '<span style="color: #059669; font-weight: 700;"><i class="fa-solid fa-circle-check"></i> Cuadre Exacto</span>';
+
+            if (dif > 0) {
+                difTexto = `+${formatearNumero(dif)} L`;
+                difColor = '#047857';
+                estadoTexto = '<span style="color: #047857; font-weight: 700;"><i class="fa-solid fa-arrow-trend-up"></i> Sobrante a Favor</span>';
+            } else if (dif < 0) {
+                difTexto = `-${formatearNumero(Math.abs(dif))} L`;
+                const tol = typeof obtenerToleranciaMerma === 'function' ? obtenerToleranciaMerma() : 3.0;
+                if (pctMerma <= tol) {
+                    difColor = '#b45309';
+                    estadoTexto = `<span style="color: #b45309; font-weight: 700;"><i class="fa-solid fa-check"></i> Dentro de Tolerancia (≤${tol.toFixed(1)}%)</span>`;
+                } else {
+                    difColor = '#b91c1c';
+                    estadoTexto = `<span style="color: #b91c1c; font-weight: 800;"><i class="fa-solid fa-triangle-exclamation"></i> ALERTA: Supera Tolerancia</span>`;
+                }
+            }
+
+            const altClass = idx % 2 === 1 ? 'class="excel-td-alt"' : '';
+            filasComparativaHtml += `
+                <tr ${altClass}>
+                    <td style="font-weight: 700; color: #1e293b; padding: 10px 14px; white-space: nowrap;">
+                        <i class="fa-regular fa-calendar-days" style="color: #2563eb; margin-right: 5px;"></i> ${formatearFechaLocal(f)}
+                    </td>
+                    <td style="font-weight: 800; color: #0f172a; text-align: right; padding: 10px 14px;">
+                        ${formatearNumero(ltsRuta)} <span style="font-size: 11px; color: #64748b; font-weight: 600;">L</span>
+                    </td>
+                    <td style="font-weight: 800; color: #2563eb; text-align: right; padding: 10px 14px;">
+                        ${formatearNumero(ltsRecep)} <span style="font-size: 11px; color: #64748b; font-weight: 600;">L</span>
+                    </td>
+                    <td style="font-weight: 900; color: ${difColor}; text-align: right; padding: 10px 14px; font-size: 13.5px;">
+                        ${difTexto}
+                    </td>
+                    <td style="text-align: center; padding: 10px 14px; font-weight: 800; font-size: 12.5px; color: ${difColor};">
+                        ${dif === 0 ? '0.00%' : `${pctMerma.toFixed(2)}%`}
+                    </td>
+                    <td style="text-align: center; padding: 10px 14px; white-space: nowrap;">
+                        ${semaforoBadge}
+                    </td>
+                    <td style="padding: 10px 14px; font-size: 12px; white-space: nowrap;">
+                        ${estadoTexto}
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    const totalDifComp = totalRecepComp - totalRutasComp;
+    const totalFallaComp = totalRutasComp - totalRecepComp;
+    const pctMermaGlobalComp = totalRutasComp > 0 ? ((Math.abs(totalFallaComp) / totalRutasComp) * 100) : 0;
+    const semaforoGlobalBadge = typeof renderSemaforoMerma === 'function'
+        ? renderSemaforoMerma(pctMermaGlobalComp, totalFallaComp)
+        : `<span class="badge">${pctMermaGlobalComp.toFixed(2)}%</span>`;
+
+    let totalDifTexto = '0 L';
+    let totalDifColor = '#475569';
+    if (totalDifComp > 0) {
+        totalDifTexto = `+${formatearNumero(totalDifComp)} L`;
+        totalDifColor = '#047857';
+    } else if (totalDifComp < 0) {
+        totalDifTexto = `-${formatearNumero(Math.abs(totalDifComp))} L`;
+        const tol = typeof obtenerToleranciaMerma === 'function' ? obtenerToleranciaMerma() : 3.0;
+        totalDifColor = pctMermaGlobalComp <= tol ? '#b45309' : '#b91c1c';
+    }
+
+    // Tabla Comparativa Principal con Semáforo de Tolerancia
+    const cardComparativaHtml = `
+        <div class="report-card-demarcada" style="margin-bottom: 24px; border: 2px solid #cbd5e1; box-shadow: 0 4px 18px rgba(0,0,0,0.06); border-radius: 14px; overflow: hidden; background: #ffffff;">
+            <!-- ENCABEZADO DESTACADO -->
+            <div style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(37,99,235,0.25); border: 1.5px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #38bdf8;">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 16px; font-weight: 900; letter-spacing: 0.02em; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                            BALANCE Y MERMA DIARIA: RECOLECCIÓN VS INGRESO
+                            <span style="background: #0284c7; color: #ffffff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">SEMÁFORO DE TOLERANCIA</span>
+                        </div>
+                        <div style="font-size: 12px; color: #94a3b8; font-weight: 600; margin-top: 2px;">
+                            Período: ${formatearFechaLocal(fechaDesde)} al ${formatearFechaLocal(fechaHasta)} &nbsp;|&nbsp; Comparativa diaria entre Fincas e Ingreso a Receptoría/Plantas
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" class="btn-exportar-card" onclick="exportarSeccionExcel('BALANCE DIARIO')" title="Exportar Balance Diario a Excel" style="background: #059669; border: none; color: #ffffff; font-weight: 700; padding: 7px 14px; border-radius: 6px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">
+                        <i class="fa-solid fa-file-excel"></i> Exportar Tabla
+                    </button>
+                    <button type="button" class="btn-captura-card" onclick="capturarCardImagen(this, 'Balance_Diario_Comparativo')" title="Capturar imagen" style="background: #2563eb; border: none; color: #ffffff; font-weight: 700; padding: 7px 14px; border-radius: 6px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
+                        <i class="fa-solid fa-camera"></i> Capturar
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI RESUMEN DEL BALANCE DIARIO -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 14px 18px; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0;">
+                <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 14px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">Recolección en Fincas</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 2px;">${formatearNumero(totalRutasComp)} <small style="font-size: 12px; color: #64748b;">L</small></div>
+                </div>
+                <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 14px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">Ingreso Receptoría / Plantas</div>
+                    <div style="font-size: 18px; font-weight: 900; color: #2563eb; margin-top: 2px;">${formatearNumero(totalRecepComp)} <small style="font-size: 12px; color: #64748b;">L</small></div>
+                </div>
+                <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 14px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">Diferencia Neta Total</div>
+                    <div style="font-size: 18px; font-weight: 900; color: ${totalDifColor}; margin-top: 2px;">${totalDifTexto}</div>
+                </div>
+                <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 14px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">Semáforo Global Tolerancia</div>
+                    <div style="margin-top: 5px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        ${semaforoGlobalBadge}
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABLA COMPARATIVA -->
+            <div class="table-responsive" style="margin: 0; border: none;">
+                <table class="table-reporte-demarcada">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%; padding: 11px 14px; text-align: left;">FECHA</th>
+                            <th style="width: 17%; padding: 11px 14px; text-align: right;">RECOLECCIÓN FINCAS</th>
+                            <th style="width: 17%; padding: 11px 14px; text-align: right;">INGRESO RECEPTORÍA</th>
+                            <th style="width: 15%; padding: 11px 14px; text-align: right;">DIFERENCIA (LTS)</th>
+                            <th style="width: 11%; padding: 11px 14px; text-align: center;">% MERMA</th>
+                            <th style="width: 12%; padding: 11px 14px; text-align: center;">SEMÁFORO</th>
+                            <th style="width: 13%; padding: 11px 14px; text-align: left;">DIAGNÓSTICO</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filasComparativaHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #f1f5f9; font-weight: 800;">
+                            <td style="padding: 12px 14px; font-weight: 900; color: #0f172a;">TOTAL PERÍODO</td>
+                            <td style="text-align: right; padding: 12px 14px; font-size: 14.5px; color: #0f172a;">${formatearNumero(totalRutasComp)} L</td>
+                            <td style="text-align: right; padding: 12px 14px; font-size: 14.5px; color: #2563eb;">${formatearNumero(totalRecepComp)} L</td>
+                            <td style="text-align: right; padding: 12px 14px; font-size: 15px; color: ${totalDifColor};">${totalDifTexto}</td>
+                            <td style="text-align: center; padding: 12px 14px; font-size: 13px; color: ${totalDifColor};">${pctMermaGlobalComp.toFixed(2)}%</td>
+                            <td style="text-align: center; padding: 12px 14px;">${semaforoGlobalBadge}</td>
+                            <td style="padding: 12px 14px; font-size: 12px; color: #64748b;">${totalDifComp >= 0 ? 'Sin pérdidas netas' : 'Balance neto con merma'}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    `;
+
     function renderTablaCard(titulo, items, total) {
         let rowsHtml = '';
         if (!items || items.length === 0) {
@@ -734,6 +929,7 @@ function renderReporteDiarios(data, fechaDesde, fechaHasta) {
     const cardTranspRecep = renderTablaCard('DIARIO TRANSPORTE RECEPTORIAS', data.diarioTransporteReceptorias || [], data.totalDiarioTransporteReceptorias || 0);
 
     container.innerHTML = `
+        ${cardComparativaHtml}
         <div class="report-grid-cards">
             ${cardRutas}
             ${cardReceptorias}
@@ -2762,70 +2958,113 @@ function renderReporteChoferes(data, fechaDesde, fechaHasta) {
         let rowsHtml = '';
         (ch.detalle || []).forEach((d, idx) => {
             const altClass = idx % 2 === 1 ? 'class="excel-td-alt"' : '';
-            
+
+            const ltsCampo = Number(d.totalLitrosFinca || (d.litros < 0 ? Math.abs(d.litros) : 0));
+            const ltsEntregado = Number(d.litrosEntregados || 0);
+            const difVal = Number(d.litros || 0);
+            const fallaVal = -difVal; // si difVal < 0 (falta/pérdida), fallaVal > 0
+            const pctMerma = (d.porcentajeMerma != null && Number(d.porcentajeMerma) > 0)
+                ? Number(d.porcentajeMerma)
+                : (ltsCampo > 0 ? ((Math.abs(difVal) / ltsCampo) * 100) : 0);
+
+            const semaforoBadge = typeof renderSemaforoMerma === 'function'
+                ? renderSemaforoMerma(pctMerma, fallaVal)
+                : `<span class="badge">${pctMerma.toFixed(2)}%</span>`;
+
             // Falta (Rojo con signo -) / Ganancia (Verde con signo +) / Neutral (0)
-            let estiloLitros = 'font-weight: 800; font-size: 14px;';
-            let textoLitros = '0';
-            if (d.litros < 0) {
-                estiloLitros = 'background-color: #ff0000 !important; color: #ffffff !important; font-weight: 800; font-size: 14px;';
-                textoLitros = `-${formatearNumero(Math.abs(d.litros))}`;
-            } else if (d.litros > 0) {
-                estiloLitros = 'background-color: #16a34a !important; color: #ffffff !important; font-weight: 800; font-size: 14px;';
-                textoLitros = `+${formatearNumero(d.litros)}`;
-            } else {
-                estiloLitros = 'color: #64748b; font-weight: 700; font-size: 14px;';
-                textoLitros = '0';
+            let estiloLitros = 'color: #64748b; font-weight: 700; font-size: 13.5px; text-align: right;';
+            let textoLitros = '0 L';
+            if (difVal < 0) {
+                estiloLitros = 'color: #dc2626; font-weight: 800; font-size: 13.5px; text-align: right;';
+                textoLitros = `-${formatearNumero(Math.abs(difVal))} L`;
+            } else if (difVal > 0) {
+                estiloLitros = 'color: #16a34a; font-weight: 800; font-size: 13.5px; text-align: right;';
+                textoLitros = `+${formatearNumero(difVal)} L`;
             }
 
             rowsHtml += `
                 <tr ${altClass}>
-                    <td style="font-weight: 600; color: #334155;">${formatearFechaLocal(d.fecha)}</td>
+                    <td style="font-weight: 600; color: #334155; white-space: nowrap;">${formatearFechaLocal(d.fecha)}</td>
+                    <td style="font-weight: 800; color: #0f172a; text-align: right;">${formatearNumero(ltsCampo)} L</td>
+                    <td style="font-weight: 800; color: #2563eb; text-align: right;">${formatearNumero(ltsEntregado)} L</td>
                     <td style="${estiloLitros}">${textoLitros}</td>
-                    <td class="text-left" style="color: #475569;">${d.observacion || ''}</td>
+                    <td style="text-align: center; white-space: nowrap;">${semaforoBadge}</td>
+                    <td class="text-left" style="color: #475569; font-size: 12px;">${d.observacion || d.destinoNombre || ''}</td>
                 </tr>
             `;
         });
 
         // Estilo Total
-        let estiloTotal = 'color: #64748b; font-weight: 700; font-size: 14px;';
-        let textoTotal = '0';
-        if (ch.totalLitros < 0) {
-            estiloTotal = 'background-color: #ff0000 !important; color: #ffffff !important; font-weight: 800; font-size: 14px;';
-            textoTotal = `-${formatearNumero(Math.abs(ch.totalLitros))}`;
-        } else if (ch.totalLitros > 0) {
-            estiloTotal = 'background-color: #16a34a !important; color: #ffffff !important; font-weight: 800; font-size: 14px;';
-            textoTotal = `+${formatearNumero(ch.totalLitros)}`;
+        const totalDifVal = Number(ch.totalLitros || 0);
+        const totalFallaVal = -totalDifVal;
+        const totalCampo = Number(ch.totalLitrosFinca || 0);
+        const totalEntregado = Number(ch.totalLitrosEntregados || 0);
+        const pctGlobal = Number(ch.porcentajeMermaGlobal || 0);
+
+        const semaforoGlobal = typeof renderSemaforoMerma === 'function'
+            ? renderSemaforoMerma(pctGlobal, totalFallaVal)
+            : `<span class="badge">${pctGlobal.toFixed(2)}%</span>`;
+
+        let estiloTotal = 'color: #64748b; font-weight: 800; font-size: 14px; text-align: right;';
+        let textoTotal = '0 L';
+        if (totalDifVal < 0) {
+            estiloTotal = 'color: #dc2626; font-weight: 900; font-size: 14.5px; text-align: right;';
+            textoTotal = `-${formatearNumero(Math.abs(totalDifVal))} L`;
+        } else if (totalDifVal > 0) {
+            estiloTotal = 'color: #16a34a; font-weight: 900; font-size: 14.5px; text-align: right;';
+            textoTotal = `+${formatearNumero(totalDifVal)} L`;
         }
 
         cardsHtml += `
-            <div class="report-card-demarcada">
+            <div class="report-card-demarcada" style="margin-bottom: 24px; border: 1.5px solid #cbd5e1; border-radius: 14px; overflow: hidden; background: #ffffff; box-shadow: 0 4px 14px rgba(0,0,0,0.04);">
+                <!-- HEADER CHOFER -->
+                <div style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #ffffff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-user-tie" style="font-size: 18px;"></i>
+                        <span style="font-size: 15px; font-weight: 800; letter-spacing: 0.02em;">${ch.nombre.toUpperCase()}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span style="font-size: 12px; background: rgba(255,255,255,0.18); padding: 3px 10px; border-radius: 6px; font-weight: 700;">
+                            Campo: <strong>${formatearNumero(totalCampo)} L</strong>
+                        </span>
+                        <span style="font-size: 12px; background: rgba(255,255,255,0.18); padding: 3px 10px; border-radius: 6px; font-weight: 700;">
+                            Entregado: <strong>${formatearNumero(totalEntregado)} L</strong>
+                        </span>
+                        <span style="font-size: 12px; background: rgba(255,255,255,0.25); padding: 3px 10px; border-radius: 6px; font-weight: 800;">
+                            Dif: ${textoTotal}
+                        </span>
+                        ${semaforoGlobal}
+                    </div>
+                </div>
+
                 <div class="table-responsive" style="margin: 0; border: none; flex-grow: 1;">
                     <table class="table-reporte-demarcada">
                         <thead>
                             <tr>
-                                <th colspan="3" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #ffffff; font-size: 14.5px; font-weight: 800; text-align: center; padding: 11px 12px; border-bottom: 2px solid rgba(0,0,0,0.08); letter-spacing: 0.03em;">
-                                    ${ch.nombre.toUpperCase()}
-                                </th>
-                            </tr>
-                            <tr>
-                                <th style="width: 30%;">FECHA</th>
-                                <th style="width: 35%;">LITROS</th>
-                                <th style="width: 35%;">OBSERVACION</th>
+                                <th style="width: 15%; text-align: left;">FECHA</th>
+                                <th style="width: 17%; text-align: right;">FINCA (CAMPO)</th>
+                                <th style="width: 17%; text-align: right;">ENTREGADO</th>
+                                <th style="width: 16%; text-align: right;">DIFERENCIA</th>
+                                <th style="width: 15%; text-align: center;">% MERMA / SEMÁFORO</th>
+                                <th style="width: 20%; text-align: left;">DESTINO / OBSERVACIÓN</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${rowsHtml}
                         </tbody>
                         <tfoot>
-                            <tr>
-                                <td>TOTAL</td>
+                            <tr style="background: #f8fafc; font-weight: 800;">
+                                <td style="color: #0f172a; font-weight: 900;">TOTAL</td>
+                                <td style="text-align: right; color: #0f172a; font-size: 14px;">${formatearNumero(totalCampo)} L</td>
+                                <td style="text-align: right; color: #2563eb; font-size: 14px;">${formatearNumero(totalEntregado)} L</td>
                                 <td style="${estiloTotal}">${textoTotal}</td>
+                                <td style="text-align: center;">${semaforoGlobal}</td>
                                 <td>&nbsp;</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-                <div style="margin-top: 14px; display: flex; gap: 8px;">
+                <div style="padding: 10px 14px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 8px;">
                     <button type="button" class="btn-exportar-card" onclick="exportarSeccionExcel('${ch.nombre}')" title="Exportar ${ch.nombre} a Excel">
                         <i class="fa-solid fa-file-excel"></i> Exportar
                     </button>
@@ -2838,7 +3077,7 @@ function renderReporteChoferes(data, fechaDesde, fechaHasta) {
     });
 
     container.innerHTML = `
-        <div class="report-grid-cards">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
             ${cardsHtml}
         </div>
     `;
@@ -3058,12 +3297,7 @@ function renderReporteRelacionChoferes(data, fechaDesde, fechaHasta, filtroTermi
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                            <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 12px; ${badgeMermaClass}">
-                                Merma: ${badgeText}
-                            </span>
-                            <span style="font-size: 12px; font-weight: 700; color: #ffffff; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px;">
-                                ${statusIcon} ${statusLabel}
-                            </span>
+                            ${typeof renderSemaforoMerma === 'function' ? renderSemaforoMerma(pctMerma, diff) : `<span class="badge">${pctMerma}%</span>`}
                         </div>
                     </div>
 
@@ -3171,9 +3405,9 @@ function renderReporteRelacionChoferes(data, fechaDesde, fechaHasta, filtroTermi
                 </div>
             </div>
             <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 14px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
-                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">% Merma Ponderado</div>
-                <div style="font-size: 18px; font-weight: 900; color: ${parseFloat(pctTotalMerma) > 1.0 ? '#b91c1c' : '#047857'}; margin-top: 4px;">
-                    ${pctTotalMerma}%
+                <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">% Merma & Semáforo</div>
+                <div style="margin-top: 5px; display: flex; align-items: center; justify-content: center;">
+                    ${typeof renderSemaforoMerma === 'function' ? renderSemaforoMerma(parseFloat(pctTotalMerma), sumDiferencias) : `<span class="badge">${pctTotalMerma}%</span>`}
                 </div>
             </div>
         </div>
@@ -4165,6 +4399,76 @@ function exportarSeccionExcel(tituloSeccion) {
     `;
 
     if (tipo === 'DIARIOS') {
+        if (tituloSeccion === 'BALANCE DIARIO') {
+            const mapFechas = {};
+            const getOrInit = (f) => {
+                if (!mapFechas[f]) mapFechas[f] = { fecha: f, rutas: 0, receptorias: 0 };
+                return mapFechas[f];
+            };
+            (data.diarioRutas || []).forEach(it => { if (it.fecha) getOrInit(it.fecha).rutas += Number(it.litros) || 0; });
+            (data.diarioReceptorias || []).forEach(it => { if (it.fecha) getOrInit(it.fecha).receptorias += Number(it.litros) || 0; });
+            const fechasOrdenadas = Object.keys(mapFechas).sort();
+
+            let rowsHtml = '';
+            let tRutas = 0, tRecep = 0;
+            fechasOrdenadas.forEach((f, idx) => {
+                const item = mapFechas[f];
+                const lRuta = item.rutas;
+                const lRecep = item.receptorias;
+                const dif = lRecep - lRuta;
+                const falla = lRuta - lRecep;
+                const pct = lRuta > 0 ? ((Math.abs(falla) / lRuta) * 100).toFixed(2) : '0.00';
+                tRutas += lRuta;
+                tRecep += lRecep;
+                const altClass = idx % 2 === 1 ? 'excel-td-alt' : '';
+                const colorDif = dif < 0 ? '#ff0000' : (dif > 0 ? '#16a34a' : '#000000');
+                const textoDif = dif < 0 ? `-${formatearNumero(Math.abs(dif))}` : (dif > 0 ? `+${formatearNumero(dif)}` : '0');
+                rowsHtml += `
+                    <tr>
+                        <td class="excel-td ${altClass}">${formatearFechaLocal(f)}</td>
+                        <td class="excel-td excel-td-bold excel-td-num ${altClass}">${formatearNumero(lRuta)}</td>
+                        <td class="excel-td excel-td-bold excel-td-num ${altClass}">${formatearNumero(lRecep)}</td>
+                        <td class="excel-td excel-td-bold excel-td-num ${altClass}" style="color: ${colorDif};">${textoDif}</td>
+                        <td class="excel-td excel-td-num ${altClass}">${pct}%</td>
+                    </tr>
+                `;
+            });
+            const tDif = tRecep - tRutas;
+            const tFalla = tRutas - tRecep;
+            const tPct = tRutas > 0 ? ((Math.abs(tFalla) / tRutas) * 100).toFixed(2) : '0.00';
+            const colorTDif = tDif < 0 ? '#ff0000' : (tDif > 0 ? '#16a34a' : '#000000');
+            const textoTDif = tDif < 0 ? `-${formatearNumero(Math.abs(tDif))}` : (tDif > 0 ? `+${formatearNumero(tDif)}` : '0');
+
+            const tabla = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th colspan="5" class="excel-sec-header">BALANCE Y MERMA DIARIA: RECOLECCIÓN VS INGRESO</th>
+                        </tr>
+                        <tr>
+                            <th class="excel-th" style="width: 20%;">FECHA</th>
+                            <th class="excel-th" style="width: 20%;">RECOLECCIÓN FINCAS (LTS)</th>
+                            <th class="excel-th" style="width: 20%;">INGRESO RECEPTORÍA (LTS)</th>
+                            <th class="excel-th" style="width: 20%;">DIFERENCIA (LTS)</th>
+                            <th class="excel-th" style="width: 20%;">% MERMA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                    <tfoot>
+                        <tr class="excel-total-row">
+                            <td>TOTAL PERÍODO</td>
+                            <td>${formatearNumero(tRutas)}</td>
+                            <td>${formatearNumero(tRecep)}</td>
+                            <td style="color: ${colorTDif}; font-weight: bold;">${textoTDif}</td>
+                            <td>${tPct}%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            `;
+            descargarExcelConDiseno(tablasHtml + tabla, `Balance_Diario_${fechaDesde}_al_${fechaHasta}`, 'Balance Diario');
+            return;
+        }
+
         let items = [];
         let total = 0;
         if (tituloSeccion === 'DIARIO RUTAS') {
@@ -4342,28 +4646,46 @@ function exportarSeccionExcel(tituloSeccion) {
             let rowsHtml = '';
             (item.detalle || []).forEach((d, idx) => {
                 const altClass = idx % 2 === 1 ? 'excel-td-alt' : '';
-                const textoLitros = d.litros < 0 ? `-${formatearNumero(Math.abs(d.litros))}` : (d.litros > 0 ? `+${formatearNumero(d.litros)}` : '0');
-                const colorLitros = d.litros < 0 ? '#ff0000' : (d.litros > 0 ? '#16a34a' : '#000000');
+                const ltsCampo = Number(d.totalLitrosFinca || (d.litros < 0 ? Math.abs(d.litros) : 0));
+                const ltsEntregado = Number(d.litrosEntregados || 0);
+                const difVal = Number(d.litros || 0);
+                const fallaVal = -difVal;
+                const pctMerma = (d.porcentajeMerma != null && Number(d.porcentajeMerma) > 0)
+                    ? Number(d.porcentajeMerma)
+                    : (ltsCampo > 0 ? ((Math.abs(difVal) / ltsCampo) * 100) : 0);
+
+                const textoLitros = difVal < 0 ? `-${formatearNumero(Math.abs(difVal))}` : (difVal > 0 ? `+${formatearNumero(difVal)}` : '0');
+                const colorLitros = difVal < 0 ? '#ff0000' : (difVal > 0 ? '#16a34a' : '#000000');
                 rowsHtml += `
                     <tr>
                         <td class="excel-td ${altClass}">${formatearFechaLocal(d.fecha)}</td>
+                        <td class="excel-td excel-td-bold excel-td-num ${altClass}">${formatearNumero(ltsCampo)}</td>
+                        <td class="excel-td excel-td-bold excel-td-num ${altClass}">${formatearNumero(ltsEntregado)}</td>
                         <td class="excel-td excel-td-bold excel-td-num ${altClass}" style="color: ${colorLitros};">${textoLitros}</td>
-                        <td class="excel-td excel-td-left ${altClass}">${d.observacion || '-'}</td>
+                        <td class="excel-td excel-td-num ${altClass}">${difVal === 0 ? '0.00%' : `${pctMerma.toFixed(2)}%`}</td>
+                        <td class="excel-td excel-td-left ${altClass}">${d.observacion || d.destinoNombre || '-'}</td>
                     </tr>
                 `;
             });
-            const textoTotal = item.totalLitros < 0 ? `-${formatearNumero(Math.abs(item.totalLitros))}` : (item.totalLitros > 0 ? `+${formatearNumero(item.totalLitros)}` : '0');
-            const colorTotal = item.totalLitros < 0 ? '#ff0000' : (item.totalLitros > 0 ? '#16a34a' : '#000000');
+            const tCampo = Number(item.totalLitrosFinca || 0);
+            const tEntregado = Number(item.totalLitrosEntregados || 0);
+            const tDif = Number(item.totalLitros || 0);
+            const tPct = Number(item.porcentajeMermaGlobal || 0);
+            const textoTotal = tDif < 0 ? `-${formatearNumero(Math.abs(tDif))}` : (tDif > 0 ? `+${formatearNumero(tDif)}` : '0');
+            const colorTotal = tDif < 0 ? '#ff0000' : (tDif > 0 ? '#16a34a' : '#000000');
             const tabla = `
                 <table>
                     <thead>
                         <tr>
-                            <th colspan="3" class="excel-sec-header">${item.nombre.toUpperCase()}</th>
+                            <th colspan="6" class="excel-sec-header">BALANCE Y MERMA DE CHOFER: ${item.nombre.toUpperCase()}</th>
                         </tr>
                         <tr>
-                            <th class="excel-th" style="width: 30%;">FECHA</th>
-                            <th class="excel-th" style="width: 35%;">LITROS</th>
-                            <th class="excel-th" style="width: 35%;">OBSERVACION</th>
+                            <th class="excel-th" style="width: 15%;">FECHA</th>
+                            <th class="excel-th" style="width: 17%;">FINCA (CAMPO)</th>
+                            <th class="excel-th" style="width: 17%;">ENTREGADO</th>
+                            <th class="excel-th" style="width: 16%;">DIFERENCIA (LTS)</th>
+                            <th class="excel-th" style="width: 15%;">% MERMA</th>
+                            <th class="excel-th" style="width: 20%;">OBSERVACION</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -4372,7 +4694,10 @@ function exportarSeccionExcel(tituloSeccion) {
                     <tfoot>
                         <tr class="excel-total-row">
                             <td>TOTAL</td>
+                            <td>${formatearNumero(tCampo)}</td>
+                            <td>${formatearNumero(tEntregado)}</td>
                             <td style="color: ${colorTotal}; font-weight: bold;">${textoTotal}</td>
+                            <td>${tPct.toFixed(2)}%</td>
                             <td>&nbsp;</td>
                         </tr>
                     </tfoot>
