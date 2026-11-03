@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "./original-app.css";
+@import "./original-app.css" layer(components);
 
 @layer base {
   body {

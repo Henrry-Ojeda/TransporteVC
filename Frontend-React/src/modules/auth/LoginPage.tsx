@@ -65,31 +65,45 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden select-none">
-      {/* Fondo decorativo fijado sin afectar métricas de scroll */}
+    <div 
+      className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none"
+      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+    >
+      {/* Fondo decorativo fijo */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl" />
       </div>
 
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-slate-200/80 p-8 sm:p-10 relative z-10 my-auto">
+      <div 
+        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200/80 relative z-10"
+        style={{ maxWidth: '440px', padding: '2.5rem', margin: 'auto' }}
+      >
         {/* Cabecera / Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-4 text-3xl shadow-lg shadow-blue-500/30">
+        <div className="text-center mb-8" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div 
+            className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-4 text-3xl shadow-lg shadow-blue-500/30"
+            style={{ width: '4rem', height: '4rem', margin: '0 auto 1rem auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
             🥛
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Iniciar Sesión</h1>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 mt-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
-            <Building2 className="w-3.5 h-3.5" />
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontSize: '1.5rem', fontWeight: 900 }}>
+            Iniciar Sesión
+          </h1>
+          <div 
+            className="inline-flex items-center gap-1.5 px-3 py-1 mt-2 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.25rem 0.75rem', marginTop: '0.5rem', borderRadius: '9999px' }}
+          >
+            <Building2 className="w-3.5 h-3.5" style={{ width: '0.875rem', height: '0.875rem' }} />
             <span>{empresaNombre}</span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-2 font-medium">
+          <p className="text-xs sm:text-sm text-slate-500 mt-2 font-medium" style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.875rem' }}>
             Sistema de Transporte y Liquidación de Leche
           </p>
 
           {/* Alerta de sesión expirada */}
           {sessionExpiredMessage && (
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center gap-2 text-left">
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center gap-2 text-left" style={{ marginTop: '1rem', padding: '0.75rem' }}>
               <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600" />
               <span>{sessionExpiredMessage}</span>
             </div>
@@ -97,7 +111,7 @@ export const LoginPage: React.FC = () => {
 
           {/* Alerta de error de autenticación */}
           {error && (
-            <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2 text-left">
+            <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2 text-left" style={{ marginTop: '1rem', padding: '0.75rem' }}>
               <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-600" />
               <span>{error}</span>
             </div>
@@ -105,15 +119,21 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Formulario */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Campo Usuario */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            <label 
+              className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+              style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', marginBottom: '0.5rem' }}
+            >
               Usuario
             </label>
-            <div className="relative flex items-center">
-              <div className="absolute left-4 flex items-center pointer-events-none text-slate-400">
-                <User className="w-5 h-5" />
+            <div className="relative flex items-center" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div 
+                className="absolute left-4 flex items-center pointer-events-none text-slate-400"
+                style={{ position: 'absolute', left: '1rem', display: 'flex', alignItems: 'center', pointerEvents: 'none', color: '#94a3b8' }}
+              >
+                <User className="w-5 h-5" style={{ width: '1.25rem', height: '1.25rem' }} />
               </div>
               <input
                 type="text"
@@ -123,19 +143,38 @@ export const LoginPage: React.FC = () => {
                 autoComplete="username"
                 required
                 disabled={loading}
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:opacity-60 font-medium"
+                style={{
+                  width: '100%',
+                  paddingLeft: '3.25rem',
+                  paddingRight: '1rem',
+                  paddingTop: '0.85rem',
+                  paddingBottom: '0.85rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#f8fafc',
+                  fontSize: '0.875rem',
+                  color: '#1e293b',
+                  outline: 'none'
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:opacity-60 font-medium"
               />
             </div>
           </div>
 
           {/* Campo Contraseña */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            <label 
+              className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+              style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', marginBottom: '0.5rem' }}
+            >
               Contraseña
             </label>
-            <div className="relative flex items-center">
-              <div className="absolute left-4 flex items-center pointer-events-none text-slate-400">
-                <Lock className="w-5 h-5" />
+            <div className="relative flex items-center" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div 
+                className="absolute left-4 flex items-center pointer-events-none text-slate-400"
+                style={{ position: 'absolute', left: '1rem', display: 'flex', alignItems: 'center', pointerEvents: 'none', color: '#94a3b8' }}
+              >
+                <Lock className="w-5 h-5" style={{ width: '1.25rem', height: '1.25rem' }} />
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -145,15 +184,29 @@ export const LoginPage: React.FC = () => {
                 autoComplete="current-password"
                 required
                 disabled={loading}
-                className="w-full pl-12 pr-12 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:opacity-60 font-medium"
+                style={{
+                  width: '100%',
+                  paddingLeft: '3.25rem',
+                  paddingRight: '3rem',
+                  paddingTop: '0.85rem',
+                  paddingBottom: '0.85rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#f8fafc',
+                  fontSize: '0.875rem',
+                  color: '#1e293b',
+                  outline: 'none'
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:opacity-60 font-medium"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
                 className="absolute right-4 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer p-1"
+                style={{ position: 'absolute', right: '1rem', display: 'flex', alignItems: 'center', cursor: 'pointer', background: 'none', border: 'none', color: '#94a3b8' }}
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? <EyeOff className="w-5 h-5" style={{ width: '1.25rem', height: '1.25rem' }} /> : <Eye className="w-5 h-5" style={{ width: '1.25rem', height: '1.25rem' }} />}
               </button>
             </div>
           </div>
@@ -162,6 +215,23 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
+            style={{
+              width: '100%',
+              marginTop: '0.75rem',
+              padding: '0.875rem 1rem',
+              borderRadius: '0.75rem',
+              border: 'none',
+              background: 'linear-gradient(to right, #2563eb, #4f46e5)',
+              color: '#ffffff',
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer',
+              boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)'
+            }}
             className="w-full mt-2 py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 active:scale-[0.99] transition duration-150 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? (
@@ -171,7 +241,7 @@ export const LoginPage: React.FC = () => {
               </>
             ) : (
               <>
-                <LogIn className="w-5 h-5" />
+                <LogIn className="w-5 h-5" style={{ width: '1.25rem', height: '1.25rem' }} />
                 <span>Entrar al Sistema</span>
               </>
             )}
@@ -179,8 +249,8 @@ export const LoginPage: React.FC = () => {
         </form>
       </div>
 
-      <div className="relative z-10 mt-6 text-center">
-        <p className="text-xs text-slate-500 font-medium">
+      <div className="relative z-10 mt-6 text-center" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+        <p className="text-xs text-slate-500 font-medium" style={{ fontSize: '0.75rem', color: '#64748b' }}>
           &copy; {new Date().getFullYear()} Sistema de Transporte &bull; Plataforma Multiempresa SaaS
         </p>
       </div>
