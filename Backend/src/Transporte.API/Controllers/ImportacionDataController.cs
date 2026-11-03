@@ -45,7 +45,7 @@ namespace Transporte.API.Controllers
 
         /// <summary>
         /// Valida si existen registros previos necesarios para importar una entidad
-        /// (ej: Propietarios antes de Fincas).
+        /// (ej: TB_PROPIETARIOS antes de TB_FINCAS).
         /// </summary>
         [HttpGet("validar-prerequisitos/{entidad}")]
         public async Task<IActionResult> ValidarPrerequisitos(string entidad)
@@ -55,36 +55,36 @@ namespace Transporte.API.Controllers
                 using var conn = CreateConnection();
                 var ent = entidad.Trim().ToUpperInvariant();
 
-                if (ent == "FINCAS")
+                if (ent == "TB_FINCAS")
                 {
-                    int totalPropietarios = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Propietarios WHERE Estado = 'ACTIVO'");
-                    int totalCompanias = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Companias WHERE Activo = 1");
-                    int totalBancos = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Bancos WHERE Activo = 1");
+                    int totalPropietarios = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_PROPIETARIOS WHERE Estado = 'ACTIVO'");
+                    int totalCompanias = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_COMPANIAS WHERE Activo = 1");
+                    int totalBancos = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_BANCOS WHERE Activo = 1");
 
                     bool tienePropietarios = totalPropietarios > 0;
                     return Ok(new
                     {
-                        entidad = "FINCAS",
+                        entidad = "TB_FINCAS",
                         requierePrevio = true,
                         prerequisitos = new[]
                         {
-                            new { nombre = "Propietarios", cantidad = totalPropietarios, cumplido = tienePropietarios, mensaje = tienePropietarios ? $"{totalPropietarios} propietarios registrados." : "No hay propietarios registrados. Se recomienda cargar propietarios antes para asociar fincas." },
+                            new { nombre = "TB_PROPIETARIOS", cantidad = totalPropietarios, cumplido = tienePropietarios, mensaje = tienePropietarios ? $"{totalPropietarios} TB_PROPIETARIOS registrados." : "No hay TB_PROPIETARIOS registrados. Se recomienda cargar TB_PROPIETARIOS antes para asociar TB_FINCAS." },
                             new { nombre = "Compañías", cantidad = totalCompanias, cumplido = totalCompanias > 0, mensaje = $"{totalCompanias} compañías registradas." },
-                            new { nombre = "Bancos", cantidad = totalBancos, cumplido = totalBancos > 0, mensaje = $"{totalBancos} bancos registrados." }
+                            new { nombre = "TB_BANCOS", cantidad = totalBancos, cumplido = totalBancos > 0, mensaje = $"{totalBancos} TB_BANCOS registrados." }
                         },
                         listo = tienePropietarios
                     });
                 }
-                else if (ent == "PROPIETARIOS")
+                else if (ent == "TB_PROPIETARIOS")
                 {
-                    int totalBancos = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Bancos WHERE Activo = 1");
+                    int totalBancos = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_BANCOS WHERE Activo = 1");
                     return Ok(new
                     {
-                        entidad = "PROPIETARIOS",
+                        entidad = "TB_PROPIETARIOS",
                         requierePrevio = false,
                         prerequisitos = new[]
                         {
-                            new { nombre = "Bancos", cantidad = totalBancos, cumplido = totalBancos > 0, mensaje = $"{totalBancos} bancos registrados para cuentas bancarias." }
+                            new { nombre = "TB_BANCOS", cantidad = totalBancos, cumplido = totalBancos > 0, mensaje = $"{totalBancos} TB_BANCOS registrados para cuentas bancarias." }
                         },
                         listo = true
                     });
@@ -107,9 +107,9 @@ namespace Transporte.API.Controllers
         }
 
         /// <summary>
-        /// Importación masiva de Propietarios
+        /// Importación masiva de TB_PROPIETARIOS
         /// </summary>
-        [HttpPost("importar/propietarios")]
+        [HttpPost("importar/TB_PROPIETARIOS")]
         public async Task<IActionResult> ImportarPropietarios([FromBody] List<ImportarPropietarioItemDto> items)
         {
             if (items == null || items.Count == 0)
@@ -123,7 +123,7 @@ namespace Transporte.API.Controllers
             try
             {
                 using var conn = CreateConnection();
-                var bancos = (await conn.QueryAsync<Banco>("SELECT * FROM Bancos WHERE Activo = 1")).ToList();
+                var TB_BANCOS = (await conn.QueryAsync<Banco>("SELECT * FROM TB_BANCOS WHERE Activo = 1")).ToList();
 
                 foreach (var item in items)
                 {
@@ -146,7 +146,7 @@ namespace Transporte.API.Controllers
                         int? bancoId = item.BancoId;
                         if (!bancoId.HasValue && !string.IsNullOrWhiteSpace(item.BancoNombre))
                         {
-                            var bEncontrado = bancos.FirstOrDefault(b => 
+                            var bEncontrado = TB_BANCOS.FirstOrDefault(b => 
                                 b.Nombre.Equals(item.BancoNombre.Trim(), StringComparison.OrdinalIgnoreCase) ||
                                 b.Codigo.Equals(item.BancoNombre.Trim(), StringComparison.OrdinalIgnoreCase));
                             if (bEncontrado != null) bancoId = bEncontrado.Id;
@@ -154,14 +154,14 @@ namespace Transporte.API.Controllers
 
                         // Verificar si ya existe por Cédula/RIF o Nombre
                         var existente = await conn.QueryFirstOrDefaultAsync<Propietario>(
-                            "SELECT TOP 1 * FROM Propietarios WHERE (CedulaRIF IS NOT NULL AND CedulaRIF = @ced) OR LOWER(Nombre) = LOWER(@nom)",
+                            "SELECT TOP 1 * FROM TB_PROPIETARIOS WHERE (CedulaRIF IS NOT NULL AND CedulaRIF = @ced) OR LOWER(Nombre) = LOWER(@nom)",
                             new { ced, nom });
 
                         if (existente != null)
                         {
                             // Actualizar
                             await conn.ExecuteAsync(@"
-                                UPDATE Propietarios 
+                                UPDATE TB_PROPIETARIOS 
                                 SET Nombre = @nom,
                                     CedulaRIF = COALESCE(@ced, CedulaRIF),
                                     Telefono = COALESCE(@tel, Telefono),
@@ -177,7 +177,7 @@ namespace Transporte.API.Controllers
                         {
                             // Insertar nuevo
                             await conn.ExecuteAsync(@"
-                                INSERT INTO Propietarios (Nombre, CedulaRIF, Telefono, Email, BancoId, NumeroCuenta, Observacion, Estado, CreatedAt, CreatedBy)
+                                INSERT INTO TB_PROPIETARIOS (Nombre, CedulaRIF, Telefono, Email, BancoId, NumeroCuenta, Observacion, Estado, CreatedAt, CreatedBy)
                                 VALUES (@nom, @ced, @tel, @email, @bancoId, @numCuenta, @obs, 'ACTIVO', GETDATE(), @userId)",
                                 new { nom, ced, tel, email, bancoId, numCuenta, obs, userId });
                             insertados++;
@@ -199,18 +199,18 @@ namespace Transporte.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error durante la importación de propietarios: " + ex.Message });
+                return StatusCode(500, new { message = "Error durante la importación de TB_PROPIETARIOS: " + ex.Message });
             }
         }
 
         /// <summary>
-        /// Importación masiva de Fincas (con vinculación y auto-creación opcional de Propietarios)
+        /// Importación masiva de TB_FINCAS (con vinculación y auto-creación opcional de TB_PROPIETARIOS)
         /// </summary>
-        [HttpPost("importar/fincas")]
+        [HttpPost("importar/TB_FINCAS")]
         public async Task<IActionResult> ImportarFincas([FromBody] ImportarFincasRequest request)
         {
             if (request == null || request.Items == null || request.Items.Count == 0)
-                return BadRequest(new { message = "No se recibieron fincas para importar." });
+                return BadRequest(new { message = "No se recibieron TB_FINCAS para importar." });
 
             int insertados = 0;
             int actualizados = 0;
@@ -221,9 +221,9 @@ namespace Transporte.API.Controllers
             try
             {
                 using var conn = CreateConnection();
-                var bancos = (await conn.QueryAsync<Banco>("SELECT * FROM Bancos WHERE Activo = 1")).ToList();
-                var companias = (await conn.QueryAsync<Compania>("SELECT * FROM Companias WHERE Activo = 1")).ToList();
-                var propietarios = (await conn.QueryAsync<Propietario>("SELECT * FROM Propietarios WHERE Estado = 'ACTIVO'")).ToList();
+                var TB_BANCOS = (await conn.QueryAsync<Banco>("SELECT * FROM TB_BANCOS WHERE Activo = 1")).ToList();
+                var TB_COMPANIAS = (await conn.QueryAsync<Compania>("SELECT * FROM TB_COMPANIAS WHERE Activo = 1")).ToList();
+                var TB_PROPIETARIOS = (await conn.QueryAsync<Propietario>("SELECT * FROM TB_PROPIETARIOS WHERE Estado = 'ACTIVO'")).ToList();
 
                 foreach (var item in request.Items)
                 {
@@ -250,7 +250,7 @@ namespace Transporte.API.Controllers
                         int? propId = item.PropietarioId;
                         if (!propId.HasValue && !string.IsNullOrWhiteSpace(propNombre))
                         {
-                            var pEncontrado = propietarios.FirstOrDefault(p => 
+                            var pEncontrado = TB_PROPIETARIOS.FirstOrDefault(p => 
                                 (!string.IsNullOrEmpty(ced) && p.CedulaRIF == ced) ||
                                 p.Nombre.Equals(propNombre, StringComparison.OrdinalIgnoreCase));
 
@@ -263,13 +263,13 @@ namespace Transporte.API.Controllers
                             {
                                 // Auto-crear propietario si está activado
                                 int nuevoPropId = await conn.QuerySingleAsync<int>(@"
-                                    INSERT INTO Propietarios (Nombre, CedulaRIF, Telefono, Estado, CreatedAt, CreatedBy)
+                                    INSERT INTO TB_PROPIETARIOS (Nombre, CedulaRIF, Telefono, Estado, CreatedAt, CreatedBy)
                                     VALUES (@propNombre, @ced, @tel, 'ACTIVO', GETDATE(), @userId);
                                     SELECT CAST(SCOPE_IDENTITY() as int);",
                                     new { propNombre, ced, tel, userId });
 
                                 propId = nuevoPropId;
-                                propietarios.Add(new Propietario { Id = nuevoPropId, Nombre = propNombre, CedulaRIF = ced, Telefono = tel });
+                                TB_PROPIETARIOS.Add(new Propietario { Id = nuevoPropId, Nombre = propNombre, CedulaRIF = ced, Telefono = tel });
                                 propietariosAutoCreados++;
                             }
                         }
@@ -278,7 +278,7 @@ namespace Transporte.API.Controllers
                         int? bancoId = item.BancoId;
                         if (!bancoId.HasValue && !string.IsNullOrWhiteSpace(item.BancoNombre))
                         {
-                            var bEncontrado = bancos.FirstOrDefault(b => 
+                            var bEncontrado = TB_BANCOS.FirstOrDefault(b => 
                                 b.Nombre.Equals(item.BancoNombre.Trim(), StringComparison.OrdinalIgnoreCase) ||
                                 b.Codigo.Equals(item.BancoNombre.Trim(), StringComparison.OrdinalIgnoreCase));
                             if (bEncontrado != null) bancoId = bEncontrado.Id;
@@ -288,21 +288,21 @@ namespace Transporte.API.Controllers
                         int? compId = item.CompaniaId;
                         if (!compId.HasValue && !string.IsNullOrWhiteSpace(item.CompaniaNombre))
                         {
-                            var cEncontrada = companias.FirstOrDefault(c => 
+                            var cEncontrada = TB_COMPANIAS.FirstOrDefault(c => 
                                 c.Nombre.Equals(item.CompaniaNombre.Trim(), StringComparison.OrdinalIgnoreCase));
                             if (cEncontrada != null) compId = cEncontrada.Id;
                         }
 
                         // Buscar si ya existe la finca por Nombre o Código
                         var fincaExistente = await conn.QueryFirstOrDefaultAsync<Finca>(
-                            "SELECT TOP 1 * FROM Fincas WHERE (Codigo IS NOT NULL AND Codigo = @cod) OR LOWER(Nombre) = LOWER(@nom)",
+                            "SELECT TOP 1 * FROM TB_FINCAS WHERE (Codigo IS NOT NULL AND Codigo = @cod) OR LOWER(Nombre) = LOWER(@nom)",
                             new { cod, nom });
 
                         if (fincaExistente != null)
                         {
                             // Actualizar finca existente
                             await conn.ExecuteAsync(@"
-                                UPDATE Fincas 
+                                UPDATE TB_FINCAS 
                                 SET Nombre = @nom,
                                     Codigo = COALESCE(@cod, Codigo),
                                     Propietario = COALESCE(NULLIF(@propNombre, ''), Propietario),
@@ -324,7 +324,7 @@ namespace Transporte.API.Controllers
                         {
                             // Insertar nueva finca
                             await conn.ExecuteAsync(@"
-                                INSERT INTO Fincas (Codigo, Nombre, Propietario, PropietarioId, CedulaRIF, Telefono, BancoId, NumeroCuenta, CompaniaId, PrecioLitroUSD, PrecioLitroAcidaUSD, TieneDosTiposLeche, TipoLeche, Activo, CreatedAt)
+                                INSERT INTO TB_FINCAS (Codigo, Nombre, Propietario, PropietarioId, CedulaRIF, Telefono, BancoId, NumeroCuenta, CompaniaId, PrecioLitroUSD, PrecioLitroAcidaUSD, TieneDosTiposLeche, TipoLeche, Activo, CreatedAt)
                                 VALUES (@cod, @nom, @propNombre, @propId, @ced, @tel, @bancoId, @numCuenta, @compId, @pUSD, @pAcida, @tiene2Tipos, @tipoLeche, 1, GETDATE())",
                                 new { cod, nom, propNombre, propId, ced, tel, bancoId, numCuenta, compId, pUSD, pAcida, tiene2Tipos, tipoLeche });
                             insertados++;
@@ -347,14 +347,14 @@ namespace Transporte.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error durante la importación de fincas: " + ex.Message });
+                return StatusCode(500, new { message = "Error durante la importación de TB_FINCAS: " + ex.Message });
             }
         }
 
         /// <summary>
         /// Importación masiva de Compañías / Receptorías
         /// </summary>
-        [HttpPost("importar/companias")]
+        [HttpPost("importar/TB_COMPANIAS")]
         public async Task<IActionResult> ImportarCompanias([FromBody] List<ImportarCompaniaItemDto> items)
         {
             if (items == null || items.Count == 0)
@@ -387,13 +387,13 @@ namespace Transporte.API.Controllers
                         decimal? pAcida = item.PrecioAcidaLitroUSD;
 
                         var existente = await conn.QueryFirstOrDefaultAsync<Compania>(
-                            "SELECT TOP 1 * FROM Companias WHERE LOWER(Nombre) = LOWER(@nom)",
+                            "SELECT TOP 1 * FROM TB_COMPANIAS WHERE LOWER(Nombre) = LOWER(@nom)",
                             new { nom });
 
                         if (existente != null)
                         {
                             await conn.ExecuteAsync(@"
-                                UPDATE Companias 
+                                UPDATE TB_COMPANIAS 
                                 SET Nombre = @nom,
                                     Encargado = COALESCE(@enc, Encargado),
                                     Telefono = COALESCE(@tel, Telefono),
@@ -408,7 +408,7 @@ namespace Transporte.API.Controllers
                         else
                         {
                             await conn.ExecuteAsync(@"
-                                INSERT INTO Companias (Nombre, Encargado, Telefono, Direccion, PrecioCompraLitroUSD, PrecioBufalaLitroUSD, PrecioAcidaLitroUSD, Activo, IsDeleted)
+                                INSERT INTO TB_COMPANIAS (Nombre, Encargado, Telefono, Direccion, PrecioCompraLitroUSD, PrecioBufalaLitroUSD, PrecioAcidaLitroUSD, Activo, IsDeleted)
                                 VALUES (@nom, @enc, @tel, @dir, @pCompra, @pBufala, @pAcida, 1, 0)",
                                 new { nom, enc, tel, dir, pCompra, pBufala, pAcida });
                             insertados++;
@@ -435,13 +435,13 @@ namespace Transporte.API.Controllers
         }
 
         /// <summary>
-        /// Importación masiva de Bancos
+        /// Importación masiva de TB_BANCOS
         /// </summary>
-        [HttpPost("importar/bancos")]
+        [HttpPost("importar/TB_BANCOS")]
         public async Task<IActionResult> ImportarBancos([FromBody] List<ImportarBancoItemDto> items)
         {
             if (items == null || items.Count == 0)
-                return BadRequest(new { message = "No se recibieron bancos para importar." });
+                return BadRequest(new { message = "No se recibieron TB_BANCOS para importar." });
 
             int insertados = 0;
             int actualizados = 0;
@@ -465,13 +465,13 @@ namespace Transporte.API.Controllers
                         string cod = (item.Codigo ?? string.Empty).Trim();
 
                         var existente = await conn.QueryFirstOrDefaultAsync<Banco>(
-                            "SELECT TOP 1 * FROM Bancos WHERE (Codigo = @cod AND @cod <> '') OR LOWER(Nombre) = LOWER(@nom)",
+                            "SELECT TOP 1 * FROM TB_BANCOS WHERE (Codigo = @cod AND @cod <> '') OR LOWER(Nombre) = LOWER(@nom)",
                             new { cod, nom });
 
                         if (existente != null)
                         {
                             await conn.ExecuteAsync(@"
-                                UPDATE Bancos 
+                                UPDATE TB_BANCOS 
                                 SET Nombre = CASE WHEN @nom <> '' THEN @nom ELSE Nombre END,
                                     Codigo = CASE WHEN @cod <> '' THEN @cod ELSE Codigo END,
                                     Activo = 1
@@ -482,7 +482,7 @@ namespace Transporte.API.Controllers
                         else
                         {
                             await conn.ExecuteAsync(@"
-                                INSERT INTO Bancos (Codigo, Nombre, Activo)
+                                INSERT INTO TB_BANCOS (Codigo, Nombre, Activo)
                                 VALUES (@cod, @nom, 1)",
                                 new { cod, nom });
                             insertados++;
@@ -504,7 +504,7 @@ namespace Transporte.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error durante la importación de bancos: " + ex.Message });
+                return StatusCode(500, new { message = "Error durante la importación de TB_BANCOS: " + ex.Message });
             }
         }
 
@@ -521,47 +521,47 @@ namespace Transporte.API.Controllers
 
                 switch (ent)
                 {
-                    case "FINCAS":
-                        var fincas = await conn.QueryAsync(@"
+                    case "TB_FINCAS":
+                        var TB_FINCAS = await conn.QueryAsync(@"
                             SELECT f.Id, f.Codigo, f.Nombre, f.Propietario, f.PropietarioId,
                                    p.Nombre AS PropietarioNombre, f.CedulaRIF, f.Telefono,
                                    b.Nombre AS BancoNombre, f.NumeroCuenta,
                                    c.Nombre AS CompaniaNombre,
                                    f.PrecioLitroUSD, f.PrecioLitroAcidaUSD, f.TieneDosTiposLeche, f.TipoLeche,
                                    f.Activo
-                            FROM Fincas f
-                            LEFT JOIN Propietarios p ON f.PropietarioId = p.Id
-                            LEFT JOIN Bancos b ON f.BancoId = b.Id
-                            LEFT JOIN Companias c ON f.CompaniaId = c.Id
+                            FROM TB_FINCAS f
+                            LEFT JOIN TB_PROPIETARIOS p ON f.PropietarioId = p.Id
+                            LEFT JOIN TB_BANCOS b ON f.BancoId = b.Id
+                            LEFT JOIN TB_COMPANIAS c ON f.CompaniaId = c.Id
                             ORDER BY f.Nombre ASC");
-                        return Ok(fincas);
+                        return Ok(TB_FINCAS);
 
-                    case "PROPIETARIOS":
+                    case "TB_PROPIETARIOS":
                         var props = await conn.QueryAsync(@"
                             SELECT p.Id, p.Nombre, p.CedulaRIF, p.Telefono, p.Email,
                                    b.Nombre AS BancoNombre, p.NumeroCuenta, p.Observacion, p.Estado,
-                                   (SELECT COUNT(1) FROM Fincas f WHERE f.PropietarioId = p.Id) AS TotalFincasAsociadas
-                            FROM Propietarios p
-                            LEFT JOIN Bancos b ON p.BancoId = b.Id
+                                   (SELECT COUNT(1) FROM TB_FINCAS f WHERE f.PropietarioId = p.Id) AS TotalFincasAsociadas
+                            FROM TB_PROPIETARIOS p
+                            LEFT JOIN TB_BANCOS b ON p.BancoId = b.Id
                             ORDER BY p.Nombre ASC");
                         return Ok(props);
 
-                    case "COMPANIAS":
+                    case "TB_COMPANIAS":
                         var comps = await conn.QueryAsync(@"
                             SELECT Id, Nombre, Encargado, Telefono, Direccion,
                                    PrecioCompraLitroUSD, PrecioBufalaLitroUSD, PrecioAcidaLitroUSD,
                                    DiaAperturaSemana, DiaCierreSemana, Activo
-                            FROM Companias
+                            FROM TB_COMPANIAS
                             WHERE IsDeleted = 0
                             ORDER BY Nombre ASC");
                         return Ok(comps);
 
-                    case "BANCOS":
-                        var bancos = await conn.QueryAsync(@"
+                    case "TB_BANCOS":
+                        var TB_BANCOS = await conn.QueryAsync(@"
                             SELECT Id, Codigo, Nombre, Activo
-                            FROM Bancos
+                            FROM TB_BANCOS
                             ORDER BY Codigo ASC");
-                        return Ok(bancos);
+                        return Ok(TB_BANCOS);
 
                     default:
                         return BadRequest(new { message = $"Entidad '{entidad}' no soportada para exportación." });

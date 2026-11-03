@@ -83,6 +83,41 @@ export const ControlTanquesPage: React.FC = () => {
     queryFn: () => catalogosApi.getChoferes(),
   });
 
+  const { data: viajesDelDia = [] } = useQuery({
+    queryKey: ['viajes-dia-tanques', fechaDocumento],
+    queryFn: () => operacionesApi.getControles(fechaDocumento),
+  });
+
+  const autoLlenarFilasConViajes = (viajes: any[]) => {
+    if (!viajes || viajes.length === 0) return emptyFilas();
+    const rows: FilaRecepcionTanque[] = [];
+    for (let i = 0; i < 15; i++) {
+      if (i < viajes.length) {
+        const v = viajes[i];
+        const lRuta = Number(v.totalLitrosFinca ?? v.totalLitrosRecogidos ?? 0);
+        const lRecep = Number(v.litrosRecibidosReceptoria ?? v.totalLitrosReceptoria ?? v.totalLitrosEntregados ?? lRuta);
+        rows.push({
+          id: i + 1,
+          fecha: v.fecha ? new Date(v.fecha).toISOString().split('T')[0] : fechaDocumento,
+          choferRuta: `${v.choferNombre || v.nombreConductor || 'Chofer'} / ${v.rutaNombre || v.rutaLogisticaNombre || 'Ruta'}`,
+          litrosRuta: lRuta,
+          litrosRecepcion: lRecep,
+          diferencia: lRuta - lRecep,
+        });
+      } else {
+        rows.push({
+          id: i + 1,
+          fecha: '',
+          choferRuta: '',
+          litrosRuta: 0,
+          litrosRecepcion: 0,
+          diferencia: 0,
+        });
+      }
+    }
+    return rows;
+  };
+
   // Verificar si el usuario puede modificar
   // Regla: si no es admin y (está cerrado o fecha < hoy), puedeModificar viene false
   const puedeModificar = useMemo(() => {
@@ -133,7 +168,7 @@ export const ControlTanquesPage: React.FC = () => {
       if (controlTanques.filasRecepcionJson) {
         try {
           const parsed = JSON.parse(controlTanques.filasRecepcionJson);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed.some((p: any) => p.litrosRuta > 0 || p.litrosRecepcion > 0 || p.choferRuta)) {
             const padded = [...parsed];
             while (padded.length < 15) {
               padded.push({
@@ -146,19 +181,29 @@ export const ControlTanquesPage: React.FC = () => {
               });
             }
             setFilasRecepcion(padded);
+          } else if (viajesDelDia.length > 0) {
+            setFilasRecepcion(autoLlenarFilasConViajes(viajesDelDia));
           } else {
             setFilasRecepcion(emptyFilas());
           }
         } catch {
-          setFilasRecepcion(emptyFilas());
+          if (viajesDelDia.length > 0) {
+            setFilasRecepcion(autoLlenarFilasConViajes(viajesDelDia));
+          } else {
+            setFilasRecepcion(emptyFilas());
+          }
         }
+      } else if (viajesDelDia.length > 0) {
+        setFilasRecepcion(autoLlenarFilasConViajes(viajesDelDia));
       } else {
         setFilasRecepcion(emptyFilas());
       }
+    } else if (viajesDelDia.length > 0) {
+      setFilasRecepcion(autoLlenarFilasConViajes(viajesDelDia));
     } else {
       setFilasRecepcion(emptyFilas());
     }
-  }, [controlTanques]);
+  }, [controlTanques, viajesDelDia]);
 
   // Cálculos automáticos
   const totalTanquesIniciales = useMemo(() => {
@@ -392,15 +437,30 @@ export const ControlTanquesPage: React.FC = () => {
           </div>
 
           {puedeModificar && (
-            <button
-              type="button"
-              onClick={() => guardarMutation.mutate()}
-              disabled={guardarMutation.isPending}
-              className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
-              title="Guardar borrador o cambios del formulario"
-            >
-              <Save className="w-4 h-4" /> Guardar
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const filled = autoLlenarFilasConViajes(viajesDelDia);
+                  setFilasRecepcion(filled);
+                  toast.success(`Se auto-llenaron ${Math.min(15, viajesDelDia.length)} entradas de rutas del día`);
+                }}
+                className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-sky-50 text-sky-700 border border-sky-300 hover:bg-sky-100 rounded-lg shadow-sm"
+                title="Llenar automáticamente las recepciones con los viajes registrados en el día"
+              >
+                <i className="fa-solid fa-wand-magic-sparkles"></i> Auto-llenar Rutas ({viajesDelDia.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => guardarMutation.mutate()}
+                disabled={guardarMutation.isPending}
+                className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
+                title="Guardar borrador o cambios del formulario"
+              >
+                <Save className="w-4 h-4" /> Guardar
+              </button>
+            </>
           )}
 
           {esSupervisorOAdmin && (

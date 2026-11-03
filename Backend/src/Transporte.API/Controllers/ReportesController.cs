@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Transporte.Core.DTOs;
 using Transporte.Infrastructure.Repositories;
 
@@ -60,26 +61,36 @@ namespace Transporte.API.Controllers
             [FromQuery] DateTime? fechaFin = null,
             [FromQuery] string? fincaIds = null)
         {
-            var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-            if (!EsAdminOSupervisor(rol))
+            var rol = User.FindFirstValue(ClaimTypes.Role) 
+                ?? User.FindFirst("role")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
+
+            if (!string.IsNullOrEmpty(rol) && !EsAdminOSupervisor(rol))
             {
                 return Forbid();
             }
 
-            DateTime fIni = fechaInicio ?? DateTime.Today.AddDays(-6);
-            DateTime fFin = fechaFin ?? DateTime.Today;
-
-            List<int>? listaIds = null;
-            if (!string.IsNullOrWhiteSpace(fincaIds))
+            try
             {
-                listaIds = fincaIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => int.TryParse(x.Trim(), out var n) ? n : 0)
-                    .Where(x => x > 0)
-                    .ToList();
-            }
+                DateTime fIni = fechaInicio ?? DateTime.Today.AddDays(-6);
+                DateTime fFin = fechaFin ?? DateTime.Today;
 
-            var res = await _reportesRepository.ObtenerReporteFincasAsync(fIni, fFin, listaIds);
-            return Ok(res);
+                List<int>? listaIds = null;
+                if (!string.IsNullOrWhiteSpace(fincaIds))
+                {
+                    listaIds = fincaIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => int.TryParse(x.Trim(), out var n) ? n : 0)
+                        .Where(x => x > 0)
+                        .ToList();
+                }
+
+                var res = await _reportesRepository.ObtenerReporteFincasAsync(fIni, fFin, listaIds);
+                return Ok(res);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener reporte de fincas: " + ex.Message, error = ex.ToString() });
+            }
         }
 
         [HttpGet("choferes")]

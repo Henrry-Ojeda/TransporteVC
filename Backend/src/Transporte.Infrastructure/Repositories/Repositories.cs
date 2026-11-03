@@ -4472,22 +4472,112 @@ namespace Transporte.Infrastructure.Repositories
 
             bool esAdmin = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase);
 
+            // Obtener tanques iniciales del día anterior como base
+            var sqlPrev = @"SELECT TOP 1 Tanque1Final, Tanque2Final, Tanque3Final, Tanque4Final, Tanque5Final, TotalFinalFisicoLitros 
+                            FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha < @fecha ORDER BY Fecha DESC";
+            var prevDia = await connection.QueryFirstOrDefaultAsync<dynamic>(sqlPrev, new { fecha = fecha.Date });
+
+            int t1Ini = prevDia?.Tanque1Final ?? 0;
+            int t2Ini = prevDia?.Tanque2Final ?? 0;
+            int t3Ini = prevDia?.Tanque3Final ?? 0;
+            int t4Ini = prevDia?.Tanque4Final ?? 0;
+            int t5Ini = prevDia?.Tanque5Final ?? 0;
+            int totalIni = prevDia?.TotalFinalFisicoLitros ?? (t1Ini + t2Ini + t3Ini + t4Ini + t5Ini);
+
+            // Obtener recepciones del día de TB_CONTROL_RUTAS
+            var sqlRutasDia = @"
+                SELECT 
+                    cr.Id,
+                    CONVERT(varchar(10), cr.Fecha, 120) AS FechaStr,
+                    ISNULL(u.NombreCompleto, u.Username) AS ChoferNombre,
+                    ISNULL(rl.Nombre, ISNULL(cr.Observacion, 'Ruta')) AS RutaNombre,
+                    ISNULL(cr.TotalLitrosFinca, 0) AS LitrosRuta,
+                    ISNULL(cr.LitrosRecibidosReceptoria, ISNULL(cr.TotalLitrosReceptoria, cr.TotalLitrosFinca)) AS LitrosRecepcion
+                FROM TB_CONTROL_RUTAS cr
+                LEFT JOIN TB_USUARIOS u ON cr.UsuarioId = u.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
+                WHERE CAST(cr.Fecha AS DATE) = @fecha
+                ORDER BY cr.Id ASC";
+
+            var controles = (await connection.QueryAsync<dynamic>(sqlRutasDia, new { fecha = fecha.Date })).ToList();
+            var filasAuto = new List<object>();
+            int sumEntradas = 0;
+
+            for (int i = 0; i < 15; i++)
+            {
+                if (i < controles.Count)
+                {
+                    var c = controles[i];
+                    int lRuta = (int)(c.LitrosRuta ?? 0);
+                    int lRecep = (int)(c.LitrosRecepcion ?? lRuta);
+                    int dif = lRuta - lRecep;
+                    sumEntradas += lRecep;
+
+                    filasAuto.Add(new
+                    {
+                        id = i + 1,
+                        fecha = (string)c.FechaStr,
+                        choferRuta = $"{c.ChoferNombre} / {c.RutaNombre}",
+                        litrosRuta = lRuta,
+                        litrosRecepcion = lRecep,
+                        diferencia = dif
+                    });
+                }
+                else
+                {
+                    filasAuto.Add(new
+                    {
+                        id = i + 1,
+                        fecha = "",
+                        choferRuta = "",
+                        litrosRuta = 0,
+                        litrosRecepcion = 0,
+                        diferencia = 0
+                    });
+                }
+            }
+            string jsonAuto = System.Text.Json.JsonSerializer.Serialize(filasAuto);
+
             if (record != null)
             {
-                // Regla de Negocio: Si ya está cerrado o confirmado, o la fecha es anterior a hoy, SOLO ADMIN puede modificar
                 bool esPasadoOConfirmado = record.CierreConfirmado || record.Fecha.Date < DateTime.UtcNow.Date;
                 record.PuedeModificar = esAdmin || !esPasadoOConfirmado;
+
+                // Si no tiene tanques iniciales cargados, auto-asignar del día previo
+                if (record.Tanque1Inicial == 0 && record.Tanque2Inicial == 0 && record.Tanque3Inicial == 0 && record.Tanque4Inicial == 0 && record.Tanque5Inicial == 0 && totalIni > 0)
+                {
+                    record.Tanque1Inicial = t1Ini;
+                    record.Tanque2Inicial = t2Ini;
+                    record.Tanque3Inicial = t3Ini;
+                    record.Tanque4Inicial = t4Ini;
+                    record.Tanque5Inicial = t5Ini;
+                    record.TotalInicialLitros = totalIni;
+                }
+
+                // Si no tiene filas de recepción registradas pero hay controles de ruta del día, auto-llenar
+                if (string.IsNullOrWhiteSpace(record.FilasRecepcionJson) || record.FilasRecepcionJson == "[]" || record.TotalEntradasRutasLitros == 0)
+                {
+                    if (controles.Count > 0)
+                    {
+                        record.FilasRecepcionJson = jsonAuto;
+                        record.TotalEntradasRutasLitros = sumEntradas;
+                    }
+                }
+
                 return record;
             }
-
-            // Si no existe registro para hoy, auto-obtener el cierre del día anterior para el arranque de hoy
-            var sqlPrev = "SELECT TOP 1 TotalFinalFisicoLitros FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha < @fecha ORDER BY Fecha DESC";
-            int litrosArranque = await connection.ExecuteScalarAsync<int?>(sqlPrev, new { fecha = fecha.Date }) ?? 0;
 
             return new ControlTanquesDiarioDto
             {
                 Fecha = fecha.Date,
-                TotalInicialLitros = litrosArranque,
+                Tanque1Inicial = t1Ini,
+                Tanque2Inicial = t2Ini,
+                Tanque3Inicial = t3Ini,
+                Tanque4Inicial = t4Ini,
+                Tanque5Inicial = t5Ini,
+                TotalInicialLitros = totalIni,
+                FilasRecepcionJson = jsonAuto,
+                TotalEntradasRutasLitros = sumEntradas,
                 PuedeModificar = true,
                 Estado = "BORRADOR"
             };
@@ -5121,10 +5211,10 @@ namespace Transporte.Infrastructure.Repositories
                     return new { 
                         PagoId = (int)ultimo.PagoId, 
                         FechaPago = (DateTime?)ultimo.FechaPago,
-                        TasaBcv = (decimal?)ultimo.TasaBcv,
-                        TotalBrutoBs = g.Sum(x => (decimal?)x.TotalBrutoBs ?? 0m),
-                        TotalAdelantosBs = g.Sum(x => (decimal?)x.TotalAdelantosBs ?? 0m),
-                        TotalNetoBs = g.Sum(x => (decimal?)x.TotalNetoBs ?? 0m)
+                        TasaBcv = ultimo.TasaBcv != null ? (decimal?)Convert.ToDecimal(ultimo.TasaBcv) : null,
+                        TotalBrutoBs = g.Sum(x => x.TotalBrutoBs != null ? Convert.ToDecimal(x.TotalBrutoBs) : 0m),
+                        TotalAdelantosBs = g.Sum(x => x.TotalAdelantosBs != null ? Convert.ToDecimal(x.TotalAdelantosBs) : 0m),
+                        TotalNetoBs = g.Sum(x => x.TotalNetoBs != null ? Convert.ToDecimal(x.TotalNetoBs) : 0m)
                     };
                 });
 
@@ -5163,8 +5253,8 @@ namespace Transporte.Infrastructure.Repositories
                 .ToDictionary(
                     g => g.Key, 
                     g => new { 
-                        TotalAdelantosBs = g.Sum(x => (decimal)x.TotalAdelantosBs), 
-                        TotalAdelantosUSD = g.Sum(x => (decimal)x.TotalAdelantosUSD), 
+                        TotalAdelantosBs = g.Sum(x => x.TotalAdelantosBs != null ? Convert.ToDecimal(x.TotalAdelantosBs) : 0m), 
+                        TotalAdelantosUSD = g.Sum(x => x.TotalAdelantosUSD != null ? Convert.ToDecimal(x.TotalAdelantosUSD) : 0m), 
                         CuotasDetalle = g.FirstOrDefault()?.CuotasDetalle != null ? (string?)g.FirstOrDefault()?.CuotasDetalle : null 
                     });
 
@@ -5174,10 +5264,10 @@ namespace Transporte.Infrastructure.Repositories
                 string nombre = (string)finca.Nombre;
                 string? prop = (string?)finca.Propietario;
                 string? rif = (string?)finca.CedulaRIF;
-                decimal precio = (decimal)finca.PrecioLitroUSD;
-                decimal precioAcida = (decimal)finca.PrecioLitroAcidaUSD;
-                bool tieneDosTipos = finca.TieneDosTiposLeche != null && (bool)finca.TieneDosTiposLeche;
-                decimal precioBufala = (decimal)(finca.PrecioBufalaLitroUSD ?? 0m);
+                decimal precio = Convert.ToDecimal(finca.PrecioLitroUSD ?? 0m);
+                decimal precioAcida = Convert.ToDecimal(finca.PrecioLitroAcidaUSD ?? 0m);
+                bool tieneDosTipos = finca.TieneDosTiposLeche != null && Convert.ToBoolean(finca.TieneDosTiposLeche);
+                decimal precioBufala = Convert.ToDecimal(finca.PrecioBufalaLitroUSD ?? 0m);
 
                 var detalle = (await connection.QueryAsync<ReporteDetalleItemDto>(sqlDetalle, new { id, targetCicloId, fechaInicio = fechaInicio.Date, fechaFin = fechaFin.Date })).ToList();
 
@@ -9369,22 +9459,112 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
             bool esAdmin = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase);
 
+            // Obtener tanques iniciales del día anterior como base
+            var sqlPrev = @"SELECT TOP 1 Tanque1Final, Tanque2Final, Tanque3Final, Tanque4Final, Tanque5Final, TotalFinalFisicoLitros 
+                            FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha < @fecha ORDER BY Fecha DESC";
+            var prevDia = await connection.QueryFirstOrDefaultAsync<dynamic>(sqlPrev, new { fecha = fecha.Date });
+
+            int t1Ini = prevDia?.Tanque1Final ?? 0;
+            int t2Ini = prevDia?.Tanque2Final ?? 0;
+            int t3Ini = prevDia?.Tanque3Final ?? 0;
+            int t4Ini = prevDia?.Tanque4Final ?? 0;
+            int t5Ini = prevDia?.Tanque5Final ?? 0;
+            int totalIni = prevDia?.TotalFinalFisicoLitros ?? (t1Ini + t2Ini + t3Ini + t4Ini + t5Ini);
+
+            // Obtener recepciones del día de TB_CONTROL_RUTAS
+            var sqlRutasDia = @"
+                SELECT 
+                    cr.Id,
+                    CONVERT(varchar(10), cr.Fecha, 120) AS FechaStr,
+                    ISNULL(u.NombreCompleto, u.Username) AS ChoferNombre,
+                    ISNULL(rl.Nombre, ISNULL(cr.Observacion, 'Ruta')) AS RutaNombre,
+                    ISNULL(cr.TotalLitrosFinca, 0) AS LitrosRuta,
+                    ISNULL(cr.LitrosRecibidosReceptoria, ISNULL(cr.TotalLitrosReceptoria, cr.TotalLitrosFinca)) AS LitrosRecepcion
+                FROM TB_CONTROL_RUTAS cr
+                LEFT JOIN TB_USUARIOS u ON cr.UsuarioId = u.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
+                WHERE CAST(cr.Fecha AS DATE) = @fecha
+                ORDER BY cr.Id ASC";
+
+            var controles = (await connection.QueryAsync<dynamic>(sqlRutasDia, new { fecha = fecha.Date })).ToList();
+            var filasAuto = new List<object>();
+            int sumEntradas = 0;
+
+            for (int i = 0; i < 15; i++)
+            {
+                if (i < controles.Count)
+                {
+                    var c = controles[i];
+                    int lRuta = (int)(c.LitrosRuta ?? 0);
+                    int lRecep = (int)(c.LitrosRecepcion ?? lRuta);
+                    int dif = lRuta - lRecep;
+                    sumEntradas += lRecep;
+
+                    filasAuto.Add(new
+                    {
+                        id = i + 1,
+                        fecha = (string)c.FechaStr,
+                        choferRuta = $"{c.ChoferNombre} / {c.RutaNombre}",
+                        litrosRuta = lRuta,
+                        litrosRecepcion = lRecep,
+                        diferencia = dif
+                    });
+                }
+                else
+                {
+                    filasAuto.Add(new
+                    {
+                        id = i + 1,
+                        fecha = "",
+                        choferRuta = "",
+                        litrosRuta = 0,
+                        litrosRecepcion = 0,
+                        diferencia = 0
+                    });
+                }
+            }
+            string jsonAuto = System.Text.Json.JsonSerializer.Serialize(filasAuto);
+
             if (record != null)
             {
-                // Regla de Negocio: Si ya está cerrado o confirmado, o la fecha es anterior a hoy, SOLO ADMIN puede modificar
                 bool esPasadoOConfirmado = record.CierreConfirmado || record.Fecha.Date < DateTime.UtcNow.Date;
                 record.PuedeModificar = esAdmin || !esPasadoOConfirmado;
+
+                // Si no tiene tanques iniciales cargados, auto-asignar del día previo
+                if (record.Tanque1Inicial == 0 && record.Tanque2Inicial == 0 && record.Tanque3Inicial == 0 && record.Tanque4Inicial == 0 && record.Tanque5Inicial == 0 && totalIni > 0)
+                {
+                    record.Tanque1Inicial = t1Ini;
+                    record.Tanque2Inicial = t2Ini;
+                    record.Tanque3Inicial = t3Ini;
+                    record.Tanque4Inicial = t4Ini;
+                    record.Tanque5Inicial = t5Ini;
+                    record.TotalInicialLitros = totalIni;
+                }
+
+                // Si no tiene filas de recepción registradas pero hay controles de ruta del día, auto-llenar
+                if (string.IsNullOrWhiteSpace(record.FilasRecepcionJson) || record.FilasRecepcionJson == "[]" || record.TotalEntradasRutasLitros == 0)
+                {
+                    if (controles.Count > 0)
+                    {
+                        record.FilasRecepcionJson = jsonAuto;
+                        record.TotalEntradasRutasLitros = sumEntradas;
+                    }
+                }
+
                 return record;
             }
-
-            // Si no existe registro para hoy, auto-obtener el cierre del día anterior para el arranque de hoy
-            var sqlPrev = "SELECT TOP 1 TotalFinalFisicoLitros FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha < @fecha ORDER BY Fecha DESC";
-            int litrosArranque = await connection.ExecuteScalarAsync<int?>(sqlPrev, new { fecha = fecha.Date }) ?? 0;
 
             return new ControlTanquesDiarioDto
             {
                 Fecha = fecha.Date,
-                TotalInicialLitros = litrosArranque,
+                Tanque1Inicial = t1Ini,
+                Tanque2Inicial = t2Ini,
+                Tanque3Inicial = t3Ini,
+                Tanque4Inicial = t4Ini,
+                Tanque5Inicial = t5Ini,
+                TotalInicialLitros = totalIni,
+                FilasRecepcionJson = jsonAuto,
+                TotalEntradasRutasLitros = sumEntradas,
                 PuedeModificar = true,
                 Estado = "BORRADOR"
             };

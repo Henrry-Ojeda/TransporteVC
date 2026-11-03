@@ -507,160 +507,233 @@ export const ReportesPage: React.FC = () => {
   return (
     <div>
       {/* HEADER BANNER */}
-      <div
-        className="content-card"
-        style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-          color: '#ffffff',
-          borderRadius: '16px',
-          padding: '22px 26px',
-          marginBottom: '20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-          boxShadow: '0 10px 25px rgba(15,23,42,0.3)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '22px',
-              color: reporteActual.color,
-            }}
-          >
-            <i className={`fa-solid ${reporteActual.icon}`}></i>
+      {/* ENCABEZADO DE INFORMACIÓN GENERAL (1:1 AL SISTEMA ANTERIOR) */}
+      <div className="report-header-banner">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="banner-icon-badge">
+            <i className="fa-solid fa-file-invoice-dollar"></i>
           </div>
           <div>
-            <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#ffffff' }}>
-              Reportes Generales y Liquidaciones Oficiales
-            </h1>
-            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-              {reporteActual.label} — {reporteActual.desc}
-            </p>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.5px', margin: 0, color: '#fff' }}>
+              INFORMACIÓN GENERAL / REPORTES
+            </h2>
+            <span style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 500 }}>
+              Generación de balances, nómina bancaria y resumen de recolección
+            </span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={exportarExcel}
-            disabled={!datosLista.length || isLoading}
-            className="btn btn-outline"
+            className="btn btn-sm btn-outline"
+            onClick={() => window.print()}
             style={{
-              height: '40px',
-              borderColor: '#10b981',
-              color: '#10b981',
-              background: 'rgba(16, 185, 129, 0.1)',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
+              borderRadius: '8px',
+              padding: '7px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              background: 'rgba(255,255,255,0.1)',
+              borderColor: 'rgba(255,255,255,0.25)',
+              color: '#ffffff',
             }}
           >
-            <i className="fa-solid fa-file-excel"></i> Exportar Excel
+            <i className="fa-solid fa-print"></i> Imprimir / PDF
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-success"
+            onClick={exportarExcel}
+            disabled={!datosLista.length || isLoading}
+            style={{
+              borderRadius: '8px',
+              padding: '7px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+              color: '#ffffff',
+              background: '#10b981',
+              border: 'none',
+            }}
+          >
+            <i className="fa-solid fa-file-excel"></i> Exportar
           </button>
         </div>
       </div>
 
-      {/* PANEL DE FILTROS Y SELECCIÓN DE REPORTE */}
+      {/* PANEL PARÁMETROS DE BÚSQUEDA (EXACTO 1:1 AL SISTEMA ANTERIOR) */}
       <div
         className="content-card"
         style={{
-          background: '#ffffff',
-          borderRadius: '16px',
-          padding: '20px',
           marginBottom: '20px',
+          padding: 0,
+          overflow: 'visible',
+          borderRadius: '12px',
           border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
         }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', alignItems: 'end' }}>
-          {/* SELECTOR MAESTRO DE LOS 8 REPORTES OFICIALES */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
-              <i className="fa-solid fa-chart-pie" style={{ color: '#2563eb', marginRight: '6px' }}></i>
-              Tipo de Reporte Oficial *
-            </label>
-            <select
-              value={tipoReporte}
-              onChange={(e) => setTipoReporte(e.target.value as TipoReporteOficial)}
-              className="form-input"
-              style={{
-                width: '100%',
-                height: '40px',
-                fontWeight: 700,
-                color: '#0f172a',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: '8px',
-              }}
-            >
-              {CATALOGO_REPORTES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div
+          className="card-header-styled card-header-primary"
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          <span>
+            <i className="fa-solid fa-magnifying-glass" style={{ marginRight: '8px' }}></i>
+            PARÁMETROS DE BÚSQUEDA
+          </span>
+          <span
+            className="badge badge-info"
+            style={{
+              fontSize: '11.5px',
+              fontWeight: 700,
+              background: 'rgba(255,255,255,0.2)',
+              color: '#ffffff',
+              padding: '4px 10px',
+              borderRadius: '9999px',
+            }}
+          >
+            Semana Operativa
+          </span>
+        </div>
 
-          {/* RANGO DE FECHAS */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div style={{ padding: '18px' }}>
+          {/* FILA 1: DESDE, HASTA, TIPO DE REPORTE, BOTÓN BUSCAR */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr)) 130px',
+              gap: '16px',
+              alignItems: 'flex-end',
+              marginBottom: '14px',
+            }}
+          >
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                Fecha Desde
+              <label style={{ fontSize: '13px', color: '#1e293b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Desde:
               </label>
               <input
                 type="date"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
                 className="form-input"
-                style={{ width: '100%', height: '40px' }}
+                style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%' }}
               />
             </div>
+
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                Fecha Hasta
+              <label style={{ fontSize: '13px', color: '#1e293b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Hasta:
               </label>
               <input
                 type="date"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
                 className="form-input"
-                style={{ width: '100%', height: '40px' }}
+                style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%' }}
               />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '13px', color: '#1e293b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Tipo de Reporte:
+              </label>
+              <select
+                value={tipoReporte}
+                onChange={(e) => setTipoReporte(e.target.value as TipoReporteOficial)}
+                className="form-input"
+                style={{ height: '42px', fontWeight: 700, fontSize: '13.5px', color: '#0f172a', width: '100%' }}
+              >
+                {CATALOGO_REPORTES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => refetch()}
+                disabled={isLoading || isFetching}
+                style={{
+                  height: '42px',
+                  width: '100%',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
+                  border: 'none',
+                }}
+              >
+                <i className={`fa-solid ${isFetching ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'}`}></i>
+                Buscar
+              </button>
             </div>
           </div>
 
-          {/* FILTROS CONTEXTUALES SEGÚN REPORTE */}
+          {/* FILA 2: SUB-FILTROS DINÁMICOS CON BUSCADORES */}
           {tipoReporte === 'FINCAS' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div
+              style={{
+                paddingTop: '14px',
+                borderTop: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px',
+              }}
+            >
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Finca 1 (Filtro / Principal)
+                <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                  <i className="fa-solid fa-cow" style={{ color: '#2563eb', marginRight: '6px' }}></i>
+                  Finca 1 (Buscar por nombre o dueño):
                 </label>
                 <FincaSelect
                   value={finca1Id}
                   onChange={(val) => setFinca1Id(val)}
-                  placeholder="-- Todas las fincas --"
+                  placeholder="Escriba para buscar Finca 1..."
                   allowClear
                 />
               </div>
+
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Finca 2 (Comparación Dual)
+                <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                  <i className="fa-solid fa-cow" style={{ color: '#10b981', marginRight: '6px' }}></i>
+                  Finca 2 (Opcional - Comparar):
                 </label>
                 <FincaSelect
                   value={finca2Id}
                   onChange={(val) => setFinca2Id(val)}
-                  placeholder="-- Comparar con... --"
+                  placeholder="Escriba para buscar Finca 2..."
+                  allowClear
+                />
+              </div>
+            </div>
+          )}
+
+          {(tipoReporte === 'RECEPTORIAS' || tipoReporte === 'RELACION_PAGOS_COMPANIAS') && (
+            <div
+              style={{
+                paddingTop: '14px',
+                borderTop: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px',
+              }}
+            >
+              <div>
+                <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                  <i className="fa-solid fa-truck" style={{ color: '#10b981', marginRight: '6px' }}></i>
+                  Receptoría / Planta:
+                </label>
+                <CompaniaSelect
+                  value={companiaId}
+                  onChange={(val) => setCompaniaId(val)}
+                  placeholder="Escriba para buscar Receptoría / Planta..."
                   allowClear
                 />
               </div>
@@ -668,77 +741,60 @@ export const ReportesPage: React.FC = () => {
           )}
 
           {(tipoReporte === 'CHOFERES' || tipoReporte === 'RELACION_CHOFER') && (
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                Filtrar por Conductor
-              </label>
-              <ChoferSelect
-                value={choferId}
-                onChange={(val) => setChoferId(val)}
-                placeholder="-- Todos los conductores --"
-                allowClear
-              />
-            </div>
-          )}
-
-          {(tipoReporte === 'RECEPTORIAS' || tipoReporte === 'RELACION_PAGOS_COMPANIAS') && (
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                Filtrar por Compañía / Planta
-              </label>
-              <CompaniaSelect
-                value={companiaId}
-                onChange={(val) => setCompaniaId(val)}
-                placeholder="-- Todas las compañías --"
-                allowClear
-              />
+            <div
+              style={{
+                paddingTop: '14px',
+                borderTop: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px',
+              }}
+            >
+              <div>
+                <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                  <i className="fa-solid fa-id-badge" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                  Conductor / Chofer:
+                </label>
+                <ChoferSelect
+                  value={choferId}
+                  onChange={(val) => setChoferId(val)}
+                  placeholder="Todos los choferes..."
+                  allowClear
+                />
+              </div>
             </div>
           )}
 
           {(tipoReporte === 'BANCOS' || tipoReporte === 'RELACION_PAGOS') && (
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                Filtrar por Banco
-              </label>
-              <select
-                value={bancoId || ''}
-                onChange={(e) => setBancoId(e.target.value ? Number(e.target.value) : undefined)}
-                className="form-input"
-                style={{ width: '100%', height: '40px' }}
-              >
-                <option value="">-- Todos los bancos --</option>
-                {bancos.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.nombre} {(b as any).codigoSudeban ? `(${(b as any).codigoSudeban})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* BOTÓN CONSULTAR */}
-          <div>
-            <button
-              type="button"
-              onClick={() => refetch()}
-              disabled={isLoading || isFetching}
-              className="btn btn-primary"
+            <div
               style={{
-                width: '100%',
-                height: '40px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                background: reporteActual.color,
-                borderColor: reporteActual.color,
+                paddingTop: '14px',
+                borderTop: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '16px',
               }}
             >
-              <i className={`fa-solid ${isFetching ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'}`}></i>
-              {isFetching ? 'Consultando...' : 'Consultar Reporte'}
-            </button>
-          </div>
+              <div>
+                <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                  Filtrar por Banco:
+                </label>
+                <select
+                  value={bancoId || ''}
+                  onChange={(e) => setBancoId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="form-input"
+                  style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%' }}
+                >
+                  <option value="">TODOS LOS BANCOS</option>
+                  {bancos.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.nombre} {(b as any).codigoSudeban ? `(${(b as any).codigoSudeban})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
