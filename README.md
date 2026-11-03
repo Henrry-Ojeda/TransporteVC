@@ -34,3 +34,5 @@ La base de datos contiene:
 6. **Finanzas y Pagos**: `TB_ADELANTOS`, `TB_LIQUIDACIONES_CABECERA`, `TB_LIQUIDACIONES_DETALLE_FINCA`
 
 
+
+<!-- deploy trigger -->
