@@ -19,7 +19,8 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         public AuthRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -69,7 +70,8 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         public BcvRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -223,7 +225,8 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         public RutasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -948,7 +951,8 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         public CatalogosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -3187,7 +3191,8 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         public CiclosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -3631,7 +3636,8 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         public EntregasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -4334,9 +4340,10 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _connectionString;
         private readonly ICatalogosRepository _catalogosRepository;
 
-        public ReportesRepository(IConfiguration configuration, ICatalogosRepository catalogosRepository)
+        public ReportesRepository(IConfiguration configuration, ICatalogosRepository catalogosRepository, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection")!;
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection")!;
             _catalogosRepository = catalogosRepository;
         }
 
@@ -5638,7 +5645,8 @@ namespace Transporte.Infrastructure.Repositories
 
         public AdelantosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -6557,7 +6565,8 @@ namespace Transporte.Infrastructure.Repositories
 
         public ChatRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection")
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection")
                 ?? configuration.GetConnectionString("BD_TRANSPORTE")
                 ?? "";
             _geminiApiKey = configuration["Gemini:ApiKey"] 
@@ -7348,7 +7357,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
         public ControlRutasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection")
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection")
                 ?? configuration.GetConnectionString("BD_TRANSPORTE")
                 ?? "Server=localhost;Database=BD_TRANSPORTE;Trusted_Connection=True;TrustServerCertificate=True;";
         }
@@ -9263,7 +9273,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
         public ControlCompaniasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection")
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection")
                 ?? configuration.GetConnectionString("BD_TRANSPORTE")
                 ?? "Server=DESKTOP-0F548CM;Database=BD_TRANSPORTE_V2;Trusted_Connection=True;TrustServerCertificate=True;";
         }

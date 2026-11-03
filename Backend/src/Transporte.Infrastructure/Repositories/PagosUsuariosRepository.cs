@@ -24,9 +24,10 @@ namespace Transporte.Infrastructure.Repositories
     {
         private readonly string _connectionString;
 
-        public PagosUsuariosRepository(IConfiguration configuration)
+        public PagosUsuariosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() 
+                ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
                 ?? "Server=localhost;Database=BD_TRANSPORTE_V2;Trusted_Connection=True;TrustServerCertificate=True;";
         }
