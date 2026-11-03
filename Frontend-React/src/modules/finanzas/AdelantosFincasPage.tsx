@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Swal from 'sweetalert2';
 import { toast } from 'sonner';
 import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
@@ -45,13 +46,23 @@ export const AdelantosFincasPage: React.FC = () => {
   const crearMutation = useMutation({
     mutationFn: (dto: typeof initialForm) => finanzasApi.crearAdelanto(dto),
     onSuccess: (data: any) => {
-      toast.success(data.message || 'Adelanto registrado a finca');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Adelanto Registrado!',
+        text: data.message || 'Adelanto registrado a finca exitosamente.',
+        confirmButtonColor: '#10b981',
+      });
       queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
       setModalNuevo(false);
       setForm(initialForm);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al registrar adelanto');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.message || 'Error al registrar adelanto',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
@@ -59,21 +70,60 @@ export const AdelantosFincasPage: React.FC = () => {
     mutationFn: ({ id, monto }: { id: number; monto: number }) =>
       finanzasApi.amortizarAdelanto(id, monto),
     onSuccess: (data: any) => {
-      toast.success(data.message || 'Abono procesado exitosamente');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Abono Procesado!',
+        text: data.message || 'Abono procesado exitosamente',
+        confirmButtonColor: '#10b981',
+      });
       queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
       setModalAmortizar(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al abonar');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.message || 'Error al abonar',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
-  const totalAdelantado = adelantos.reduce((acc, a) => acc + (a.montoUSD || 0), 0);
-  const totalPendiente = adelantos.reduce((acc, a) => acc + (a.saldoPendienteUSD || 0), 0);
-  const totalCobrado = Math.max(0, totalAdelantado - totalPendiente);
-  const activosCount = adelantos.filter((a) => !a.amortizado || (a.saldoPendienteUSD || 0) > 0).length;
+  const adelantosNormalizados = useMemo(() => {
+    return adelantos.map((a: any) => {
+      const id = a.id ?? a.Id ?? 0;
+      const montoTotal = Number(a.montoTotalUSD ?? a.MontoTotalUSD ?? a.montoUSD ?? a.MontoUSD ?? a.monto ?? 0);
+      const saldoPend = Number(a.montoPendienteUSD ?? a.MontoPendienteUSD ?? a.saldoPendienteUSD ?? a.SaldoPendienteUSD ?? a.saldo ?? 0);
+      const montoPag = Number(a.montoPagadoUSD ?? a.MontoPagadoUSD ?? Math.max(0, montoTotal - saldoPend));
+      const fincaNom = a.entidadNombre ?? a.EntidadNombre ?? a.fincaNombre ?? a.FincaNombre ?? a.nombre ?? '';
+      const fId = a.entidadId ?? a.EntidadId ?? a.fincaId ?? a.FincaId;
+      const fMatch = fincas.find((f) => f.id === fId);
+      const nombreFinal = fincaNom || fMatch?.nombre || (fId ? `Finca #${fId}` : 'Finca Productora');
+      const fecha = a.fechaSolicitud ?? a.FechaSolicitud ?? a.fecha ?? a.Fecha ?? a.createdAt;
+      const estado = String(a.estado ?? a.Estado ?? (saldoPend <= 0 ? 'PAGADO' : 'PENDIENTE')).toUpperCase();
+      const amortizado = saldoPend <= 0 || estado === 'PAGADO' || estado === 'LIQUIDADO' || a.amortizado === true;
 
-  const adelantosFiltrados = adelantos.filter((a) => {
+      return {
+        ...a,
+        id,
+        montoUSD: montoTotal,
+        saldoPendienteUSD: saldoPend,
+        montoPagadoUSD: montoPag,
+        fincaNombre: nombreFinal,
+        fincaId: fId,
+        fecha,
+        estado,
+        amortizado,
+      };
+    });
+  }, [adelantos, fincas]);
+
+  const totalAdelantado = adelantosNormalizados.reduce((acc, a) => acc + (a.montoUSD || 0), 0);
+  const totalPendiente = adelantosNormalizados.reduce((acc, a) => acc + (a.saldoPendienteUSD || 0), 0);
+  const totalCobrado = Math.max(0, totalAdelantado - totalPendiente);
+  const activosCount = adelantosNormalizados.filter((a) => !a.amortizado || (a.saldoPendienteUSD || 0) > 0).length;
+
+  const adelantosFiltrados = adelantosNormalizados.filter((a) => {
     if (filtroEstado === 'ACTIVO' && a.amortizado) return false;
     if (filtroEstado === 'PAGADO' && !a.amortizado) return false;
     return true;

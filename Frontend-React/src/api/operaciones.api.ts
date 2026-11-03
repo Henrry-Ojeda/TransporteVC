@@ -24,8 +24,17 @@ export const operacionesApi = {
     return res.data;
   },
 
-  iniciarViaje: async (dto: { camionId: number; rutaLogisticaId?: number; odometroInicialKm?: number; observaciones?: string }): Promise<{ id: number; message: string }> => {
-    const res = await apiClient.post('/controlrutas/iniciar-viaje', dto);
+  iniciarViaje: async (dto: { camionId?: number; choferId?: number; conductorId?: number; rutaLogisticaId?: number; odometroInicialKm?: number; observaciones?: string; observacion?: string }): Promise<{ id: number; message: string }> => {
+    const payload = {
+      camionId: dto.camionId || undefined,
+      conductorId: dto.conductorId || dto.choferId || undefined,
+      choferId: dto.choferId || dto.conductorId || undefined,
+      rutaLogisticaId: dto.rutaLogisticaId || undefined,
+      odometroInicialKm: dto.odometroInicialKm || undefined,
+      observacion: dto.observacion || dto.observaciones || undefined,
+      observaciones: dto.observaciones || dto.observacion || undefined,
+    };
+    const res = await apiClient.post('/controlrutas/iniciar-viaje', payload);
     return res.data;
   },
 

@@ -159,8 +159,9 @@ export const ConductoresPage: React.FC = () => {
     {
       header: 'Estado',
       accessorKey: 'activo',
-      cell: (row) =>
-        row.activo ? (
+      cell: (row) => {
+        const esActivo = row.activo !== false && (row.activo === true || (row as any).Activo === 1 || (row as any).Activo === true || row.activo === undefined);
+        return esActivo ? (
           <span
             className="badge"
             style={{
@@ -186,7 +187,8 @@ export const ConductoresPage: React.FC = () => {
             <i className="fa-solid fa-circle-xmark" style={{ marginRight: '4px' }}></i>
             Inactivo
           </span>
-        ),
+        );
+      },
     },
     {
       header: 'Acciones',

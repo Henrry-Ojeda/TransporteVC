@@ -5,7 +5,8 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
-import { CamionSelect } from '@/components/selectors';
+import { CamionSelect, ChoferSelect } from '@/components/selectors';
+import Swal from 'sweetalert2';
 import type { ControlRutaDto, CamionDto, RutaLogisticaDto, FincaDto, CompaniaDto } from '@/types';
 
 export const ViajesTicketsPage: React.FC = () => {
@@ -22,6 +23,7 @@ export const ViajesTicketsPage: React.FC = () => {
 
   const [formIniciar, setFormIniciar] = useState({
     camionId: 0,
+    choferId: 0,
     rutaLogisticaId: 0,
     odometroInicialKm: 0,
     observaciones: '',
@@ -109,12 +111,22 @@ export const ViajesTicketsPage: React.FC = () => {
   const iniciarMutation = useMutation({
     mutationFn: (dto: typeof formIniciar) => operacionesApi.iniciarViaje(dto),
     onSuccess: (data) => {
-      toast.success(data.message || 'Viaje iniciado con éxito');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Viaje Iniciado!',
+        text: data.message || 'Viaje iniciado con éxito en el sistema.',
+        confirmButtonColor: '#4f46e5',
+      });
       queryClient.invalidateQueries({ queryKey: ['viajes-controles'] });
       setModalIniciar(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al iniciar viaje');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Iniciar Viaje',
+        text: err.response?.data?.message || 'Error al iniciar viaje',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
@@ -588,8 +600,35 @@ export const ViajesTicketsPage: React.FC = () => {
                   </label>
                   <CamionSelect
                     value={formIniciar.camionId || undefined}
-                    onChange={(val) => setFormIniciar({ ...formIniciar, camionId: val || 0 })}
+                    onChange={(val, camion) => {
+                      const num = Number(val || 0);
+                      setFormIniciar((prev) => ({
+                        ...prev,
+                        camionId: num,
+                        choferId: camion?.usuarioId || prev.choferId,
+                      }));
+                    }}
                     placeholder="-- Seleccionar Unidad Cisterna --"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    Chofer / Conductor Asignado
+                  </label>
+                  <ChoferSelect
+                    value={formIniciar.choferId || undefined}
+                    onChange={(val) => {
+                      const num = Number(val || 0);
+                      const camMatch = camiones.find((c) => c.usuarioId === num);
+                      setFormIniciar((prev) => ({
+                        ...prev,
+                        choferId: num,
+                        camionId: prev.camionId || camMatch?.id || 0,
+                      }));
+                    }}
+                    placeholder="-- Seleccionar o buscar chofer --"
+                    allowClear
                   />
                 </div>
 

@@ -60,31 +60,32 @@ export const SemanasPage: React.FC = () => {
   const displaySemana = (s: any) => {
     if (!s) return 'Semana';
 
-    // Si ya tiene un código explícito y válido (ej. "Semana 44 (2026)"), usarlo
-    if (s.codigo && typeof s.codigo === 'string' && s.codigo.trim() && !s.codigo.includes('# ()') && !s.codigo.endsWith('# ()')) {
-      return s.codigo;
-    }
-    if (s.Codigo && typeof s.Codigo === 'string' && s.Codigo.trim() && !s.Codigo.includes('# ()') && !s.Codigo.endsWith('# ()')) {
-      return s.Codigo;
-    }
-
     const fechaRef = s.fechaInicio || s.FechaInicio;
-    const d = fechaRef ? new Date(fechaRef) : new Date();
-
-    // Cálculo ISO 8601 de número de semana y año
-    const target = new Date(d.valueOf());
-    const dayNr = (d.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3);
-    const firstThursday = target.valueOf();
-    target.setMonth(0, 1);
-    if (target.getDay() !== 4) {
-      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+    let computedWeek = 0;
+    let computedYear = 0;
+    if (fechaRef) {
+      const d = new Date(fechaRef);
+      if (!isNaN(d.getTime())) {
+        const target = new Date(d.valueOf());
+        const dayNr = (d.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNr + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) {
+          target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        }
+        computedWeek = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+        computedYear = new Date(firstThursday).getFullYear();
+      }
     }
-    const computedWeek = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
-    const computedYear = new Date(firstThursday).getFullYear();
 
-    const num = s.numeroSemana || s.NumeroSemana || (s.codigo?.match(/(\d+)/)?.[1]) || computedWeek || s.id || s.Id || 1;
-    const anio = s.anio || s.Anio || s.año || s.Año || computedYear || d.getFullYear();
+    const rawCodigo = String(s.codigo || s.Codigo || '').trim();
+    const matchNum = rawCodigo.match(/\b(?:Semana|S)\s*#?\s*(\d+)/i) || rawCodigo.match(/(\d+)/);
+    const num = s.numeroSemana || s.NumeroSemana || (matchNum ? parseInt(matchNum[1]) : 0) || computedWeek || s.id || s.Id || 1;
+
+    const matchYear = rawCodigo.match(/\b(20\d\d)\b/);
+    const anio = s.anio || s.Anio || s.año || s.Año || (matchYear ? parseInt(matchYear[1]) : 0) || computedYear || (fechaRef ? new Date(fechaRef).getFullYear() : 2026);
+
     return `Semana #${num} (${anio})`;
   };
 

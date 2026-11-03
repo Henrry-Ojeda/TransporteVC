@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Swal from 'sweetalert2';
 import { toast } from 'sonner';
 import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
@@ -45,13 +46,23 @@ export const AdelantosPersonalPage: React.FC = () => {
   const crearMutation = useMutation({
     mutationFn: (dto: typeof initialForm) => finanzasApi.crearAdelanto(dto),
     onSuccess: (data: any) => {
-      toast.success(data.message || 'Anticipo a chofer registrado exitosamente');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Anticipo Registrado!',
+        text: data.message || 'Anticipo a chofer registrado exitosamente',
+        confirmButtonColor: '#3b82f6',
+      });
       queryClient.invalidateQueries({ queryKey: ['adelantos-personal'] });
       setModalNuevo(false);
       setForm(initialForm);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al registrar anticipo');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.message || 'Error al registrar anticipo',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
@@ -59,21 +70,60 @@ export const AdelantosPersonalPage: React.FC = () => {
     mutationFn: ({ id, monto }: { id: number; monto: number }) =>
       finanzasApi.amortizarAdelanto(id, monto),
     onSuccess: (data: any) => {
-      toast.success(data.message || 'Descuento procesado exitosamente');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Descuento Procesado!',
+        text: data.message || 'Descuento procesado exitosamente',
+        confirmButtonColor: '#3b82f6',
+      });
       queryClient.invalidateQueries({ queryKey: ['adelantos-personal'] });
       setModalAmortizar(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al procesar descuento');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.message || 'Error al procesar descuento',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
-  const totalAdelantado = adelantos.reduce((acc, a) => acc + (a.montoUSD || 0), 0);
-  const totalPendiente = adelantos.reduce((acc, a) => acc + (a.saldoPendienteUSD || 0), 0);
-  const totalDescontado = Math.max(0, totalAdelantado - totalPendiente);
-  const choferesConSaldo = adelantos.filter((a) => !a.amortizado || (a.saldoPendienteUSD || 0) > 0).length;
+  const adelantosNormalizados = useMemo(() => {
+    return adelantos.map((a: any) => {
+      const id = a.id ?? a.Id ?? 0;
+      const montoTotal = Number(a.montoTotalUSD ?? a.MontoTotalUSD ?? a.montoUSD ?? a.MontoUSD ?? a.monto ?? 0);
+      const saldoPend = Number(a.montoPendienteUSD ?? a.MontoPendienteUSD ?? a.saldoPendienteUSD ?? a.SaldoPendienteUSD ?? a.saldo ?? 0);
+      const montoPag = Number(a.montoPagadoUSD ?? a.MontoPagadoUSD ?? Math.max(0, montoTotal - saldoPend));
+      const uNom = a.entidadNombre ?? a.EntidadNombre ?? a.usuarioNombre ?? a.UsuarioNombre ?? a.nombre ?? '';
+      const uId = a.entidadId ?? a.EntidadId ?? a.usuarioId ?? a.UsuarioId;
+      const cMatch = choferes.find((c) => c.id === uId);
+      const nombreFinal = uNom || cMatch?.nombreCompleto || (cMatch as any)?.username || (uId ? `Chofer #${uId}` : 'Chofer / Personal');
+      const fecha = a.fechaSolicitud ?? a.FechaSolicitud ?? a.fecha ?? a.Fecha ?? a.createdAt;
+      const estado = String(a.estado ?? a.Estado ?? (saldoPend <= 0 ? 'PAGADO' : 'PENDIENTE')).toUpperCase();
+      const amortizado = saldoPend <= 0 || estado === 'PAGADO' || estado === 'LIQUIDADO' || a.amortizado === true;
 
-  const adelantosFiltrados = adelantos.filter((a) => {
+      return {
+        ...a,
+        id,
+        montoUSD: montoTotal,
+        saldoPendienteUSD: saldoPend,
+        montoPagadoUSD: montoPag,
+        usuarioNombre: nombreFinal,
+        usuarioId: uId,
+        fecha,
+        estado,
+        amortizado,
+      };
+    });
+  }, [adelantos, choferes]);
+
+  const totalAdelantado = adelantosNormalizados.reduce((acc, a) => acc + (a.montoUSD || 0), 0);
+  const totalPendiente = adelantosNormalizados.reduce((acc, a) => acc + (a.saldoPendienteUSD || 0), 0);
+  const totalDescontado = Math.max(0, totalAdelantado - totalPendiente);
+  const choferesConSaldo = adelantosNormalizados.filter((a) => !a.amortizado || (a.saldoPendienteUSD || 0) > 0).length;
+
+  const adelantosFiltrados = adelantosNormalizados.filter((a) => {
     if (filtroEstado === 'ACTIVO' && a.amortizado) return false;
     if (filtroEstado === 'PAGADO' && !a.amortizado) return false;
     return true;

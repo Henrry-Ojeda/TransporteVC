@@ -49,16 +49,18 @@ export const PropietarioSelect: React.FC<PropietarioSelectProps> = ({
         const nombre = rawName || (rif ? `Ganadero (${rif})` : `Ganadero #${id}`);
         const totalFincas = p.totalFincas ?? p.TotalFincas ?? 0;
 
-        let subLabel = rif ? `RIF: ${rif}` : 'Sin RIF';
-        if (totalFincas > 0) {
-          subLabel += ` • ${totalFincas} ${totalFincas === 1 ? 'finca' : 'fincas'}`;
+        let subLabel = '';
+        if (rif) {
+          subLabel = `RIF: ${rif}`;
+          if (totalFincas > 0) subLabel += ` • ${totalFincas} ${totalFincas === 1 ? 'finca' : 'fincas'}`;
+        } else if (totalFincas > 0) {
+          subLabel = `${totalFincas} ${totalFincas === 1 ? 'finca registrada' : 'fincas registradas'}`;
         }
 
         return {
           value: id,
           label: nombre,
-          subLabel,
-          badge: rif ? undefined : 'Sin RIF',
+          subLabel: subLabel || undefined,
         };
       });
   }, [propietarios, soloActivos]);

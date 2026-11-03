@@ -437,6 +437,7 @@ namespace Transporte.Core.DTOs
         public string NombreCompleto { get; set; } = string.Empty;
         public string? Cedula { get; set; }
         public string? VehiculoPlaca { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     public class EditarRutaDto
@@ -1361,8 +1362,13 @@ namespace Transporte.Core.DTOs
     {
         public DateTime? Fecha { get; set; }
         public int? ConductorId { get; set; }     // Admin puede asignar; Chofer usa su propio Id
+        public int? ChoferId { get => ConductorId; set => ConductorId = value; }
+        public int? UsuarioId { get => ConductorId; set => ConductorId = value; }
+        public int? CamionId { get; set; }
         public int? RutaLogisticaId { get; set; } // Ruta asignada (Zona Sur, etc.)
+        public decimal? OdometroInicialKm { get; set; }
         public string? Observacion { get; set; }
+        public string? Observaciones { get => Observacion; set => Observacion = value; }
     }
 
     public class AgregarFincaViajeDto
@@ -1788,6 +1794,7 @@ namespace Transporte.Core.DTOs
     {
         public int Id { get; set; } = 1;
         public string Nombre { get; set; } = "TRANSPORTE VERGEL & CARRILLO";
+        public string? NombreEmpresa { get => Nombre; set { if (!string.IsNullOrWhiteSpace(value)) Nombre = value; } }
         public string? Rif { get; set; } = "J-50000000-0";
         public string? Direccion { get; set; } = "Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela";
         public string? Telefono { get; set; } = "+58 414-0000000";

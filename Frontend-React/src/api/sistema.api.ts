@@ -61,7 +61,27 @@ export const sistemaApi = {
     return res.data;
   },
 
-  // REPORTES
+  getTiposLeche: async (): Promise<any[]> => {
+    const res = await apiClient.get<any[]>('/configuracion/tipos-leche');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  toggleTipoLeche: async (id: number, activo: boolean): Promise<any> => {
+    const res = await apiClient.put(`/configuracion/tipos-leche/${id}/toggle`, activo);
+    return res.data;
+  },
+
+  getModulosAdmin: async (): Promise<any[]> => {
+    const res = await apiClient.get<any[]>('/configuracion/modulos-admin');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  toggleModulo: async (id: number, activo: boolean): Promise<any> => {
+    const res = await apiClient.put(`/configuracion/modulos/${id}/toggle`, activo);
+    return res.data;
+  },
+
+  // REPORTES INTEGRALES (8 REPORTES OFICIALES)
   getDashboardAvanzado: async (semanas = 8): Promise<any> => {
     const res = await apiClient.get('/reportes/dashboard-avanzado', { params: { semanas } });
     return res.data;
@@ -74,15 +94,67 @@ export const sistemaApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  getReporteFincas: async (fechaInicio: string, fechaFin: string, fincaId?: number): Promise<any[]> => {
+  getReporteReceptorias: async (fechaInicio: string, fechaFin: string, companiaId?: number): Promise<any[]> => {
     const params: Record<string, any> = { fechaInicio, fechaFin };
-    if (fincaId) params.fincaId = fincaId;
+    if (companiaId) params.companiaId = companiaId;
+    const res = await apiClient.get<any[]>('/reportes/receptorias', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getReporteFincas: async (fechaInicio: string, fechaFin: string, fincaIds?: string): Promise<any[]> => {
+    const params: Record<string, any> = { fechaInicio, fechaFin };
+    if (fincaIds) params.fincaIds = fincaIds;
     const res = await apiClient.get<any[]>('/reportes/fincas', { params });
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  getReporteCompanias: async (fechaInicio: string, fechaFin: string): Promise<any[]> => {
-    const res = await apiClient.get<any[]>('/reportes/relacion-companias', { params: { fechaInicio, fechaFin } });
+  getReporteChoferes: async (fechaInicio: string, fechaFin: string, choferId?: number): Promise<any[]> => {
+    const params: Record<string, any> = { fechaInicio, fechaFin };
+    if (choferId) params.choferId = choferId;
+    const res = await apiClient.get<any[]>('/reportes/choferes', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getReporteBancos: async (fechaInicio: string, fechaFin: string, bancoId?: number, cicloId?: number, tasaBcv?: number): Promise<any[]> => {
+    const params: Record<string, any> = { fechaInicio, fechaFin };
+    if (bancoId) params.bancoId = bancoId;
+    if (cicloId) params.cicloId = cicloId;
+    if (tasaBcv) params.tasaBcv = tasaBcv;
+    const res = await apiClient.get<any[]>('/reportes/bancos', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getReporteCompanias: async (fechaInicio: string, fechaFin: string, companiaId?: number, cicloId?: number, tasaBcv?: number): Promise<any[]> => {
+    const params: Record<string, any> = { fechaInicio, fechaFin };
+    if (companiaId) params.companiaId = companiaId;
+    if (cicloId) params.cicloId = cicloId;
+    if (tasaBcv) params.tasaBcv = tasaBcv;
+    const res = await apiClient.get<any[]>('/reportes/relacion-companias', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getReporteRelacionChoferes: async (fechaInicio: string, fechaFin: string): Promise<any[]> => {
+    const params: Record<string, any> = { fechaInicio, fechaFin };
+    const res = await apiClient.get<any[]>('/reportes/relacion-choferes', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getReporteRelacionCompanias: async (fechaInicio: string, fechaFin: string, companiaId?: number, cicloId?: number, tasaBcv?: number): Promise<any[]> => {
+    const params: Record<string, any> = { fechaInicio, fechaFin };
+    if (companiaId) params.companiaId = companiaId;
+    if (cicloId) params.cicloId = cicloId;
+    if (tasaBcv) params.tasaBcv = tasaBcv;
+    const res = await apiClient.get<any[]>('/reportes/relacion-companias', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getReporteRelacionPagos: async (fechaInicio?: string, fechaFin?: string, bancoId?: number, cicloId?: number): Promise<any[]> => {
+    const params: Record<string, any> = {};
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+    if (bancoId) params.bancoId = bancoId;
+    if (cicloId) params.cicloId = cicloId;
+    const res = await apiClient.get<any[]>('/reportes/bancos', { params });
     return Array.isArray(res.data) ? res.data : [];
   },
 };

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import { CamionSelect, ChoferSelect } from '@/components/selectors';
 import {
@@ -15,6 +15,7 @@ import {
   Loader2,
   CheckCircle2,
   Layers,
+  Search,
 } from 'lucide-react';
 import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
@@ -28,6 +29,7 @@ export const RutasLogisticaPage: React.FC = () => {
   const [modalAsignarFincas, setModalAsignarFincas] = useState(false);
   const [rutaSeleccionada, setRutaSeleccionada] = useState<RutaLogisticaDto | null>(null);
   const [fincasSeleccionadas, setFincasSeleccionadas] = useState<number[]>([]);
+  const [busquedaFincasModal, setBusquedaFincasModal] = useState('');
   const [modoEdicionId, setModoEdicionId] = useState<number | null>(null);
 
   const initialForm = {
@@ -62,29 +64,58 @@ export const RutasLogisticaPage: React.FC = () => {
   // Mutaciones
   const guardarMutation = useMutation({
     mutationFn: async (dto: typeof initialForm) => {
+      let rId = modoEdicionId;
       if (modoEdicionId) {
-        return await operacionesApi.actualizarRutaLogistica(modoEdicionId, dto);
+        await operacionesApi.actualizarRutaLogistica(modoEdicionId, dto);
+      } else {
+        const res = await operacionesApi.crearRutaLogistica(dto);
+        rId = res.id;
       }
-      return await operacionesApi.crearRutaLogistica(dto);
+      if (rId && fincasSeleccionadas.length > 0) {
+        await operacionesApi.asignarFincasARuta(rId, fincasSeleccionadas);
+      }
+      return { id: rId };
     },
-    onSuccess: (data: any) => {
-      toast.success(data.message || 'Ruta guardada');
+    onSuccess: () => {
+      Swal.fire({
+        icon: 'success',
+        title: modoEdicionId ? '¡Ruta Actualizada!' : '¡Ruta Creada!',
+        text: `La ruta logística y sus ${fincasSeleccionadas.length} fincas asociadas se han guardado con éxito.`,
+        confirmButtonColor: '#2563eb',
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-logistica'] });
+      queryClient.invalidateQueries({ queryKey: ['fincas'] });
       cerrarModal();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al guardar ruta');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Guardar Ruta',
+        text: err.response?.data?.message || 'Error al guardar ruta',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
   const eliminarMutation = useMutation({
     mutationFn: (id: number) => operacionesApi.eliminarRutaLogistica(id),
     onSuccess: (data) => {
-      toast.success(data.message || 'Ruta eliminada');
+      Swal.fire({
+        icon: 'success',
+        title: 'Ruta Eliminada',
+        text: (data as any)?.message || 'Ruta logística eliminada exitosamente',
+        confirmButtonColor: '#2563eb',
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-logistica'] });
+      queryClient.invalidateQueries({ queryKey: ['fincas'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al eliminar');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.message || 'Error al eliminar',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
@@ -92,18 +123,31 @@ export const RutasLogisticaPage: React.FC = () => {
     mutationFn: ({ rutaId, ids }: { rutaId: number; ids: number[] }) =>
       operacionesApi.asignarFincasARuta(rutaId, ids),
     onSuccess: (data) => {
-      toast.success(data.message || 'Fincas asignadas a la ruta');
+      Swal.fire({
+        icon: 'success',
+        title: 'Fincas Asignadas',
+        text: (data as any)?.message || 'Fincas asignadas a la ruta exitosamente',
+        confirmButtonColor: '#2563eb',
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-logistica'] });
+      queryClient.invalidateQueries({ queryKey: ['fincas'] });
       setModalAsignarFincas(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al asignar fincas');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.message || 'Error al asignar fincas',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
   const abrirModalCrear = () => {
     setModoEdicionId(null);
     setForm(initialForm);
+    setFincasSeleccionadas([]);
+    setBusquedaFincasModal('');
     setModalAbierto(true);
   };
 
@@ -115,6 +159,9 @@ export const RutasLogisticaPage: React.FC = () => {
       camionPredeterminadoId: item.camionPredeterminadoId,
       choferPredeterminadoId: item.choferPredeterminadoId,
     });
+    const fincasDeRuta = fincas.filter((f) => f.rutaId === item.id).map((f) => f.id);
+    setFincasSeleccionadas(fincasDeRuta);
+    setBusquedaFincasModal('');
     setModalAbierto(true);
   };
 
@@ -128,6 +175,8 @@ export const RutasLogisticaPage: React.FC = () => {
   const cerrarModal = () => {
     setModalAbierto(false);
     setModoEdicionId(null);
+    setFincasSeleccionadas([]);
+    setBusquedaFincasModal('');
   };
 
   const columns: ColumnDef<RutaLogisticaDto>[] = [
@@ -243,20 +292,63 @@ export const RutasLogisticaPage: React.FC = () => {
         }
       />
 
-      {/* Modal Crear / Editar */}
+      {/* Modal Crear / Editar con Fincas Integradas y Diseño Ejecutivo */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-2">
-                <RouteIcon className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-gray-800">
-                  {modoEdicionId ? 'Editar Ruta' : 'Crear Nueva Ruta'}
-                </h3>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            className="content-card"
+            style={{
+              width: '100%',
+              maxWidth: '820px',
+              padding: '0',
+              overflow: 'visible',
+              borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              backgroundColor: '#ffffff',
+            }}
+          >
+            {/* Header del Modal */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: '#ffffff',
+                borderTopLeftRadius: '16px',
+                borderTopRightRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <RouteIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>
+                    {modoEdicionId ? 'Editar Ruta Logística' : 'Planificar Nueva Ruta de Recolección'}
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#bfdbfe' }}>
+                    Asignación de unidad de transporte, chofer y circuito de fincas ganaderas
+                  </span>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={cerrarModal}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors cursor-pointer"
+                style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '20px', padding: '4px' }}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -266,90 +358,197 @@ export const RutasLogisticaPage: React.FC = () => {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!form.nombre.trim()) {
-                  toast.error('El nombre de la ruta es obligatorio');
+                  Swal.fire({ icon: 'warning', title: 'Campo Requerido', text: 'El nombre de la ruta es obligatorio', confirmButtonColor: '#2563eb' });
                   return;
                 }
                 guardarMutation.mutate(form);
               }}
-              className="p-6 space-y-4"
+              style={{ padding: '24px' }}
             >
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Nombre de la Ruta <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  placeholder="Ej: Ruta 1 - El Palmar / Atarigua"
-                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', alignItems: 'start' }}>
+                {/* Columna Izquierda: Datos de Ruta y Transporte */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Nombre de la Ruta <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.nombre}
+                      onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                      placeholder="Ej: Ruta 1 - El Palmar / Atarigua"
+                      className="form-input"
+                      style={{ width: '100%', height: '38px' }}
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Descripción / Notas</label>
-                <input
-                  type="text"
-                  value={form.descripcion}
-                  onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                  placeholder="Circuito matutino"
-                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Descripción / Circuito Operativo
+                    </label>
+                    <input
+                      type="text"
+                      value={form.descripcion}
+                      onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                      placeholder="Ej: Turno matutino, circuito de tanques de frío"
+                      className="form-input"
+                      style={{ width: '100%', height: '38px' }}
+                    />
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Camión Predeterminado
-                  </label>
-                  <CamionSelect
-                    value={form.camionPredeterminadoId}
-                    onChange={(id, camion) => {
-                      setForm({
-                        ...form,
-                        camionPredeterminadoId: id || undefined,
-                        choferPredeterminadoId: camion?.usuarioId || form.choferPredeterminadoId,
-                      });
-                    }}
-                    placeholder="Sin asignar"
-                    allowClear
-                  />
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Camión Cisterna Asignado
+                    </label>
+                    <CamionSelect
+                      value={form.camionPredeterminadoId}
+                      onChange={(id, camion) => {
+                        setForm({
+                          ...form,
+                          camionPredeterminadoId: id || undefined,
+                          choferPredeterminadoId: camion?.usuarioId || form.choferPredeterminadoId,
+                        });
+                      }}
+                      placeholder="-- Seleccionar camión cisterna --"
+                      allowClear
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Chofer Habitual de Ruta
+                    </label>
+                    <ChoferSelect
+                      value={form.choferPredeterminadoId}
+                      onChange={(id) => {
+                        const camMatch = camiones.find((c) => c.usuarioId === id);
+                        setForm({
+                          ...form,
+                          choferPredeterminadoId: id || undefined,
+                          camionPredeterminadoId: form.camionPredeterminadoId || camMatch?.id,
+                        });
+                      }}
+                      placeholder="-- Seleccionar o buscar chofer --"
+                      allowClear
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Chofer Predeterminado
-                  </label>
-                  <ChoferSelect
-                    value={form.choferPredeterminadoId}
-                    onChange={(id) =>
-                      setForm({
-                        ...form,
-                        choferPredeterminadoId: id || undefined,
+                {/* Columna Derecha: Fincas Ganaderas Asignadas a esta Ruta */}
+                <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Landmark className="w-4 h-4 text-emerald-600" />
+                      Fincas Ganaderas en Ruta
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 800, background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                      {fincasSeleccionadas.length} {fincasSeleccionadas.length === 1 ? 'finca' : 'fincas'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 10px 0' }}>
+                    Selecciona las fincas que integran el recorrido logístico:
+                  </p>
+
+                  {/* Buscador rápido de fincas dentro del modal */}
+                  <div style={{ position: 'relative', marginBottom: '10px' }}>
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={busquedaFincasModal}
+                      onChange={(e) => setBusquedaFincasModal(e.target.value)}
+                      placeholder="Filtrar fincas..."
+                      style={{
+                        width: '100%',
+                        padding: '6px 10px 6px 30px',
+                        fontSize: '12px',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
+                    {fincas
+                      .filter((f) => {
+                        if (!busquedaFincasModal.trim()) return true;
+                        const term = busquedaFincasModal.toLowerCase();
+                        return (
+                          (f.nombre || '').toLowerCase().includes(term) ||
+                          (f.propietarioNombre || '').toLowerCase().includes(term)
+                        );
                       })
-                    }
-                    placeholder="Sin asignar"
-                    allowClear
-                  />
+                      .map((f) => {
+                        const check = fincasSeleccionadas.includes(f.id);
+                        return (
+                          <label
+                            key={f.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '8px 10px',
+                              backgroundColor: check ? '#eff6ff' : '#ffffff',
+                              border: `1px solid ${check ? '#bfdbfe' : '#e2e8f0'}`,
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={check}
+                              onChange={() => {
+                                if (check) {
+                                  setFincasSeleccionadas(fincasSeleccionadas.filter((id) => id !== f.id));
+                                } else {
+                                  setFincasSeleccionadas([...fincasSeleccionadas, f.id]);
+                                }
+                              }}
+                              style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                            />
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ fontSize: '12px', fontWeight: check ? 700 : 600, color: check ? '#1d4ed8' : '#1e293b' }}>
+                                {f.nombre}
+                              </div>
+                              <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                                {f.propietarioNombre || 'Sin propietario'}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+              <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
                   type="button"
                   onClick={cerrarModal}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                  className="btn btn-outline"
+                  style={{ height: '38px', padding: '0 18px', fontWeight: 600 }}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardarMutation.isPending}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="btn btn-primary"
+                  style={{
+                    height: '38px',
+                    padding: '0 22px',
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    border: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
                 >
-                  {guardarMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {modoEdicionId ? 'Guardar Cambios' : 'Crear Ruta'}
+                  {guardarMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {modoEdicionId ? 'Guardar Cambios de Ruta' : 'Crear Ruta Planificada'}
                 </button>
               </div>
             </form>

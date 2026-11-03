@@ -8,6 +8,7 @@ import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { CamionSelect, ChoferSelect, CompaniaSelect, TipoLecheSelect, FincaSelect } from '@/components/selectors';
 import { confirmDialog } from '@/lib/sweetalert';
+import Swal from 'sweetalert2';
 import { useAuthStore } from '@/stores/authStore';
 import type { ControlRutaDto, FincaDto, CamionDto, CompaniaDto } from '@/types';
 
@@ -152,12 +153,22 @@ export const RecoleccionRutasPage: React.FC = () => {
   const iniciarMutation = useMutation({
     mutationFn: (dto: typeof formIniciar) => operacionesApi.iniciarViaje(dto),
     onSuccess: (data) => {
-      toast.success(data.message || 'Viaje iniciado con éxito');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Viaje Iniciado!',
+        text: data.message || 'Viaje iniciado con éxito en el sistema.',
+        confirmButtonColor: '#10b981',
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalIniciarViaje(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al iniciar viaje');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Iniciar Viaje',
+        text: err.response?.data?.message || 'Error al iniciar viaje',
+        confirmButtonColor: '#ef4444',
+      });
     },
   });
 
@@ -1541,7 +1552,14 @@ export const RecoleccionRutasPage: React.FC = () => {
                   </label>
                   <CamionSelect
                     value={formIniciar.camionId || undefined}
-                    onChange={(val) => setFormIniciar({ ...formIniciar, camionId: Number(val || 0) })}
+                    onChange={(val, camion) => {
+                      const num = Number(val || 0);
+                      setFormIniciar((prev) => ({
+                        ...prev,
+                        camionId: num,
+                        choferId: camion?.usuarioId || prev.choferId,
+                      }));
+                    }}
                     placeholder="-- Seleccionar camión cisterna --"
                   />
                 </div>
@@ -1552,28 +1570,36 @@ export const RecoleccionRutasPage: React.FC = () => {
                   </label>
                   <ChoferSelect
                     value={formIniciar.choferId || undefined}
-                    onChange={(val) => setFormIniciar({ ...formIniciar, choferId: Number(val || 0) })}
+                    onChange={(val) => {
+                      const num = Number(val || 0);
+                      const camMatch = camiones.find((c) => c.usuarioId === num);
+                      setFormIniciar((prev) => ({
+                        ...prev,
+                        choferId: num,
+                        camionId: prev.camionId || camMatch?.id || 0,
+                      }));
+                    }}
                     placeholder="-- Seleccionar chofer --"
+                    allowClear
                   />
                 </div>
 
-                {!isVergelCarrillo && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Ruta Logística (Modo Base)
-                    </label>
-                    <SearchableSelect
-                      options={rutasLogistica.map((r) => ({
-                        value: r.id,
-                        label: r.nombre,
-                        subLabel: r.codigo ? `Código: ${r.codigo}` : (r.descripcion || 'Ruta operativa'),
-                      }))}
-                      value={formIniciar.rutaLogisticaId || undefined}
-                      onChange={(val) => setFormIniciar({ ...formIniciar, rutaLogisticaId: Number(val || 0) })}
-                      placeholder="-- Seleccionar ruta logística --"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    Ruta Logística (Opcional)
+                  </label>
+                  <SearchableSelect
+                    options={rutasLogistica.map((r) => ({
+                      value: r.id,
+                      label: r.nombre,
+                      subLabel: r.codigo ? `Código: ${r.codigo}` : (r.descripcion || 'Ruta operativa'),
+                    }))}
+                    value={formIniciar.rutaLogisticaId || undefined}
+                    onChange={(val) => setFormIniciar({ ...formIniciar, rutaLogisticaId: Number(val || 0) })}
+                    placeholder="-- Seleccionar ruta logística (opcional) --"
+                    allowClear
+                  />
+                </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>

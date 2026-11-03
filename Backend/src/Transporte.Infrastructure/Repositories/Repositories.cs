@@ -1645,7 +1645,9 @@ namespace Transporte.Infrastructure.Repositories
                 list.Add(new PropietarioDto
                 {
                     Id = (int)r.Id,
-                    Nombre = (string)r.Nombre,
+                    Nombre = string.IsNullOrWhiteSpace((string?)r.Nombre) 
+                        ? (string.IsNullOrWhiteSpace((string?)r.CedulaRIF) ? $"Ganadero #{(int)r.Id}" : $"Ganadero ({(string)r.CedulaRIF})") 
+                        : (string)r.Nombre,
                     CedulaRIF = (string?)r.CedulaRIF,
                     Telefono = (string?)r.Telefono,
                     Email = (string?)r.Email,
@@ -1900,7 +1902,7 @@ namespace Transporte.Infrastructure.Repositories
         public async Task<IEnumerable<ChoferDto>> ObtenerChoferesAsync()
         {
             using var connection = new SqlConnection(_connectionString);
-            var sql = "SELECT Id, Username, NombreCompleto, Cedula, VehiculoPlaca FROM TB_USUARIOS WHERE Rol = 'CHOFER' AND Activo = 1 ORDER BY NombreCompleto";
+            var sql = "SELECT Id, Username, NombreCompleto, Cedula, VehiculoPlaca, Activo FROM TB_USUARIOS WHERE Rol = 'CHOFER' AND Activo = 1 ORDER BY NombreCompleto";
             return await connection.QueryAsync<ChoferDto>(sql);
         }
 
@@ -3204,7 +3206,11 @@ namespace Transporte.Infrastructure.Repositories
             var sql = @"
                 SELECT TOP 1 
                     c.Id,
-                    c.Codigo,
+                    CASE 
+                        WHEN c.Codigo IS NULL OR c.Codigo = '' OR c.Codigo LIKE '%(%)%' OR c.Codigo LIKE '%# ()%' OR c.Codigo LIKE '%()%'
+                        THEN 'Semana ' + CAST(DATEPART(isowk, c.FechaInicio) AS varchar) + ' (' + CAST(YEAR(c.FechaInicio) AS varchar) + ')'
+                        ELSE c.Codigo 
+                    END AS Codigo,
                     c.FechaInicio,
                     c.FechaFin,
                     c.Estado,
@@ -3244,7 +3250,11 @@ namespace Transporte.Infrastructure.Repositories
                 )
                 SELECT 
                     c.Id,
-                    c.Codigo,
+                    CASE 
+                        WHEN c.Codigo IS NULL OR c.Codigo = '' OR c.Codigo LIKE '%(%)%' OR c.Codigo LIKE '%# ()%' OR c.Codigo LIKE '%()%'
+                        THEN 'Semana ' + CAST(DATEPART(isowk, c.FechaInicio) AS varchar) + ' (' + CAST(YEAR(c.FechaInicio) AS varchar) + ')'
+                        ELSE c.Codigo 
+                    END AS Codigo,
                     c.FechaInicio,
                     c.FechaFin,
                     c.Estado,
@@ -7882,11 +7892,27 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             int conductorEfectivo = 0;
             if (rol == "ADMIN" || rol == "ADMINISTRADOR" || rol == "SUPERVISOR")
             {
-                if (!dto.ConductorId.HasValue || dto.ConductorId.Value <= 0)
+                if (dto.ConductorId.HasValue && dto.ConductorId.Value > 0)
                 {
-                    throw new InvalidOperationException("Debe seleccionar un conductor asignado para iniciar el viaje.");
+                    conductorEfectivo = dto.ConductorId.Value;
                 }
-                conductorEfectivo = dto.ConductorId.Value;
+                else if (dto.CamionId.HasValue && dto.CamionId.Value > 0)
+                {
+                    var choferDelCamion = await connection.ExecuteScalarAsync<int?>(
+                        "SELECT TOP 1 UsuarioId FROM TB_CAMIONES WHERE Id = @camionId AND UsuarioId IS NOT NULL",
+                        new { camionId = dto.CamionId.Value });
+                    if (choferDelCamion.HasValue && choferDelCamion.Value > 0)
+                    {
+                        conductorEfectivo = choferDelCamion.Value;
+                    }
+                }
+
+                if (conductorEfectivo <= 0)
+                {
+                    var choferDefault = await connection.ExecuteScalarAsync<int?>(
+                        "SELECT TOP 1 Id FROM TB_USUARIOS WHERE UPPER(Rol) = 'CHOFER' AND Activo = 1 ORDER BY NombreCompleto");
+                    conductorEfectivo = choferDefault ?? usuarioId;
+                }
             }
             else
             {
@@ -7894,11 +7920,11 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             }
 
             var esChoferValido = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(1) FROM TB_USUARIOS WHERE Id = @conductorId AND UPPER(Rol) = 'CHOFER' AND Activo = 1",
+                "SELECT COUNT(1) FROM TB_USUARIOS WHERE Id = @conductorId AND Activo = 1",
                 new { conductorId = conductorEfectivo });
             if (esChoferValido == 0)
             {
-                throw new InvalidOperationException("El conductor seleccionado no es válido o no tiene el rol de CHOFER.");
+                conductorEfectivo = usuarioId;
             }
 
             // Validar si el ciclo operativo correspondiente a la fecha está cerrado

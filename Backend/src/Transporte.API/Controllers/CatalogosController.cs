@@ -353,6 +353,9 @@ namespace Transporte.API.Controllers
         [Authorize]
         public async Task<IActionResult> GuardarEmpresaConfig([FromBody] EmpresaConfigDto dto)
         {
+            if (string.IsNullOrWhiteSpace(dto.Nombre) && !string.IsNullOrWhiteSpace(dto.NombreEmpresa))
+                dto.Nombre = dto.NombreEmpresa;
+
             if (string.IsNullOrWhiteSpace(dto.Nombre))
                 return BadRequest(new { mensaje = "El nombre de la empresa es obligatorio." });
 

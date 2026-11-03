@@ -1,7 +1,9 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/api/client';
+import { bcvApi } from '@/api/bcv.api';
+import Swal from 'sweetalert2';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -26,6 +28,8 @@ interface CicloActivoResponse {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { user, logout } = useAuthStore();
+  const queryClient = useQueryClient();
+  const [sincronizandoBcv, setSincronizandoBcv] = useState(false);
 
   // Query Tasa BCV
   const { data: bcvData, isLoading: loadingBcv, refetch: refetchBcv } = useQuery<BcvResponse>({
@@ -53,13 +57,66 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     staleTime: 1000 * 60 * 30,
   });
 
+  const handleSyncBcv = async () => {
+    if (sincronizandoBcv) return;
+    setSincronizandoBcv(true);
+    try {
+      const res = await bcvApi.sincronizarTasaBcvLive();
+      await queryClient.invalidateQueries({ queryKey: ['bcv-hoy'] });
+      await queryClient.invalidateQueries({ queryKey: ['historial-bcv'] });
+      await refetchBcv();
+      Swal.fire({
+        icon: 'success',
+        title: '¡Tasa BCV Sincronizada!',
+        html: `<strong>Tasa oficial:</strong> Bs. ${res.tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}<br/><small style="color: #64748b;">Fuente: ${res.fuente} (${res.fecha})</small>`,
+        confirmButtonColor: '#2563eb',
+        confirmButtonText: 'Entendido',
+      });
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error de sincronización',
+        text: err?.message || 'No se pudo conectar a los servicios de tasa BCV en vivo.',
+        confirmButtonColor: '#ef4444',
+      });
+    } finally {
+      setSincronizandoBcv(false);
+    }
+  };
+
   const tasa = bcvData?.tasaDolarBs ?? 0;
-  const match = cicloData?.codigo?.match(/Semana\s*(\d+)/i);
-  const numSemana = cicloData?.numeroSemana || cicloData?.semana || (match ? parseInt(match[1]) : (cicloData?.id || 0));
+
+  // Cálculo ISO 8601 robusto de semana
+  let computedWeek = 0;
+  let computedYear = 0;
+  const fechaRef = cicloData?.fechaInicio;
+  if (fechaRef) {
+    const d = new Date(fechaRef);
+    if (!isNaN(d.getTime())) {
+      const target = new Date(d.valueOf());
+      const dayNr = (d.getDay() + 6) % 7;
+      target.setDate(target.getDate() - dayNr + 3);
+      const firstThursday = target.valueOf();
+      target.setMonth(0, 1);
+      if (target.getDay() !== 4) {
+        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      }
+      computedWeek = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+      computedYear = new Date(firstThursday).getFullYear();
+    }
+  }
+
+  const match = cicloData?.codigo?.match(/Semana\s*#?\s*(\d+)/i) || cicloData?.codigo?.match(/(\d+)/);
+  const numSemana = cicloData?.numeroSemana || cicloData?.semana || (match ? parseInt(match[1]) : 0) || computedWeek || cicloData?.id || 0;
   const fechaIniStr = cicloData?.fechaInicio ? new Date(cicloData.fechaInicio).toLocaleDateString('es-VE') : '';
   const fechaFinStr = cicloData?.fechaFin ? new Date(cicloData.fechaFin).toLocaleDateString('es-VE') : '';
+  
+  const rawCode = (cicloData?.codigo || '').trim();
+  const esCodigoInvalido = !rawCode || rawCode.includes('# ()') || rawCode.endsWith('()') || !/\d+/.test(rawCode);
+  const nombreSemana = esCodigoInvalido ? `Semana #${numSemana}` : rawCode.split('(')[0].trim();
+
   const textoCiclo = (cicloData?.id || numSemana > 0)
-    ? (cicloData?.codigo ? cicloData.codigo.split('(')[0].trim() + (fechaIniStr ? ` (${fechaIniStr} al ${fechaFinStr})` : '') : `Semana #${numSemana} (${fechaIniStr} al ${fechaFinStr})`)
+    ? `${nombreSemana}${fechaIniStr ? ` (${fechaIniStr} al ${fechaFinStr})` : ''}`
     : 'No hay semana activa';
 
   const userInitials = (user?.nombreCompleto || user?.username || 'AD')
@@ -97,16 +154,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           id="bcvWidget"
           title="Consultar y registrar tasa oficial en vivo"
           style={{ cursor: 'pointer' }}
-          onClick={() => refetchBcv()}
+          onClick={handleSyncBcv}
         >
           <div className="bcv-icon">
-            <i className="fa-solid fa-dollar-sign"></i>
+            <i className={`fa-solid ${sincronizandoBcv ? 'fa-spinner fa-spin' : 'fa-dollar-sign'}`}></i>
           </div>
           <div className="bcv-info">
             <span className="bcv-label">TASA BCV HOY</span>
             <span className="bcv-value" id="bcvHoyTexto">
-              {loadingBcv ? (
-                'Cargando...'
+              {loadingBcv || sincronizandoBcv ? (
+                'Sincronizando...'
               ) : tasa > 0 ? (
                 `Bs. ${tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
               ) : (
@@ -117,14 +174,15 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           <button
             className="btn-icon"
             id="btnSyncBcvApi"
-            title="Actualizar tasa"
+            title="Sincronizar tasa en vivo desde BCV"
+            disabled={sincronizandoBcv}
             style={{ color: '#34d399', marginLeft: '4px', background: 'none', border: 'none', cursor: 'pointer' }}
             onClick={(e) => {
               e.stopPropagation();
-              refetchBcv();
+              handleSyncBcv();
             }}
           >
-            <i className={`fa-solid fa-arrows-rotate ${loadingBcv ? 'fa-spin' : ''}`}></i>
+            <i className={`fa-solid fa-arrows-rotate ${loadingBcv || sincronizandoBcv ? 'fa-spin' : ''}`}></i>
           </button>
         </div>
 
