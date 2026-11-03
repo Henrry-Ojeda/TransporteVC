@@ -14,14 +14,22 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [empresaNombre, setEmpresaNombre] = useState<string>('Sistema de Transporte');
 
-  // Detección visual de empresa según subdominio/dominio
-  const hostname = window.location.hostname.toLowerCase();
-  const empresaNombre = hostname.includes('campoverde') 
-    ? 'Productos Lácteos Campo Verde' 
-    : (hostname.includes('vergel') || hostname.includes('carrillo'))
-      ? 'Transporte Vergel & Carrillo'
-      : 'Transporte & Lácteos Base';
+  // Resolución 100% dinámica de la empresa desde SaaS Master (cero datos duros)
+  useEffect(() => {
+    let mounted = true;
+    authApi.getTenantInfo()
+      .then((info) => {
+        if (mounted && info?.nombre) {
+          setEmpresaNombre(info.nombre);
+        }
+      })
+      .catch(() => {
+        // En caso de que no haya conexión inicial, conserva el título base
+      });
+    return () => { mounted = false; };
+  }, []);
 
   // Si ya está autenticado, redirigir al inicio
   useEffect(() => {

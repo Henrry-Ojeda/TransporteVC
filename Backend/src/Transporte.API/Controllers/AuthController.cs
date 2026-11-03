@@ -33,6 +33,18 @@ namespace Transporte.API.Controllers
             _tenantService = tenantService;
         }
 
+        [HttpGet("tenant")]
+        [AllowAnonymous]
+        public IActionResult GetTenantInfo()
+        {
+            return Ok(new
+            {
+                codigo = _tenantService.GetTenantCode(),
+                nombre = _tenantService.GetTenantName(),
+                modulos = _tenantService.GetModulosActivos()
+            });
+        }
+
         [HttpPost("login")]
         [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
