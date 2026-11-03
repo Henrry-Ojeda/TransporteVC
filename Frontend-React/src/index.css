@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@import "./original-app.css";
+
+@layer base {
+  body {
+    background-color: var(--bg-main, #f8fafc);
+    color: var(--text-body, #334155);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ==========================================================================
+   TABLAS Y TARJETAS MAESTRAS - SISTEMA DE DISEÑO ORIGINAL 1:1
+   ========================================================================== */
+table.dataTable,
+.data-table,
+.modern-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  text-align: left !important;
+  font-size: 13px !important;
+}
+
+table.dataTable thead th,
+.data-table thead th,
+.modern-table thead th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  padding: 12px 16px !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  white-space: nowrap !important;
+}
+
+table.dataTable tbody td,
+.data-table tbody td,
+.modern-table tbody td {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+table.dataTable tbody tr:hover td,
+.data-table tbody tr:hover td,
+.modern-table tbody tr:hover td {
+  background: #f8fafc !important;
+}
+
+/* Encabezados y barras de navegación de vistas */
+.view-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 24px !important;
+  flex-wrap: wrap !important;
+  gap: 16px !important;
+}
+
+.view-title {
+  font-family: var(--font-heading) !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  margin: 0 0 4px 0 !important;
+}
+
+.view-subtitle {
+  font-size: 13px !important;
+  color: #64748b !important;
+  margin: 0 !important;
+}
+
+/* Badges estilizados */
+.badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}

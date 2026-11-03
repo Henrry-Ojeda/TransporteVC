@@ -1,0 +1,156 @@
+import apiClient from './client';
+import type {
+  ControlRutaDto,
+  ControlRutaFincaDto,
+  ControlRutaEntregaDto,
+  RutaLogisticaDto,
+  DespachoCompaniaDto,
+  BalanceVolumetricoResumenDto,
+} from '@/types';
+
+export const operacionesApi = {
+  // CONTROL DE RUTAS / VIAJES / TICKETS
+  getControles: async (fecha?: string, choferId?: number, estado?: string): Promise<ControlRutaDto[]> => {
+    const params: Record<string, any> = {};
+    if (fecha) params.fecha = fecha;
+    if (choferId) params.choferId = choferId;
+    if (estado) params.estado = estado;
+    const res = await apiClient.get<ControlRutaDto[]>('/controlrutas', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getControlPorId: async (id: number): Promise<ControlRutaDto> => {
+    const res = await apiClient.get<ControlRutaDto>(`/controlrutas/${id}`);
+    return res.data;
+  },
+
+  iniciarViaje: async (dto: { camionId: number; rutaLogisticaId?: number; odometroInicialKm?: number; observaciones?: string }): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/controlrutas/iniciar-viaje', dto);
+    return res.data;
+  },
+
+  cambiarEstadoProceso: async (id: number, nuevoEstado: string, motivo?: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.put(`/controlrutas/${id}/proceso`, { nuevoEstado, motivo });
+    return res.data;
+  },
+
+  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche: number; temperatura?: number; tipoLeche?: string }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/controlrutas/${id}/fincas`, dto);
+    return res.data;
+  },
+
+  getFincasViaje: async (id: number): Promise<ControlRutaFincaDto[]> => {
+    const res = await apiClient.get<ControlRutaFincaDto[]>(`/controlrutas/${id}/fincas`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  entregarDirectoCompania: async (id: number, dto: { companiaId: number; litrosEntregados: number; ticketReceptoria?: string; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/controlrutas/${id}/entregar-compania-directo`, dto);
+    return res.data;
+  },
+
+  getEntregasViaje: async (id: number): Promise<ControlRutaEntregaDto[]> => {
+    const res = await apiClient.get<ControlRutaEntregaDto[]>(`/controlrutas/${id}/entregas`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  cerrarViaje: async (id: number, dto: { odometroFinalKm?: number; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/controlrutas/${id}/cerrar-viaje`, dto);
+    return res.data;
+  },
+
+  eliminarControl: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete(`/controlrutas/${id}`);
+    return res.data;
+  },
+
+  // RUTAS LOGÍSTICAS
+  getRutasLogistica: async (): Promise<RutaLogisticaDto[]> => {
+    const res = await apiClient.get<RutaLogisticaDto[]>('/rutaslogistica');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  crearRutaLogistica: async (dto: { nombre: string; descripcion?: string; camionPredeterminadoId?: number; choferPredeterminadoId?: number }): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/rutaslogistica', dto);
+    return res.data;
+  },
+
+  actualizarRutaLogistica: async (id: number, dto: { nombre: string; descripcion?: string; camionPredeterminadoId?: number; choferPredeterminadoId?: number; activo?: boolean }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.put(`/rutaslogistica/${id}`, dto);
+    return res.data;
+  },
+
+  asignarFincasARuta: async (id: number, fincaIds: number[]): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/rutaslogistica/${id}/fincas`, { fincaIds });
+    return res.data;
+  },
+
+  eliminarRutaLogistica: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete(`/rutaslogistica/${id}`);
+    return res.data;
+  },
+
+  // CONTROL COMPAÑÍAS / RECEPTORÍA
+  getDespachosCompanias: async (fecha?: string, companiaId?: number): Promise<DespachoCompaniaDto[]> => {
+    const params: Record<string, any> = {};
+    if (fecha) params.fecha = fecha;
+    if (companiaId) params.companiaId = companiaId;
+    const res = await apiClient.get<DespachoCompaniaDto[]>('/controlcompanias', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  crearDespachoCompania: async (dto: { camionId: number; companiaId: number; litrosDespachados: number; tipoLeche: string; numeroGuiaSADA?: string; observaciones?: string }): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/controlcompanias', dto);
+    return res.data;
+  },
+
+  validarEntregaCompania: async (id: number, dto: { litrosConfirmados: number; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/controlcompanias/${id}/validar-entrega`, dto);
+    return res.data;
+  },
+
+  // TRAZABILIDAD BÚFALA
+  getTrazabilidadBufala: async (fechaInicio?: string, fechaFin?: string): Promise<any[]> => {
+    const params: Record<string, any> = {};
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+    const res = await apiClient.get<any[]>('/controlcompanias/trazabilidad-bufala', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  // RECEPTORIA HOY / ENTREGAS
+  getEntregasHoy: async (fecha?: string): Promise<any[]> => {
+    const params: Record<string, any> = {};
+    if (fecha) params.fecha = fecha;
+    const res = await apiClient.get<any[]>('/receptoria/hoy', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getRutasHoy: async (fecha?: string): Promise<any[]> => {
+    const params: Record<string, any> = {};
+    if (fecha) params.fecha = fecha;
+    const res = await apiClient.get<any[]>('/rutas/hoy', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  guardarEntrega: async (dto: { fecha: string; usuarioId: number; companiaId: number; litros: number; observacion?: string }): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/receptoria', dto);
+    return res.data;
+  },
+
+  eliminarEntrega: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete(`/receptoria/${id}`);
+    return res.data;
+  },
+
+  // BALANCE LECHE / MERMAS
+  getMermasHoy: async (fechaInicio?: string, fechaFin?: string, choferId?: number): Promise<BalanceVolumetricoResumenDto> => {
+    const params: Record<string, any> = {};
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+    if (choferId) params.choferId = choferId;
+    const res = await apiClient.get<BalanceVolumetricoResumenDto>('/catalogos/mermas', { params });
+    return res.data;
+  },
+};
+

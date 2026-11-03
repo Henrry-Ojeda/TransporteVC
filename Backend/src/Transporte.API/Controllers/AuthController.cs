@@ -21,11 +21,16 @@ namespace Transporte.API.Controllers
     {
         private readonly IAuthRepository _authRepository;
         private readonly IConfiguration _config;
+        private readonly Transporte.Core.Interfaces.ITenantService _tenantService;
 
-        public AuthController(IAuthRepository authRepository, IConfiguration config)
+        public AuthController(
+            IAuthRepository authRepository, 
+            IConfiguration config,
+            Transporte.Core.Interfaces.ITenantService tenantService)
         {
             _authRepository = authRepository;
             _config = config;
+            _tenantService = tenantService;
         }
 
         [HttpPost("login")]
@@ -114,7 +119,10 @@ namespace Transporte.API.Controllers
                 NombreCompleto = user.NombreCompleto,
                 Rol = user.Rol,
                 Token = tokenString,
-                Permisos = permisos
+                Permisos = permisos,
+                ModulosHabilitados = _tenantService.GetModulosActivos(),
+                EmpresaCodigo = _tenantService.GetTenantCode(),
+                EmpresaNombre = _tenantService.GetTenantName()
             });
         }
 
@@ -136,7 +144,10 @@ namespace Transporte.API.Controllers
                 username = user.Username,
                 nombreCompleto = user.NombreCompleto,
                 rol = user.Rol,
-                permisos
+                permisos,
+                modulosHabilitados = _tenantService.GetModulosActivos(),
+                empresaCodigo = _tenantService.GetTenantCode(),
+                empresaNombre = _tenantService.GetTenantName()
             });
         }
     }

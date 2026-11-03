@@ -1,6 +1,7 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Transporte.Core.Interfaces;
 
 namespace Transporte.Infrastructure.Data;
 
@@ -11,16 +12,20 @@ public interface IDbConnectionFactory
 
 public class SqlConnectionFactory : IDbConnectionFactory
 {
-    private readonly string _connectionString;
+    private readonly ITenantService? _tenantService;
+    private readonly string? _fallbackConnectionString;
 
-    public SqlConnectionFactory(IConfiguration configuration)
+    public SqlConnectionFactory(IConfiguration configuration, ITenantService? tenantService = null)
     {
-        _connectionString = configuration.GetConnectionString("BD_TRANSPORTE") 
-            ?? throw new InvalidOperationException("Cadena de conexiÃ³n 'BD_TRANSPORTE' no configurada.");
+        _tenantService = tenantService;
+        _fallbackConnectionString = configuration.GetConnectionString("BD_TRANSPORTE") 
+            ?? configuration.GetConnectionString("DefaultConnection")
+            ?? "Server=84.247.178.194,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
     }
 
     public IDbConnection CreateConnection()
     {
-        return new SqlConnection(_connectionString);
+        var connStr = _tenantService?.GetConnectionString() ?? _fallbackConnectionString!;
+        return new SqlConnection(connStr);
     }
 }

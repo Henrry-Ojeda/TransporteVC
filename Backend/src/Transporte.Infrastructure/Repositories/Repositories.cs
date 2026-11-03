@@ -17,7 +17,7 @@ namespace Transporte.Infrastructure.Repositories
     public class AuthRepository : IAuthRepository
     {
         private readonly string _connectionString;
-        public AuthRepository(IConfiguration configuration)
+        public AuthRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -67,7 +67,7 @@ namespace Transporte.Infrastructure.Repositories
     public class BcvRepository : IBcvRepository
     {
         private readonly string _connectionString;
-        public BcvRepository(IConfiguration configuration)
+        public BcvRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -221,7 +221,7 @@ namespace Transporte.Infrastructure.Repositories
     public class RutasRepository : IRutasRepository
     {
         private readonly string _connectionString;
-        public RutasRepository(IConfiguration configuration)
+        public RutasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -946,7 +946,7 @@ namespace Transporte.Infrastructure.Repositories
     public class CatalogosRepository : ICatalogosRepository
     {
         private readonly string _connectionString;
-        public CatalogosRepository(IConfiguration configuration)
+        public CatalogosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -3185,7 +3185,7 @@ namespace Transporte.Infrastructure.Repositories
     public class CiclosRepository : ICiclosRepository
     {
         private readonly string _connectionString;
-        public CiclosRepository(IConfiguration configuration)
+        public CiclosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -3629,7 +3629,7 @@ namespace Transporte.Infrastructure.Repositories
     public class EntregasRepository : IEntregasRepository
     {
         private readonly string _connectionString;
-        public EntregasRepository(IConfiguration configuration)
+        public EntregasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -5636,7 +5636,7 @@ namespace Transporte.Infrastructure.Repositories
     {
         private readonly string _connectionString;
 
-        public AdelantosRepository(IConfiguration configuration)
+        public AdelantosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -6555,7 +6555,7 @@ namespace Transporte.Infrastructure.Repositories
         private readonly string _geminiApiKey;
         private static readonly HttpClient _httpClient = new HttpClient();
 
-        public ChatRepository(IConfiguration configuration)
+        public ChatRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? configuration.GetConnectionString("BD_TRANSPORTE")
@@ -7346,7 +7346,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
     {
         private readonly string _connectionString;
 
-        public ControlRutasRepository(IConfiguration configuration)
+        public ControlRutasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? configuration.GetConnectionString("BD_TRANSPORTE")
@@ -9261,7 +9261,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
     {
         private readonly string _connectionString;
 
-        public ControlCompaniasRepository(IConfiguration configuration)
+        public ControlCompaniasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? configuration.GetConnectionString("BD_TRANSPORTE")

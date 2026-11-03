@@ -18,6 +18,9 @@ namespace Transporte.Core.DTOs
         public string NombreCompleto { get; set; } = string.Empty;
         public string Rol { get; set; } = string.Empty;
         public IEnumerable<string> Permisos { get; set; } = Enumerable.Empty<string>();
+        public IEnumerable<string> ModulosHabilitados { get; set; } = Enumerable.Empty<string>();
+        public string EmpresaCodigo { get; set; } = string.Empty;
+        public string EmpresaNombre { get; set; } = string.Empty;
     }
 
     public class HistorialBcvDto

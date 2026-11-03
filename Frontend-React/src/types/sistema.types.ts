@@ -1,0 +1,54 @@
+export interface UsuarioDto {
+  id: number;
+  nombreUsuario: string;
+  nombreCompleto: string;
+  email?: string;
+  rol: string; // ADMIN, CHOFER, OPERADOR, LIQUIDADOR
+  activo: boolean;
+  telefono?: string;
+  cedula?: string;
+  ultimoAcceso?: string;
+  createdAt: string;
+}
+
+export interface GuardarUsuarioDto {
+  nombreUsuario: string;
+  password?: string;
+  nombreCompleto: string;
+  email?: string;
+  rol: string;
+  telefono?: string;
+  cedula?: string;
+  activo: boolean;
+}
+
+export interface PermisoModuloDto {
+  id?: number;
+  rol: string;
+  moduloCodigo: string;
+  moduloNombre: string;
+  puedeVer: boolean;
+  puedeEditar: boolean;
+  puedeAgregar: boolean;
+  puedeEliminar: boolean;
+}
+
+export interface ConfiguracionSistemaDto {
+  id?: number;
+  clave: string;
+  valor: string;
+  descripcion?: string;
+  categoria?: string;
+}
+
+export interface LogAuditoriaDto {
+  id: number;
+  usuarioId?: number;
+  usuarioNombre?: string;
+  modulo: string;
+  accion: string;
+  detalles: string;
+  ipAddress?: string;
+  fecha: string;
+}
+

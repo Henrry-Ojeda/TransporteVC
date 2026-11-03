@@ -75,8 +75,10 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")) 
 }
 
 // 1. Inyección de Dependencias
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<IDbConnectionFactory, SqlConnectionFactory>();
+builder.Services.AddScoped<Transporte.Core.Interfaces.ITenantService, Transporte.API.Multitenancy.TenantService>();
+builder.Services.AddScoped<IDbConnectionFactory, SqlConnectionFactory>();
 builder.Services.AddSingleton<IPasswordService, BcryptPasswordService>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IGeminiOcrService, GeminiOcrService>();
