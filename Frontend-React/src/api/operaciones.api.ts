@@ -140,6 +140,7 @@ export const operacionesApi = {
   },
 
   crearDespachoCompania: async (dto: {
+    fecha?: string;
     camionId?: number;
     usuarioId?: number;
     companiaId: number;
@@ -155,6 +156,11 @@ export const operacionesApi = {
     };
 
     const res = await apiClient.post('/controlcompanias', payload);
+    return res.data;
+  },
+
+  actualizarDespachoCompania: async (id: number, dto: any): Promise<{ message: string }> => {
+    const res = await apiClient.put('/controlcompanias/' + id, dto);
     return res.data;
   },
 

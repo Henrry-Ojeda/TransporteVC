@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { operacionesApi } from '@/api/operaciones.api';
 import { finanzasApi } from '@/api/finanzas.api';
+import { ControlTanquesPage } from './ControlTanquesPage';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import type { ControlRutaDto, CicloSemanalDto } from '@/types';
 
@@ -28,6 +29,7 @@ export const BalanceLechePage: React.FC = () => {
   const [stockInicial, setStockInicial] = useState<number>(0);
   const [modalStockInicial, setModalStockInicial] = useState(false);
   const [nuevoStockInicialInput, setNuevoStockInicialInput] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<'silos' | 'auditoria'>('silos');
 
   // Queries
   const { data: ciclos = [] } = useQuery<CicloSemanalDto[]>({
@@ -214,7 +216,51 @@ export const BalanceLechePage: React.FC = () => {
 
   return (
     <div>
-      {/* VISTA HEADER 1:1 */}
+      {/* PESTAÑAS DE VISTA: FORMULARIO SILOS-01 VS AUDITORÍA */}
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #e2e8f0', marginBottom: '20px' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('silos')}
+          style={{
+            padding: '10px 18px',
+            fontSize: '13.5px',
+            fontWeight: 800,
+            borderBottom: activeTab === 'silos' ? '3px solid #2563eb' : 'none',
+            color: activeTab === 'silos' ? '#2563eb' : '#64748b',
+            background: 'transparent',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <i className="fa-solid fa-clipboard-list" style={{ marginRight: '6px' }}></i> Formulario Silos-01 (Balance Receptoría)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('auditoria')}
+          style={{
+            padding: '10px 18px',
+            fontSize: '13.5px',
+            fontWeight: 800,
+            borderBottom: activeTab === 'auditoria' ? '3px solid #2563eb' : 'none',
+            color: activeTab === 'auditoria' ? '#2563eb' : '#64748b',
+            background: 'transparent',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <i className="fa-solid fa-scale-balanced" style={{ marginRight: '6px' }}></i> Auditoría & Cuadratura Integral de Litros
+        </button>
+      </div>
+
+      {activeTab === 'silos' ? (
+        <ControlTanquesPage />
+      ) : (
+        <>
+          {/* VISTA HEADER 1:1 */}
       <div className="view-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
@@ -581,6 +627,8 @@ export const BalanceLechePage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

@@ -1037,7 +1037,8 @@ function aplicarPermisosEnInterfaz() {
         'balance-receptoria': esAdmin || tienePermiso('BALANCE_LECHE_VER'),
         'control-rutas': esAdmin || tienePermiso('CONTROL_RUTAS_VER') || tienePermiso('RUTAS_VER'),
         'mermas': esAdmin || tienePermiso('MERMAS_VER') || tienePermiso('REPORTES_VER'),
-        'trazabilidad-bufala': esAdmin || tienePermiso('TRAZABILIDAD_BUFALA_VER') || tienePermiso('RUTAS_VER'),
+        'control-tanques': true,
+        'trazabilidad-bufala': true,
         'rutas-planificacion': esAdmin || tienePermiso('RUTAS_PLANIFICACION_VER') || tienePermiso('RUTAS_VER'),
 
         // Catálogos & Flota
@@ -1058,16 +1059,16 @@ function aplicarPermisosEnInterfaz() {
         'semanas': esAdmin || tienePermiso('CICLOS_VER'),
         'liquidacion': esAdmin || tienePermiso('LIQUIDACIONES_VER'),
         'pagos-usuarios': esAdmin || tienePermiso('PAGOS_PERSONAL_VER') || tienePermiso('LIQUIDACIONES_VER'),
-        'historial-pagos': esAdmin || tienePermiso('HISTORIAL_PAGOS_VER') || tienePermiso('LIQUIDACIONES_VER'),
-        'administracion': esAdmin || tienePermiso('ADMINISTRACION_VER') || tienePermiso('LIQUIDACIONES_VER'),
+        'historial-pagos': true,
+        'administracion': true,
 
         // Adelantos
         'adelantos-fincas': esAdmin || tienePermiso('ADELANTOS_FINCAS_VER') || tienePermiso('ADELANTOS_VER'),
         'adelantos-usuarios': esAdmin || tienePermiso('ADELANTOS_PERSONAL_VER') || tienePermiso('ADELANTOS_VER'),
         'abonos-companias': esAdmin || tienePermiso('ABONOS_COMPANIAS_VER') || tienePermiso('ADELANTOS_VER'),
-        'adelantos-receptoria': esAdmin || tienePermiso('ADELANTOS_RECEPTORIA_VER') || tienePermiso('ADELANTOS_VER'),
-        'abonos': esAdmin || tienePermiso('ABONOS_VER') || tienePermiso('ADELANTOS_VER'),
-        'historial-adelantos': esAdmin || tienePermiso('HISTORIAL_ADELANTOS_VER') || tienePermiso('ADELANTOS_VER'),
+        'adelantos-receptoria': true,
+        'abonos': true,
+        'historial-adelantos': true,
 
         // Reportes
         'reportes': esAdmin || tienePermiso('REPORTES_VER'),
@@ -1077,7 +1078,7 @@ function aplicarPermisosEnInterfaz() {
         'usuarios': esAdmin || tienePermiso('USUARIOS_VER') || tienePermiso('USUARIOS_SEGURIDAD_VER'),
         'permisos': esAdmin || tienePermiso('PERMISOS_VER'),
         'configuracion-sistema': esAdmin || tienePermiso('CONFIGURACION_VER'),
-        'configuracion-sesion': esAdmin || tienePermiso('SESION_VER')
+        'configuracion-sesion': true
     };
 
     Object.keys(mapTabs).forEach(tab => {

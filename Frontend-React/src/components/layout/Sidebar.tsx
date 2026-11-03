@@ -37,9 +37,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { name: 'Principal', href: '/dashboard', tabId: 'dashboard', icon: 'fa-solid fa-chart-pie' },
         { name: 'Recolección en Ruta', href: '/rutas', tabId: 'rutas', icon: 'fa-solid fa-route' },
         { name: 'Entregas Receptoría', href: '/receptoria', tabId: 'receptoria', icon: 'fa-solid fa-truck-ramp-box' },
-        { name: 'Análisis & Balance Leche', href: '/balance', tabId: 'balance', icon: 'fa-solid fa-chart-line' },
+        { name: 'Balance Silos (Receptoría)', href: '/balance', tabId: 'balance', icon: 'fa-solid fa-chart-line' },
         { name: 'Control de Viajes / Tickets', href: '/viajes', tabId: 'control-rutas', icon: 'fa-solid fa-clipboard-check' },
-        { name: 'Formulario Control Tanques', href: '/control-tanques', tabId: 'control-tanques', icon: 'fa-solid fa-clipboard-list', color: '#6366f1' },
+        { name: 'Formulario Silos-01', href: '/control-tanques', tabId: 'control-tanques', icon: 'fa-solid fa-clipboard-list', color: '#6366f1' },
         { name: 'Trazabilidad Búfala', href: '/bufala', tabId: 'bufala', icon: 'fa-solid fa-gem', color: '#0d9488' },
         { name: 'Evolución Fincas & Flota', href: '/evolucion-fincas', tabId: 'evolucion-fincas', icon: 'fa-solid fa-arrow-trend-up', color: '#10b981' },
         { name: 'Planificación de Rutas', href: '/planificacion-rutas', tabId: 'rutas-planificacion', icon: 'fa-solid fa-map-location-dot', color: '#3b82f6' },
@@ -182,6 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       onClick={() => {
                         if (isOpen) onClose();
                       }}
+                      title={item.name}
                       className={({ isActive }) =>
                         isActive ? 'nav-item active' : 'nav-item'
                       }

@@ -23,9 +23,9 @@ namespace Transporte.API.Controllers
         private readonly string _connectionString;
         private readonly ICatalogosRepository _catalogosRepository;
 
-        public ImportacionDataController(IConfiguration configuration, ICatalogosRepository catalogosRepository)
+        public ImportacionDataController(IConfiguration configuration, ICatalogosRepository catalogosRepository, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+            _connectionString = tenantService?.GetConnectionString() ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             _catalogosRepository = catalogosRepository;
         }
@@ -55,7 +55,7 @@ namespace Transporte.API.Controllers
                 using var conn = CreateConnection();
                 var ent = entidad.Trim().ToUpperInvariant();
 
-                if (ent == "TB_FINCAS")
+                if (ent == "TB_FINCAS" || ent == "FINCAS")
                 {
                     int totalPropietarios = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_PROPIETARIOS WHERE Estado = 'ACTIVO'");
                     int totalCompanias = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_COMPANIAS WHERE Activo = 1");
@@ -75,7 +75,7 @@ namespace Transporte.API.Controllers
                         listo = tienePropietarios
                     });
                 }
-                else if (ent == "TB_PROPIETARIOS")
+                else if (ent == "TB_PROPIETARIOS" || ent == "PROPIETARIOS")
                 {
                     int totalBancos = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM TB_BANCOS WHERE Activo = 1");
                     return Ok(new

@@ -5175,6 +5175,7 @@ namespace Transporte.Infrastructure.Repositories
 
             var sqlDetalle = @"
                 SELECT 
+                    r.FincaId,
                     CONVERT(varchar(10), r.Fecha, 120) AS Fecha,
                     r.Litros AS Litros,
                     r.EsAcida AS EsAcida,
@@ -5191,12 +5192,35 @@ namespace Transporte.Infrastructure.Repositories
                 FROM TB_RUTAS_RECOLECCION r
                 INNER JOIN TB_FINCAS f ON r.FincaId = f.Id
                 LEFT JOIN TB_USUARIOS u ON r.UsuarioId = u.Id
-                WHERE r.FincaId = @id
+                WHERE f.Id != 68
+                  AND (@tieneFincas = 0 OR r.FincaId IN @fincaIds)
                   AND (
                       (@targetCicloId > 0 AND ISNULL(r.CicloLiquidacionId, r.CicloId) = @targetCicloId)
                       OR (@targetCicloId <= 0 AND r.Fecha >= @fechaInicio AND r.Fecha <= @fechaFin)
                   )
                 ORDER BY r.Fecha";
+
+            var todosDetallesRaw = (await connection.QueryAsync<dynamic>(sqlDetalle, new { 
+                targetCicloId, 
+                fechaInicio = fechaInicio.Date, 
+                fechaFin = fechaFin.Date, 
+                tieneFincas = tieneFincas ? 1 : 0, 
+                fincaIds = tieneFincas ? fincaIds : new List<int> { 0 } 
+            })).ToList();
+
+            var detallesPorFinca = todosDetallesRaw
+                .GroupBy(d => (int)d.FincaId)
+                .ToDictionary(g => g.Key, g => g.Select(d => new ReporteDetalleItemDto
+                {
+                    Fecha = (string)d.Fecha,
+                    Litros = d.Litros != null ? Convert.ToInt32(d.Litros) : 0,
+                    EsAcida = d.EsAcida != null && Convert.ToBoolean(d.EsAcida),
+                    TipoLeche = d.TipoLeche != null ? (string)d.TipoLeche : "VACA",
+                    PrecioLitroUSDAplicado = d.PrecioLitroUSDAplicado != null ? Convert.ToDecimal(d.PrecioLitroUSDAplicado) : 0m,
+                    Observacion = (string?)d.Observacion,
+                    ChoferNombre = (string?)d.ChoferNombre,
+                    EntidadNombre = (string?)d.EntidadNombre
+                }).ToList());
 
             var sqlPagosMap = @"
                 SELECT FincaId, Id AS PagoId, FechaPago, TasaBcv, TotalBrutoBs, TotalAdelantosBs, TotalNetoBs
@@ -5269,7 +5293,7 @@ namespace Transporte.Infrastructure.Repositories
                 bool tieneDosTipos = finca.TieneDosTiposLeche != null && Convert.ToBoolean(finca.TieneDosTiposLeche);
                 decimal precioBufala = Convert.ToDecimal(finca.PrecioBufalaLitroUSD ?? 0m);
 
-                var detalle = (await connection.QueryAsync<ReporteDetalleItemDto>(sqlDetalle, new { id, targetCicloId, fechaInicio = fechaInicio.Date, fechaFin = fechaFin.Date })).ToList();
+                var detalle = detallesPorFinca.ContainsKey(id) ? detallesPorFinca[id] : new List<ReporteDetalleItemDto>();
 
                 bool esPagado = pagosMap.ContainsKey(id);
                 int? pagoId = esPagado ? pagosMap[id].PagoId : null;

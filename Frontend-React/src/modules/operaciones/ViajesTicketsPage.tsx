@@ -27,6 +27,7 @@ export const ViajesTicketsPage: React.FC = () => {
 
   // Estados para timelapse
   const [timelapseViajeId, setTimelapseViajeId] = useState<number | null>(null);
+  const [fechaMonitoreo, setFechaMonitoreo] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // Estados formularios modales
   const [modalAgregarFinca, setModalAgregarFinca] = useState(false);
@@ -137,24 +138,25 @@ export const ViajesTicketsPage: React.FC = () => {
     };
   }, [camionSeleccionadoEnInicio, formIniciar.rutasLogisticasIds, rutasLogistica]);
 
-  // Selección de viaje activo para el Timelapse
-  const viajesActivos = useMemo(() => {
-    return viajes.filter(
-      (v) =>
-        v.estadoProceso !== 'CERRADO' &&
-        v.estado !== 'CERRADO' &&
-        v.estado !== 'FINALIZADO' &&
-        v.nombreProceso !== 'Finalizado'
-    );
-  }, [viajes]);
+  // Viajes filtrados exclusivamente por la Fecha de Monitoreo seleccionada
+  const viajesDelDiaMonitoreo = useMemo(() => {
+
+    return viajes.filter((v) => {
+      if (!v.fecha) return false;
+      const fStr = v.fecha.split('T')[0];
+      return fStr === fechaMonitoreo;
+    });
+  }, [viajes, fechaMonitoreo]);
+  const viajesActivos = viajesDelDiaMonitoreo;
 
   const viajeTimelapseActual = useMemo(() => {
     if (timelapseViajeId) {
-      const match = viajes.find((v) => v.id === timelapseViajeId);
+      const match = viajesDelDiaMonitoreo.find((v) => v.id === timelapseViajeId);
       if (match) return match;
     }
-    return viajesActivos[0] || viajes[0] || null;
-  }, [viajes, timelapseViajeId, viajesActivos]);
+    const enRuta = viajesDelDiaMonitoreo.find((v) => v.estadoProceso !== 'CERRADO' && v.estado !== 'CERRADO');
+    return enRuta || viajesDelDiaMonitoreo[0] || null;
+  }, [viajesDelDiaMonitoreo, timelapseViajeId]);
 
   // Query fincas y entregas del viaje para el Timelapse / Detalle
   const idViajeParaConsultar = viajeSeleccionado?.id || viajeTimelapseActual?.id;

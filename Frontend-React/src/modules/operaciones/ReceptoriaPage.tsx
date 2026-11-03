@@ -59,6 +59,9 @@ export const ReceptoriaPage: React.FC = () => {
   }
 
   const [despachoCamionId, setDespachoCamionId] = useState<number>(0);
+  const [fechaDespacho, setFechaDespacho] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [modalEditarDespacho, setModalEditarDespacho] = useState(false);
+  const [despachoAEditar, setDespachoAEditar] = useState<any>(null);
   const [despachoUsuarioId, setDespachoUsuarioId] = useState<number>(0);
   const [destinosSalida, setDestinosSalida] = useState<DestinoSalidaRow[]>([
     { id: '1', companiaId: 0, litrosDespachados: 0, tipoLeche: 'VACA', numeroGuiaSADA: '', observacion: '' }
@@ -187,10 +190,11 @@ export const ReceptoriaPage: React.FC = () => {
   });
 
   const crearDespachosMultiMutation = useMutation({
-    mutationFn: async (payload: { camionId: number; usuarioId: number; destinos: DestinoSalidaRow[] }) => {
+    mutationFn: async (payload: { fecha?: string; camionId: number; usuarioId: number; destinos: DestinoSalidaRow[] }) => {
       const results = [];
       for (const dest of payload.destinos) {
         const res = await operacionesApi.crearDespachoCompania({
+          fecha: payload.fecha,
           camionId: payload.camionId,
           usuarioId: payload.usuarioId,
           companiaId: dest.companiaId,
@@ -220,6 +224,26 @@ export const ReceptoriaPage: React.FC = () => {
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al emitir despacho');
     },
+  });
+
+  const actualizarDespachoMutation = useMutation({
+    mutationFn: (dto: { id: number; fecha: string; litrosDespachados: number; observacion?: string }) =>
+      operacionesApi.actualizarDespachoCompania(dto.id, {
+        fecha: dto.fecha,
+        litrosDespachados: dto.litrosDespachados,
+        observacion: dto.observacion
+      }),
+    onSuccess: () => {
+      toast.success('Ticket de salida actualizado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['despachos-companias'] });
+      queryClient.invalidateQueries({ queryKey: ['receptoria-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['receptoria-balance'] });
+      setModalEditarDespacho(false);
+      setDespachoAEditar(null);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al actualizar ticket de salida');
+    }
   });
 
   const validarMutation = useMutation({
@@ -1603,6 +1627,7 @@ export const ReceptoriaPage: React.FC = () => {
                   return;
                 }
                 crearDespachosMultiMutation.mutate({
+                  fecha: fechaDespacho,
                   camionId: despachoCamionId,
                   usuarioId: despachoUsuarioId,
                   destinos: destinosSalida,
@@ -1615,7 +1640,30 @@ export const ReceptoriaPage: React.FC = () => {
                 <div style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <i className="fa-solid fa-truck"></i> 1. Unidad de Transporte y Conductor
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '8px' }}>
+                  {/* Fecha del Despacho */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Fecha del Despacho / Ticket *
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaDespacho}
+                      onChange={(e) => setFechaDespacho(e.target.value)}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        background: '#ffffff',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </div>
+
                   {/* Selector de Camión */}
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
@@ -2035,6 +2083,142 @@ export const ReceptoriaPage: React.FC = () => {
                 >
                   <i className="fa-solid fa-check-double"></i>
                   {validarMutation.isPending ? 'Validando...' : 'Confirmar y Conciliar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR TICKET SALIDA / FECHA */}
+      {modalEditarDespacho && despachoAEditar && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1050,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            className="content-card"
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: 0,
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800 }}>
+                  <i className="fa-solid fa-pen-to-square"></i> Editar Ticket de Salida #{despachoAEditar.id}
+                </h3>
+                <span style={{ fontSize: '11px', color: '#bfdbfe' }}>
+                  Modifica la fecha de emisión o el volumen despachado
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEditarDespacho(false)}
+                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '18px', cursor: 'pointer' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (despachoAEditar.litrosDespachados <= 0) {
+                  toast.error('Los litros despachados deben ser mayores a 0');
+                  return;
+                }
+                actualizarDespachoMutation.mutate({
+                  id: despachoAEditar.id,
+                  fecha: despachoAEditar.fecha,
+                  litrosDespachados: Number(despachoAEditar.litrosDespachados),
+                  observacion: despachoAEditar.observacion
+                });
+              }}
+              style={{ padding: '20px' }}
+            >
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  Fecha de Despacho / Ticket *
+                </label>
+                <input
+                  type="date"
+                  className="form-input"
+                  required
+                  value={despachoAEditar.fecha}
+                  onChange={(e) => setDespachoAEditar({ ...despachoAEditar, fecha: e.target.value })}
+                  style={{ height: '38px', width: '100%', fontWeight: 700 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  Litros Despachados *
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  required
+                  min={1}
+                  value={despachoAEditar.litrosDespachados || ''}
+                  onChange={(e) => setDespachoAEditar({ ...despachoAEditar, litrosDespachados: Number(e.target.value) })}
+                  style={{ height: '38px', width: '100%', fontWeight: 800, color: '#2563eb' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  Observación / Motivo de Corrección
+                </label>
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  value={despachoAEditar.observacion || ''}
+                  onChange={(e) => setDespachoAEditar({ ...despachoAEditar, observacion: e.target.value })}
+                  placeholder="Ej: Corrección de fecha emitida por error de digitación"
+                  style={{ width: '100%', resize: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setModalEditarDespacho(false)}
+                  style={{ height: '38px', padding: '0 16px' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={actualizarDespachoMutation.isPending}
+                  style={{ height: '38px', padding: '0 18px', fontWeight: 700 }}
+                >
+                  {actualizarDespachoMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>
