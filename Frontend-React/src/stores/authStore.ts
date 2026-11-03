@@ -74,8 +74,24 @@ export const useAuthStore = create<AuthState>()(
 
       hasTenantModule: (moduloCodigo: string) => {
         const user = get().user;
-        if (!user || !user.modulosHabilitados) return true;
-        return user.modulosHabilitados.includes(moduloCodigo.toUpperCase());
+        const code = moduloCodigo.toUpperCase();
+
+        // En Campo Verde, Búfala está estrictamente deshabilitada
+        if (typeof window !== 'undefined') {
+          const host = window.location.hostname.toLowerCase();
+          if ((host.includes('campoverde') || host.includes('quesera')) && code === 'MOD_LECHE_BUFALA') {
+            return false;
+          }
+        }
+
+        if (user?.modulosHabilitados && Array.isArray(user.modulosHabilitados)) {
+          return user.modulosHabilitados.includes(code);
+        }
+
+        // Búfala por defecto no se muestra si no está explícitamente habilitado
+        if (code === 'MOD_LECHE_BUFALA') return false;
+
+        return true;
       },
 
       canAccessTab: (tabId: string) => {
@@ -93,6 +109,11 @@ export const useAuthStore = create<AuthState>()(
         const saasReq = tabToSaaSModule[tabId.toLowerCase()];
         if (saasReq && !hasTenantModule(saasReq)) {
           return false; // Módulo no contratado por esta empresa en el SaaS Manager
+        }
+
+        // 2. Módulos & Permisos solo es para SuperAdmin en SaaS Manager, no para empresas cliente
+        if (tabId.toLowerCase() === 'permisos') {
+          return false;
         }
 
         if (isAdmin()) return true;

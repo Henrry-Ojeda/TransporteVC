@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import { operacionesApi } from '@/api/operaciones.api';
@@ -6,8 +7,13 @@ import { catalogosApi } from '@/api/catalogos.api';
 import { finanzasApi } from '@/api/finanzas.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import type { CicloSemanalDto, FincaDto, CompaniaDto, ChoferDto } from '@/types';
+import { useAuthStore } from '@/stores/authStore';
 
 export const BufalaPage: React.FC = () => {
+  const hasBufala = useAuthStore(state => state.hasTenantModule('MOD_LECHE_BUFALA'));
+  if (!hasBufala) {
+    return <Navigate to="/dashboard" replace />;
+  }
   const [modoFiltro, setModoFiltro] = useState<'semana' | 'rango'>('semana');
   const [tipoServicio, setTipoServicio] = useState<'TODOS' | 'RUTA' | 'TRANSPORTE'>('TODOS');
   const [cicloId, setCicloId] = useState<number | undefined>(undefined);
