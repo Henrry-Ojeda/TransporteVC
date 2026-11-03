@@ -40,6 +40,7 @@ export const RutasLogisticaPage: React.FC = () => {
   const [rutaSeleccionada, setRutaSeleccionada] = useState<RutaLogisticaDto | null>(null);
   const [fincasSeleccionadas, setFincasSeleccionadas] = useState<number[]>([]);
   const [busquedaFincasModal, setBusquedaFincasModal] = useState('');
+  const [focusedFincaIndex, setFocusedFincaIndex] = useState(0);
   const [modoEdicionId, setModoEdicionId] = useState<number | null>(null);
 
   const initialForm = {
@@ -66,11 +67,11 @@ export const RutasLogisticaPage: React.FC = () => {
     queryFn: () => catalogosApi.getChoferes(),
   });
 
-  // Fechas para cálculo dinámico en vivo del promedio de los últimos 15 días
+  // Fechas para cálculo dinámico en vivo del promedio de las últimas 15 recolecciones
   const fechaHoyStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const fecha15DiasAtrasStr = useMemo(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 15);
+    d.setDate(d.getDate() - 90);
     return d.toISOString().split('T')[0];
   }, []);
 
@@ -83,21 +84,32 @@ export const RutasLogisticaPage: React.FC = () => {
   const mapaPromedios15Dias = useMemo(() => {
     const map = new Map<number, number>();
     reporteFincas15Dias.forEach((rf: any) => {
-      const cant = rf.detalle && rf.detalle.length > 0 ? rf.detalle.length : 1;
-      const total = Number(rf.totalLitros || 0);
+      const ultimos15 = Array.isArray(rf.detalle) && rf.detalle.length > 0 ? rf.detalle.slice(-15) : [];
+      const cant = ultimos15.length > 0 ? ultimos15.length : 1;
+      const total = ultimos15.length > 0
+        ? ultimos15.reduce((acc: number, item: any) => acc + Number(item.litros || 0), 0)
+        : Number(rf.totalLitros || 0);
       const prom = total > 0 ? Math.round(total / cant) : 0;
       if (prom > 0) {
-        map.set(rf.id, prom);
+        map.set(Number(rf.id), prom);
       }
     });
     return map;
   }, [reporteFincas15Dias]);
 
+  const promedioGlobalReferencia = useMemo(() => {
+    const valores = Array.from(mapaPromedios15Dias.values()).filter((v) => v > 0);
+    if (valores.length === 0) return 185;
+    return Math.round(valores.reduce((a, b) => a + b, 0) / valores.length);
+  }, [mapaPromedios15Dias]);
+
   const getPromedioReal15Dias = (fincaId: number, f?: any): number => {
     if (mapaPromedios15Dias.has(fincaId)) {
       return mapaPromedios15Dias.get(fincaId)!;
     }
-    return f?.promedioLitrosDiarios || f?.ultimoLitros || 0;
+    const directo = Number(f?.promedioLitrosDiarios || f?.ultimoLitros || 0);
+    if (directo > 0) return directo;
+    return promedioGlobalReferencia;
   };
 
   const { data: fincas = [] } = useQuery<FincaDto[]>({
@@ -277,6 +289,7 @@ export const RutasLogisticaPage: React.FC = () => {
       return (
         f.nombre.toLowerCase().includes(term) ||
         (f.propietarioNombre && f.propietarioNombre.toLowerCase().includes(term)) ||
+        ((f as any).propietario && String((f as any).propietario).toLowerCase().includes(term)) ||
         (f.codigo && f.codigo.toLowerCase().includes(term))
       );
     });
@@ -934,7 +947,7 @@ export const RutasLogisticaPage: React.FC = () => {
                               <div className="flex-1 pr-2">
                                 <div className="font-bold text-slate-900">{f.nombre}</div>
                                 <div className="text-[11px] text-slate-500 flex items-center gap-2">
-                                  <span>{f.propietarioNombre || 'Sin propietario'}</span>
+                                  <span>{(f as any).propietario || f.propietarioNombre || 'Productor'}</span>
                                   <span className="font-semibold text-emerald-700">~{lts} Lts/d</span>
                                 </div>
                               </div>
@@ -962,14 +975,37 @@ export const RutasLogisticaPage: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Buscador de fincas */}
+                    {/* Buscador de fincas con soporte de flechas y Enter */}
                     <div className="relative mb-2">
                       <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
                       <input
                         type="text"
                         value={busquedaFincasModal}
-                        onChange={(e) => setBusquedaFincasModal(e.target.value)}
-                        placeholder="Buscar finca por nombre o productor..."
+                        onChange={(e) => {
+                          setBusquedaFincasModal(e.target.value);
+                          setFocusedFincaIndex(0);
+                        }}
+                        onKeyDown={(e) => {
+                          const total = fincasEnModal.disponibles.length;
+                          if (total === 0) return;
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setFocusedFincaIndex((prev) => (prev + 1) % total);
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setFocusedFincaIndex((prev) => (prev - 1 + total) % total);
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const targetFinca =
+                              fincasEnModal.disponibles[focusedFincaIndex] ||
+                              fincasEnModal.disponibles[0];
+                            if (targetFinca) {
+                              agregarFincaSeleccionada(targetFinca.id);
+                              setFocusedFincaIndex(0);
+                            }
+                          }
+                        }}
+                        placeholder="Buscar finca (Usa ↑↓ y Enter para agregar)..."
                         className="form-input w-full pl-8 h-8 text-xs bg-white"
                       />
                     </div>
@@ -980,18 +1016,24 @@ export const RutasLogisticaPage: React.FC = () => {
                           No se encontraron fincas disponibles con ese criterio de búsqueda.
                         </div>
                       ) : (
-                        fincasEnModal.disponibles.map((f) => {
+                        fincasEnModal.disponibles.map((f, idx) => {
                           const lts = getPromedioReal15Dias(f.id, f);
                           const tieneOtraRuta = f.rutaId && f.rutaId !== modoEdicionId;
+                          const isFocused = idx === focusedFincaIndex;
                           return (
                             <div
                               key={f.id}
-                              className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-xs"
+                              onMouseEnter={() => setFocusedFincaIndex(idx)}
+                              className={`flex items-center justify-between p-2 rounded-lg border transition-all text-xs ${
+                                isFocused
+                                  ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-400'
+                                  : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50/30'
+                              }`}
                             >
                               <div className="flex-1 pr-2">
                                 <div className="font-semibold text-slate-900">{f.nombre}</div>
                                 <div className="text-[11px] text-slate-500 flex items-center gap-2">
-                                  <span>{f.propietarioNombre || 'Sin propietario'}</span>
+                                  <span>{(f as any).propietario || f.propietarioNombre || 'Productor'}</span>
                                   <span className="font-medium text-slate-600">~{lts} Lts/d</span>
                                   {tieneOtraRuta && (
                                     <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded border border-amber-200">
@@ -1003,7 +1045,11 @@ export const RutasLogisticaPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => agregarFincaSeleccionada(f.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white rounded-md text-xs font-bold transition-all cursor-pointer"
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                                  isFocused
+                                    ? 'bg-blue-600 text-white shadow-2xs'
+                                    : 'bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white'
+                                }`}
                               >
                                 <PlusCircle className="w-3.5 h-3.5" />
                                 Agregar

@@ -20,17 +20,24 @@ namespace Transporte.API.Controllers
     [Authorize]
     public class ImportacionDataController : ControllerBase
     {
-        private readonly string _connectionString;
+        private readonly IConfiguration _configuration;
+        private readonly Transporte.Core.Interfaces.ITenantService? _tenantService;
         private readonly ICatalogosRepository _catalogosRepository;
 
         public ImportacionDataController(IConfiguration configuration, ICatalogosRepository catalogosRepository, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
-            _connectionString = tenantService?.GetConnectionString() ?? configuration.GetConnectionString("DefaultConnection") 
-                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            _configuration = configuration;
             _catalogosRepository = catalogosRepository;
+            _tenantService = tenantService;
         }
 
-        private IDbConnection CreateConnection() => new SqlConnection(_connectionString);
+        private IDbConnection CreateConnection()
+        {
+            string rawConn = _tenantService?.GetConnectionString() 
+                ?? _configuration.GetConnectionString("DefaultConnection") 
+                ?? "Server=127.0.0.1,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
+            return new SqlConnection(Transporte.API.Multitenancy.TenantService.AdjustConnectionStringForEnvironment(rawConn));
+        }
 
         private int GetUserId()
         {

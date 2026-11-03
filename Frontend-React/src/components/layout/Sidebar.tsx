@@ -128,15 +128,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     return grp.items.some(it => location.pathname === it.href);
   };
 
-  // Estado para contraer/achicar menú lateral en pantallas pequeñas
-  const [isCollapsed, setIsCollapsed] = useState(() => {
+  // Estado para contraer/achicar menú lateral
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 1280;
     }
     return false;
   });
 
-  // Estado para colapsar manualmente con clic
+  // Estado para colapsar manualmente con clic en vista normal
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const toggleGroup = (groupId: string) => {
@@ -148,12 +148,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   return (
     <aside
-      className={`sidebar hover-accordion-sidebar ${isOpen ? 'mobile-open' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}
+      className={`sidebar ${isOpen ? 'mobile-open' : ''} ${isSidebarCollapsed ? 'is-collapsed' : 'hover-accordion-sidebar'}`}
       id="mainSidebar"
       style={{
-        width: isCollapsed ? '68px' : '230px',
-        minWidth: isCollapsed ? '68px' : '230px',
-        maxWidth: isCollapsed ? '68px' : '230px',
+        width: isSidebarCollapsed ? '68px' : '230px',
+        minWidth: isSidebarCollapsed ? '68px' : '230px',
+        maxWidth: isSidebarCollapsed ? '68px' : '230px',
         flexShrink: 0,
         height: '100%',
         overflowY: 'auto',
@@ -161,17 +161,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       }}
     >
       {/* Botón para achicar/expandir menú lateral */}
-      <div style={{ display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'flex-end', padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <button
           type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          title={isCollapsed ? 'Expandir menú lateral' : 'Achicar menú lateral'}
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          title={isSidebarCollapsed ? 'Expandir menú lateral' : 'Achicar menú lateral'}
           style={{
             background: 'rgba(255,255,255,0.06)',
             border: '1px solid rgba(255,255,255,0.1)',
             color: '#94a3b8',
             borderRadius: '6px',
-            padding: '3px 7px',
+            padding: isSidebarCollapsed ? '6px' : '4px 8px',
             cursor: 'pointer',
             fontSize: '11px',
             display: 'flex',
@@ -179,34 +179,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             gap: '4px'
           }}
         >
-          <i className={`fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
-          {!isCollapsed && <span style={{ fontSize: '10.5px', fontWeight: 600 }}>Achicar</span>}
+          <i className={`fa-solid ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
+          {!isSidebarCollapsed && <span style={{ fontSize: '10.5px', fontWeight: 600 }}>Achicar</span>}
         </button>
       </div>
+
       <nav className="sidebar-nav">
-        {groups.map((grp) => {
-          const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
-          if (visibleItems.length === 0) return null;
+        {isSidebarCollapsed ? (
+          /* MODO ACHICADO (68px): Íconos limpios, centrados con tooltip nativo, sin acordeón ni brinco de hover */
+          <div className="flex flex-col items-center py-2 space-y-1">
+            {groups.map((grp, grpIdx) => {
+              const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
+              if (visibleItems.length === 0) return null;
 
-          const groupActive = isGroupActive(grp);
-          const isCollapsed = collapsedGroups[grp.id] === true;
-          const groupClasses = [
-            'nav-accordion-group',
-            groupActive ? 'has-active' : '',
-            isCollapsed ? 'collapsed' : (groupActive ? 'open' : ''),
-          ].filter(Boolean).join(' ');
-
-          return (
-            <div key={grp.id} className={groupClasses} id={grp.id}>
-              <div className="nav-accordion-header" onClick={() => toggleGroup(grp.id)}>
-                <div className="header-main">
-                  <i className={`${grp.iconClass} group-icon ${grp.groupIconClass}`}></i>
-                  {!isCollapsed && <span className="group-title">{grp.title}</span>}
-                </div>
-                {!isCollapsed && <i className="fa-solid fa-chevron-right group-chevron"></i>}
-              </div>
-              <div className="nav-accordion-body">
-                <div className="accordion-subitems">
+              return (
+                <div key={grp.id} className="w-full flex flex-col items-center">
+                  {grpIdx > 0 && (
+                    <div className="w-8 h-[1px] bg-white/10 my-1.5" />
+                  )}
                   {visibleItems.map((item) => (
                     <NavLink
                       key={item.href}
@@ -214,26 +204,75 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       onClick={() => {
                         if (isOpen) onClose();
                       }}
-                      title={item.name}
+                      title={`${grp.title}: ${item.name}`}
                       className={({ isActive }) =>
-                        isActive ? 'nav-item active' : 'nav-item'
+                        `w-10 h-10 my-0.5 flex items-center justify-center rounded-xl transition-all duration-150 ${
+                          isActive
+                            ? 'bg-blue-600 text-white shadow-md font-bold'
+                            : 'text-slate-400 hover:text-white hover:bg-white/10'
+                        }`
                       }
                     >
-                      <i className={item.icon} style={item.color ? { color: item.color } : undefined}></i>
-                      {!isCollapsed && <span>{item.name}</span>}
+                      <i className={`${item.icon} text-[15px]`} style={item.color ? { color: item.color } : undefined}></i>
                     </NavLink>
                   ))}
                 </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* MODO EXPANDIDO: Acordeón normal interactivo */
+          groups.map((grp) => {
+            const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
+            if (visibleItems.length === 0) return null;
+
+            const groupActive = isGroupActive(grp);
+            const isGroupCollapsed = collapsedGroups[grp.id] === true;
+            const groupClasses = [
+              'nav-accordion-group',
+              groupActive ? 'has-active' : '',
+              isGroupCollapsed ? 'collapsed' : (groupActive ? 'open' : ''),
+            ].filter(Boolean).join(' ');
+
+            return (
+              <div key={grp.id} className={groupClasses} id={grp.id}>
+                <div className="nav-accordion-header" onClick={() => toggleGroup(grp.id)}>
+                  <div className="header-main">
+                    <i className={`${grp.iconClass} group-icon ${grp.groupIconClass}`}></i>
+                    <span className="group-title">{grp.title}</span>
+                  </div>
+                  <i className="fa-solid fa-chevron-right group-chevron"></i>
+                </div>
+                <div className="nav-accordion-body">
+                  <div className="accordion-subitems">
+                    {visibleItems.map((item) => (
+                      <NavLink
+                        key={item.href}
+                        to={item.href}
+                        onClick={() => {
+                          if (isOpen) onClose();
+                        }}
+                        title={item.name}
+                        className={({ isActive }) =>
+                          isActive ? 'nav-item active' : 'nav-item'
+                        }
+                      >
+                        <i className={item.icon} style={item.color ? { color: item.color } : undefined}></i>
+                        <span>{item.name}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </nav>
 
       <div className="sidebar-footer">
         <div className="connection-status">
           <span className="status-dot online"></span>
-          {!isCollapsed && <span>Sistema Conectado</span>}
+          {!isSidebarCollapsed && <span>Sistema Conectado</span>}
         </div>
       </div>
     </aside>

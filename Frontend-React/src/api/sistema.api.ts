@@ -87,11 +87,20 @@ export const sistemaApi = {
     return res.data;
   },
 
-  getReporteDiarios: async (fechaInicio: string, fechaFin: string, choferId?: number): Promise<any[]> => {
+  getReporteDiarios: async (fechaInicio: string, fechaFin: string, choferId?: number): Promise<any> => {
     const params: Record<string, any> = { fechaInicio, fechaFin };
     if (choferId) params.choferId = choferId;
-    const res = await apiClient.get<any[]>('/reportes/diarios', { params });
-    return Array.isArray(res.data) ? res.data : [];
+    const res = await apiClient.get<any>('/reportes/diarios', { params });
+    return res.data || {
+      diarioRutas: [],
+      totalDiarioRutas: 0,
+      diarioReceptorias: [],
+      totalDiarioReceptorias: 0,
+      diarioTransporteRutas: [],
+      totalDiarioTransporteRutas: 0,
+      diarioTransporteReceptorias: [],
+      totalDiarioTransporteReceptorias: 0,
+    };
   },
 
   getReporteReceptorias: async (fechaInicio: string, fechaFin: string, companiaId?: number): Promise<any[]> => {
@@ -102,10 +111,173 @@ export const sistemaApi = {
   },
 
   getReporteFincas: async (fechaInicio: string, fechaFin: string, fincaIds?: string): Promise<any[]> => {
-    const params: Record<string, any> = { fechaInicio, fechaFin };
-    if (fincaIds) params.fincaIds = fincaIds;
-    const res = await apiClient.get<any[]>('/reportes/fincas', { params });
-    return Array.isArray(res.data) ? res.data : [];
+    try {
+      const [rutasRes, fincasRes, bcvRes, adelantosRes] = await Promise.all([
+        apiClient.get<any[]>('/rutas/hoy', { params: { fechaInicio, fechaFin } }).catch(() => ({ data: [] })),
+        apiClient.get<any[]>('/catalogos/fincas').catch(() => ({ data: [] })),
+        apiClient.get<any>('/bcv/actual').catch(() => ({ data: { tasaDolarBs: 889.5754 } })),
+        apiClient.get<any[]>('/adelantos', { params: { tipoEntidad: 'FINCA' } }).catch(() => ({ data: [] })),
+      ]);
+
+      const rutas = Array.isArray(rutasRes.data) ? rutasRes.data : [];
+      const fincas = Array.isArray(fincasRes.data) ? fincasRes.data : [];
+      const tasaBcv = Number(bcvRes.data?.tasaDolarBs || bcvRes.data?.tasa || 889.5754);
+      const adelantos = Array.isArray(adelantosRes.data) ? adelantosRes.data : [];
+
+      const filtroIds = fincaIds
+        ? fincaIds
+            .split(',')
+            .map((x) => Number(x.trim()))
+            .filter((n) => n > 0)
+        : [];
+
+      const fincasMap = new Map<number, any>();
+      fincas.forEach((f: any) => fincasMap.set(Number(f.id), f));
+
+      // Agrupar recolecciones por fincaId
+      const recoleccionesPorFinca = new Map<number, any[]>();
+      rutas.forEach((r: any) => {
+        const fId = Number(r.fincaId);
+        if (!fId || fId === 68) return;
+        if (filtroIds.length > 0 && !filtroIds.includes(fId)) return;
+        const arr = recoleccionesPorFinca.get(fId) || [];
+        arr.push(r);
+        recoleccionesPorFinca.set(fId, arr);
+      });
+
+      const resultado: any[] = [];
+      const idsToProcess =
+        filtroIds.length > 0 ? filtroIds : Array.from(recoleccionesPorFinca.keys());
+
+      idsToProcess.forEach((fId) => {
+        const recs = recoleccionesPorFinca.get(fId) || [];
+        if (recs.length === 0) return;
+
+        const fincaInfo = fincasMap.get(fId) || {};
+        const nombre = fincaInfo.nombre || recs[0]?.fincaNombre || `Finca #${fId}`;
+        const propietario = fincaInfo.propietario || fincaInfo.propietarioNombre || recs[0]?.propietario || '';
+        const cedulaRIF = fincaInfo.cedulaRIF || '';
+        const precioLitroUSD = Number(fincaInfo.precioLitroUSD || recs[0]?.precioLitroUSD || 0.82);
+        const precioLitroAcidaUSD = Number(fincaInfo.precioLitroAcidaUSD || 0);
+        const precioBufalaLitroUSD = Number(fincaInfo.precioBufalaLitroUSD || 0);
+        const tieneDosTipos = Boolean(fincaInfo.tieneDosTiposLeche);
+
+        const detalle = recs.map((r: any) => {
+          const fechaStr = r.fecha ? String(r.fecha).split('T')[0] : '';
+          const litros = Number(r.litros || 0);
+          const esAcida = Boolean(r.esAcida);
+          const tipoLeche = String(r.tipoLeche || 'VACA').toUpperCase();
+          const precioAplicado = esAcida
+            ? precioLitroAcidaUSD
+            : tipoLeche === 'BUFALA' && precioBufalaLitroUSD > 0
+            ? precioBufalaLitroUSD
+            : Number(r.precioLitroUSD || precioLitroUSD);
+
+          return {
+            fecha: fechaStr,
+            litros,
+            esAcida,
+            tipoLeche,
+            precioLitroUSDAplicado: precioAplicado,
+            observacion: r.observacion || '',
+            choferNombre: r.conductorNombre || '',
+            entidadNombre: nombre,
+          };
+        });
+
+        // Adelantos de la finca
+        const adelantosFinca = adelantos.filter(
+          (a: any) =>
+            Number(a.entidadId || a.fincaId) === fId &&
+            a.estado !== 'ANULADO' &&
+            a.estado !== 'PAGADO'
+        );
+        const totalAdelantosUSD = adelantosFinca.reduce(
+          (acc: number, a: any) => acc + Number(a.montoCuotaUSD || a.saldoPendienteUSD || 0),
+          0
+        );
+        const totalAdelantosBs = totalAdelantosUSD * tasaBcv;
+
+        if (tieneDosTipos) {
+          const detVaca = detalle.filter((d) => d.tipoLeche !== 'BUFALA');
+          const detBufala = detalle.filter((d) => d.tipoLeche === 'BUFALA');
+
+          if (detVaca.length > 0 || detBufala.length === 0) {
+            const totalLitros = detVaca.reduce((acc, d) => acc + d.litros, 0);
+            const totalUSD = detVaca.reduce((acc, d) => acc + d.litros * d.precioLitroUSDAplicado, 0);
+            resultado.push({
+              id: fId,
+              nombre: `${nombre} (Vaca)`,
+              propietario,
+              cedulaRIF,
+              tipoServicioId: fincaInfo.tipoServicioId || 1,
+              tipoServicioNombre: fincaInfo.tipoServicioNombre || 'RUTA',
+              precioLitroUSD,
+              precioLitroAcidaUSD,
+              tasaBcv,
+              detalle: detVaca,
+              totalLitros,
+              totalUSD,
+              totalBs: totalUSD * tasaBcv,
+              totalAdelantosUSD,
+              totalAdelantosBs,
+              esPagado: false,
+            });
+          }
+
+          if (detBufala.length > 0) {
+            const totalLitros = detBufala.reduce((acc, d) => acc + d.litros, 0);
+            const totalUSD = detBufala.reduce((acc, d) => acc + d.litros * d.precioLitroUSDAplicado, 0);
+            resultado.push({
+              id: fId,
+              nombre: `${nombre} (Búfala)`,
+              propietario,
+              cedulaRIF,
+              tipoServicioId: fincaInfo.tipoServicioId || 1,
+              tipoServicioNombre: fincaInfo.tipoServicioNombre || 'RUTA',
+              precioLitroUSD: precioBufalaLitroUSD > 0 ? precioBufalaLitroUSD : precioLitroUSD,
+              precioLitroAcidaUSD,
+              tasaBcv,
+              detalle: detBufala,
+              totalLitros,
+              totalUSD,
+              totalBs: totalUSD * tasaBcv,
+              totalAdelantosUSD: 0,
+              totalAdelantosBs: 0,
+              esPagado: false,
+            });
+          }
+        } else {
+          const totalLitros = detalle.reduce((acc, d) => acc + d.litros, 0);
+          const totalUSD = detalle.reduce((acc, d) => acc + d.litros * d.precioLitroUSDAplicado, 0);
+          resultado.push({
+            id: fId,
+            nombre,
+            propietario,
+            cedulaRIF,
+            tipoServicioId: fincaInfo.tipoServicioId || 1,
+            tipoServicioNombre: fincaInfo.tipoServicioNombre || 'RUTA',
+            precioLitroUSD,
+            precioLitroAcidaUSD,
+            tasaBcv,
+            detalle,
+            totalLitros,
+            totalUSD,
+            totalBs: totalUSD * tasaBcv,
+            totalAdelantosUSD,
+            totalAdelantosBs,
+            esPagado: false,
+          });
+        }
+      });
+
+      if (filtroIds.length === 0) {
+        resultado.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+      }
+      return resultado;
+    } catch {
+      return [];
+    }
   },
 
   getReporteChoferes: async (fechaInicio: string, fechaFin: string, choferId?: number): Promise<any[]> => {
@@ -158,4 +330,3 @@ export const sistemaApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 };
-

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 import { sistemaApi } from '@/api/sistema.api';
@@ -87,6 +88,15 @@ export const ReportesPage: React.FC = () => {
   });
 
   const datosLista = useMemo(() => {
+    if (tipoReporte === 'DIARIOS' && datosReporte && !Array.isArray(datosReporte)) {
+      const d = datosReporte as any;
+      const filas: any[] = [];
+      (d.diarioRutas || []).forEach((r: any) => filas.push({ seccion: 'DIARIO RUTAS', fecha: r.fecha, litros: r.litros }));
+      (d.diarioReceptorias || []).forEach((r: any) => filas.push({ seccion: 'DIARIO RECEPTORIAS', fecha: r.fecha, litros: r.litros }));
+      (d.diarioTransporteRutas || []).forEach((r: any) => filas.push({ seccion: 'DIARIO TRANSPORTE RUTAS', fecha: r.fecha, litros: r.litros }));
+      (d.diarioTransporteReceptorias || []).forEach((r: any) => filas.push({ seccion: 'DIARIO TRANSPORTE RECEPTORIAS', fecha: r.fecha, litros: r.litros }));
+      return filas;
+    }
     if (!Array.isArray(datosReporte)) return [];
     if (tipoReporte === 'CHOFERES' && choferId) {
       return datosReporte.filter(
@@ -799,13 +809,108 @@ export const ReportesPage: React.FC = () => {
       </div>
 
       {/* TABLA PRINCIPAL DEL REPORTE */}
-      <DataTable
-        data={datosLista}
-        columns={columns}
-        isLoading={isLoading || isFetching}
-        searchPlaceholder={`Buscar en ${reporteActual.label}...`}
-        exportFileName={`Reporte_${tipoReporte}_${fechaInicio}_al_${fechaFin}`}
-      />
+      {tipoReporte === 'DIARIOS' && datosReporte && !Array.isArray(datosReporte) ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={exportarExcel}
+              className="btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                fontWeight: 700,
+                fontSize: '13px',
+                color: '#0f172a',
+                cursor: 'pointer',
+              }}
+            >
+              <FileSpreadsheet size={16} color="#16a34a" /> Exportar consolidado Excel
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+            {[
+              { titulo: 'DIARIO RUTAS', items: (datosReporte as any).diarioRutas || [], total: (datosReporte as any).totalDiarioRutas || 0 },
+              { titulo: 'DIARIO RECEPTORIAS', items: (datosReporte as any).diarioReceptorias || [], total: (datosReporte as any).totalDiarioReceptorias || 0 },
+              { titulo: 'DIARIO TRANSPORTE RUTAS', items: (datosReporte as any).diarioTransporteRutas || [], total: (datosReporte as any).totalDiarioTransporteRutas || 0 },
+              { titulo: 'DIARIO TRANSPORTE RECEPTORIAS', items: (datosReporte as any).diarioTransporteReceptorias || [], total: (datosReporte as any).totalDiarioTransporteReceptorias || 0 },
+            ].map((bloque) => (
+              <div
+                key={bloque.titulo}
+                style={{
+                  background: '#ffffff',
+                  border: '2px solid #0f172a',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.06)',
+                }}
+              >
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    padding: '12px 16px',
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    borderBottom: '2px solid #0f172a',
+                    color: '#0f172a',
+                    fontSize: '14px',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  {bloque.titulo}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#334155' }}>FECHA</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 800, color: '#334155' }}>LITROS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bloque.items.length === 0 ? (
+                      <tr>
+                        <td colSpan={2} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '13px', fontWeight: 600 }}>
+                          Sin datos en el período
+                        </td>
+                      </tr>
+                    ) : (
+                      bloque.items.map((d: any, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 16px', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                            {d.fecha ? new Date(d.fecha).toLocaleDateString('es-VE') : '-'}
+                          </td>
+                          <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 800, fontSize: '13px', color: '#1e40af' }}>
+                            {Number(d.litros || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                    <tr style={{ background: '#e2e8f0', fontWeight: 900, borderTop: '2px solid #0f172a' }}>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#0f172a' }}>TOTAL</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: '14px', color: '#0f172a' }}>
+                        {Number(bloque.total || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} Lts
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <DataTable
+          data={datosLista}
+          columns={columns}
+          isLoading={isLoading || isFetching}
+          searchPlaceholder={`Buscar en ${reporteActual.label}...`}
+          exportFileName={`Reporte_${tipoReporte}_${fechaInicio}_al_${fechaFin}`}
+        />
+      )}
     </div>
   );
 };

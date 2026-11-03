@@ -979,7 +979,7 @@ namespace Transporte.Infrastructure.Repositories
                     f.PrecioLitroUSD, f.PrecioLitroAcidaUSD, 
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(f.PrecioBufalaLitroUSD, 0) AS PrecioBufalaLitroUSD,
-                    ISNULL((SELECT CAST(ROUND(AVG(CAST(r.Litros AS FLOAT)), 0) AS INT) FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id AND r.Fecha >= DATEADD(day, -30, GETDATE())), 0) AS PromedioLitrosDiarios,
+                    ISNULL((SELECT CAST(ROUND(AVG(CAST(r.Litros AS FLOAT)), 0) AS INT) FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id AND r.Fecha >= DATEADD(day, -60, GETDATE())), ISNULL((SELECT CAST(ROUND(AVG(CAST(sub.Litros AS FLOAT)), 0) AS INT) FROM (SELECT TOP 15 r2.Litros FROM TB_RUTAS_RECOLECCION r2 WHERE r2.FincaId = f.Id ORDER BY r2.Fecha DESC) sub), 0)) AS PromedioLitrosDiarios,
                     ISNULL((SELECT TOP 1 r.Litros FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id ORDER BY r.Fecha DESC), 0) AS UltimoLitros,
                     f.Activo, f.IsDeleted, f.CreatedAt
                 FROM TB_FINCAS f
@@ -5209,17 +5209,18 @@ namespace Transporte.Infrastructure.Repositories
             })).ToList();
 
             var detallesPorFinca = todosDetallesRaw
-                .GroupBy(d => (int)d.FincaId)
+                .Where(d => d.FincaId != null)
+                .GroupBy(d => Convert.ToInt32(d.FincaId))
                 .ToDictionary(g => g.Key, g => g.Select(d => new ReporteDetalleItemDto
                 {
-                    Fecha = (string)d.Fecha,
+                    Fecha = d.Fecha != null ? Convert.ToString(d.Fecha)! : "",
                     Litros = d.Litros != null ? Convert.ToInt32(d.Litros) : 0,
                     EsAcida = d.EsAcida != null && Convert.ToBoolean(d.EsAcida),
-                    TipoLeche = d.TipoLeche != null ? (string)d.TipoLeche : "VACA",
+                    TipoLeche = d.TipoLeche != null ? Convert.ToString(d.TipoLeche)! : "VACA",
                     PrecioLitroUSDAplicado = d.PrecioLitroUSDAplicado != null ? Convert.ToDecimal(d.PrecioLitroUSDAplicado) : 0m,
-                    Observacion = (string?)d.Observacion,
-                    ChoferNombre = (string?)d.ChoferNombre,
-                    EntidadNombre = (string?)d.EntidadNombre
+                    Observacion = d.Observacion != null ? Convert.ToString(d.Observacion) : "",
+                    ChoferNombre = d.ChoferNombre != null ? Convert.ToString(d.ChoferNombre) : "",
+                    EntidadNombre = d.EntidadNombre != null ? Convert.ToString(d.EntidadNombre) : ""
                 }).ToList());
 
             var sqlPagosMap = @"
@@ -5229,11 +5230,12 @@ namespace Transporte.Infrastructure.Repositories
 
             var pagosRaw = (await connection.QueryAsync<dynamic>(sqlPagosMap, new { targetCicloId })).ToList();
             var pagosMap = pagosRaw
-                .GroupBy(x => (int)x.FincaId)
+                .Where(x => x.FincaId != null)
+                .GroupBy(x => Convert.ToInt32(x.FincaId))
                 .ToDictionary(g => g.Key, g => {
                     var ultimo = g.OrderByDescending(x => (DateTime?)x.FechaPago).First();
                     return new { 
-                        PagoId = (int)ultimo.PagoId, 
+                        PagoId = Convert.ToInt32(ultimo.PagoId), 
                         FechaPago = (DateTime?)ultimo.FechaPago,
                         TasaBcv = ultimo.TasaBcv != null ? (decimal?)Convert.ToDecimal(ultimo.TasaBcv) : null,
                         TotalBrutoBs = g.Sum(x => x.TotalBrutoBs != null ? Convert.ToDecimal(x.TotalBrutoBs) : 0m),
@@ -5273,21 +5275,22 @@ namespace Transporte.Infrastructure.Repositories
                 tasaActual 
             })).ToList();
             var adelantosFincasMap = adelantosRaw
-                .GroupBy(x => (int)x.FincaId)
+                .Where(x => x.FincaId != null)
+                .GroupBy(x => Convert.ToInt32(x.FincaId))
                 .ToDictionary(
                     g => g.Key, 
                     g => new { 
                         TotalAdelantosBs = g.Sum(x => x.TotalAdelantosBs != null ? Convert.ToDecimal(x.TotalAdelantosBs) : 0m), 
                         TotalAdelantosUSD = g.Sum(x => x.TotalAdelantosUSD != null ? Convert.ToDecimal(x.TotalAdelantosUSD) : 0m), 
-                        CuotasDetalle = g.FirstOrDefault()?.CuotasDetalle != null ? (string?)g.FirstOrDefault()?.CuotasDetalle : null 
+                        CuotasDetalle = g.FirstOrDefault()?.CuotasDetalle != null ? Convert.ToString(g.FirstOrDefault()?.CuotasDetalle) : null 
                     });
 
             foreach (var finca in fincas)
             {
-                int id = (int)finca.Id;
-                string nombre = (string)finca.Nombre;
-                string? prop = (string?)finca.Propietario;
-                string? rif = (string?)finca.CedulaRIF;
+                int id = Convert.ToInt32(finca.Id);
+                string nombre = Convert.ToString(finca.Nombre) ?? "";
+                string? prop = Convert.ToString(finca.Propietario);
+                string? rif = Convert.ToString(finca.CedulaRIF);
                 decimal precio = Convert.ToDecimal(finca.PrecioLitroUSD ?? 0m);
                 decimal precioAcida = Convert.ToDecimal(finca.PrecioLitroAcidaUSD ?? 0m);
                 bool tieneDosTipos = finca.TieneDosTiposLeche != null && Convert.ToBoolean(finca.TieneDosTiposLeche);
