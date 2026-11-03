@@ -18,7 +18,7 @@ export const LoginPage: React.FC = () => {
   // Detección visual de empresa según subdominio/dominio
   const hostname = window.location.hostname.toLowerCase();
   const empresaNombre = hostname.includes('campoverde') 
-    ? 'Quesera Campo Verde' 
+    ? 'Productos Lácteos Campo Verde' 
     : 'Transporte & Lácteos Base';
 
   // Si ya está autenticado, redirigir al inicio
