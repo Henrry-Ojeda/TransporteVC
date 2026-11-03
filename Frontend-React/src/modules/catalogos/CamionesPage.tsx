@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type { CamionDto, GuardarCamionDto, ChoferDto } from '@/types';
 
 export const CamionesPage: React.FC = () => {
@@ -440,21 +441,19 @@ export const CamionesPage: React.FC = () => {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Chofer Habitual
+                    Chofer Habitual <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
-                  <select
-                    value={form.usuarioId || ''}
-                    onChange={(e) => setForm({ ...form, usuarioId: e.target.value ? Number(e.target.value) : undefined })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px' }}
-                  >
-                    <option value="">-- Sin chofer asignado --</option>
-                    {choferes.map((ch) => (
-                      <option key={ch.id} value={ch.id}>
-                        {ch.nombreCompleto} ({ch.cedula})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={choferes.map((ch) => ({
+                      value: ch.id,
+                      label: ch.nombreCompleto,
+                      subLabel: `Cédula: ${ch.cedula}`,
+                    }))}
+                    value={form.usuarioId}
+                    onChange={(val) => setForm({ ...form, usuarioId: val ? Number(val) : undefined })}
+                    placeholder="-- Seleccionar o buscar chofer --"
+                    searchPlaceholder="Buscar chofer por nombre o cédula..."
+                  />
                 </div>
               </div>
 

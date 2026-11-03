@@ -5,6 +5,7 @@ import apiClient from '@/api/client';
 import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type { ControlRutaDto, FincaDto, CamionDto } from '@/types';
 
 interface RutaDetalleFinca {
@@ -556,22 +557,19 @@ export const RecoleccionRutasPage: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Finca Ganadera *
+                    Finca Ganadera * <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
-                  <select
-                    value={formFinca.fincaId}
-                    onChange={(e) => setFormFinca({ ...formFinca, fincaId: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px' }}
-                    required
-                  >
-                    <option value="0">Seleccionar finca...</option>
-                    {fincas.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.nombre} ({f.propietarioNombre || 'Sin propietario'})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={fincas.map((f) => ({
+                      value: f.id,
+                      label: f.nombre,
+                      subLabel: f.propietarioNombre ? `Ganadero: ${f.propietarioNombre}` : 'Sin propietario',
+                    }))}
+                    value={formFinca.fincaId || undefined}
+                    onChange={(val) => setFormFinca({ ...formFinca, fincaId: Number(val || 0) })}
+                    placeholder="-- Seleccionar o buscar finca --"
+                    searchPlaceholder="Buscar finca por nombre o propietario..."
+                  />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -716,22 +714,19 @@ export const RecoleccionRutasPage: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Unidad Cisterna *
+                    Unidad Cisterna * <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
-                  <select
-                    value={formIniciar.camionId}
-                    onChange={(e) => setFormIniciar({ ...formIniciar, camionId: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px' }}
-                    required
-                  >
-                    <option value="0">Seleccionar camión...</option>
-                    {camiones.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.placa} ({c.marca || 'Cisterna'})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={camiones.map((c) => ({
+                      value: c.id,
+                      label: `${c.placa} - ${c.marca || 'Cisterna'}`,
+                      subLabel: c.choferNombre ? `Chofer: ${c.choferNombre}` : `Capacidad: ${c.capacidadLitros} Lts`,
+                    }))}
+                    value={formIniciar.camionId || undefined}
+                    onChange={(val) => setFormIniciar({ ...formIniciar, camionId: Number(val || 0) })}
+                    placeholder="-- Seleccionar o buscar camión cisterna --"
+                    searchPlaceholder="Buscar por placa o marca..."
+                  />
                 </div>
 
                 <div>

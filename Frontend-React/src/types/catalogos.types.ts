@@ -7,6 +7,9 @@ export interface FincaDto {
   rutaId?: number;
   rutaNombre?: string;
   precioLitroUSD: number;
+  precioLitroAcidaUSD?: number;
+  tieneDosTiposLeche?: boolean;
+  precioBufalaLitroUSD?: number;
   tipoLeche?: string; // VACA, BUFALA
   telefono?: string;
   ubicacion?: string;
@@ -23,6 +26,9 @@ export interface GuardarFincaDto {
   propietarioId?: number;
   rutaId?: number;
   precioLitroUSD: number;
+  precioLitroAcidaUSD?: number;
+  tieneDosTiposLeche?: boolean;
+  precioBufalaLitroUSD?: number;
   tipoLeche?: string;
   telefono?: string;
   ubicacion?: string;
