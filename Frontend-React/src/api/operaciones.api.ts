@@ -143,6 +143,32 @@ export const operacionesApi = {
     return res.data;
   },
 
+  // GESTIÓN OPERATIVA DE VIAJES / TICKETS
+  enviarAReceptoria: async (id: number, observacion?: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/controlrutas/${id}/enviar-receptoria`, { observacion });
+    return res.data;
+  },
+
+  enviarACompania: async (id: number, dto: { companiaId?: number; choferId?: number; litrosDespachados?: number; observacion?: string; destinos?: { companiaId: number; litros: number; tipoLeche: string }[] }): Promise<{ success: boolean; message: string; controlCompaniaId?: number }> => {
+    const res = await apiClient.post(`/controlrutas/${id}/enviar-compania`, dto);
+    return res.data;
+  },
+
+  traspasarLeche: async (id: number, dto: { ticketDestinoId?: number; choferDestinoId?: number; fechaDestino?: string; litrosTraspaso?: number; observacion?: string }): Promise<any> => {
+    const res = await apiClient.post(`/controlrutas/${id}/traspasar-leche`, dto);
+    return res.data;
+  },
+
+  editarRecoleccion: async (id: number, dto: { fincaId?: number; litros?: number; tipoLeche?: string; esAcida?: boolean; observacion?: string }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.put(`/rutas/${id}`, dto);
+    return res.data;
+  },
+
+  eliminarRecoleccion: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete(`/rutas/${id}`);
+    return res.data;
+  },
+
   // BALANCE LECHE / MERMAS
   getMermasHoy: async (fechaInicio?: string, fechaFin?: string, choferId?: number): Promise<BalanceVolumetricoResumenDto> => {
     const params: Record<string, any> = {};

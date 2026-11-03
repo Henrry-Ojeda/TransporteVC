@@ -74,6 +74,7 @@ export interface CompaniaDto {
   direccion?: string;
   telefono?: string;
   contacto?: string;
+  encargado?: string;
   precioLitroUSD: number;
   activo: boolean;
 }

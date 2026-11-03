@@ -8,6 +8,7 @@ export interface ControlRutaDto {
   camionPlaca?: string;
   choferId?: number;
   choferNombre?: string;
+  procesoActualId?: number;
   rutaLogisticaId?: number;
   rutaLogisticaNombre?: string;
   rutaNombre?: string;
