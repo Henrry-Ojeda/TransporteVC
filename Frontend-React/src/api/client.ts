@@ -11,12 +11,15 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Interceptor de Solicitudes: Adjuntar Token JWT
+// Interceptor de Solicitudes: Adjuntar Token JWT y Header Multi-Inquilino
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (typeof window !== 'undefined' && config.headers) {
+      config.headers['X-Tenant-Domain'] = window.location.hostname;
     }
     return config;
   },
