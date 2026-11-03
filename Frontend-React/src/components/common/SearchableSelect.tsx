@@ -35,8 +35,23 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dropUp, setDropUp] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Detección automática de dropup para evitar que se corte al fondo del modal o ventana
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+        setDropUp(true);
+      } else {
+        setDropUp(false);
+      }
+    }
+  }, [isOpen]);
 
   // Cerrar al hacer clic fuera
   useEffect(() => {
@@ -164,15 +179,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         <div
           style={{
             position: 'absolute',
-            top: '100%',
+            ...(dropUp ? { bottom: '100%', marginBottom: '6px' } : { top: '100%', marginTop: '4px' }),
             left: 0,
             right: 0,
-            marginTop: '4px',
             backgroundColor: '#ffffff',
             border: '1px solid #cbd5e1',
             borderRadius: '8px',
-            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1)',
-            zIndex: 9999,
+            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.2), 0 8px 10px -6px rgba(15, 23, 42, 0.15)',
+            zIndex: 99999,
             overflow: 'hidden',
           }}
         >

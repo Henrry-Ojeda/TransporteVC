@@ -325,7 +325,7 @@ namespace Transporte.Infrastructure.Repositories
             var cicloId = await connection.ExecuteScalarAsync<int?>(cicloSql, new { fechaRuta });
             if (cicloId == null)
             {
-                var cicloRecienteSql = "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC";
+                var cicloRecienteSql = "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC";
                 cicloId = await connection.ExecuteScalarAsync<int?>(cicloRecienteSql);
                 if (cicloId == null)
                     throw new Exception("No existe una semana operativa activa en el sistema.");
@@ -440,7 +440,7 @@ namespace Transporte.Infrastructure.Repositories
                 var cicloId = await connection.ExecuteScalarAsync<int?>(cicloSql, new { fechaRuta }, transaction);
                 if (cicloId == null)
                 {
-                    var cicloRecienteSql = "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC";
+                    var cicloRecienteSql = "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC";
                     cicloId = await connection.ExecuteScalarAsync<int?>(cicloRecienteSql, transaction: transaction);
                     if (cicloId == null)
                         throw new Exception("No existe una semana operativa activa en el sistema.");
@@ -1910,7 +1910,7 @@ namespace Transporte.Infrastructure.Repositories
         {
             using var connection = new SqlConnection(_connectionString);
             return await connection.QueryFirstOrDefaultAsync<CicloOperativo>(
-                "SELECT TOP 1 * FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC");
+                "SELECT TOP 1 * FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC");
         }
 
         public async Task<IEnumerable<BalanceMermaDto>> ObtenerMermasHoyAsync(DateTime? fecha = null, DateTime? fechaInicio = null, DateTime? fechaFin = null, int? choferId = null)
@@ -1995,7 +1995,7 @@ namespace Transporte.Infrastructure.Repositories
             if (!listaCiclos.Any())
             {
                 var activeId = await connection.ExecuteScalarAsync<int?>(
-                    "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC");
+                    "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC");
                 if (!activeId.HasValue || activeId.Value <= 0)
                 {
                     activeId = await connection.ExecuteScalarAsync<int?>("SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS ORDER BY FechaInicio DESC");
@@ -2104,7 +2104,7 @@ namespace Transporte.Infrastructure.Repositories
                     SELECT TOP 1 Id, FechaInicio 
                     FROM TB_CICLOS_OPERATIVOS 
                     WHERE Estado = 'ABIERTO' 
-                    ORDER BY FechaInicio DESC, Id DESC
+                    ORDER BY FechaInicio ASC, Id ASC
                 ),
                 CiclosCerradosAnterioresPendientes AS (
                     SELECT DISTINCT 
@@ -2361,7 +2361,7 @@ namespace Transporte.Infrastructure.Repositories
                 if (!dto.CicloId.HasValue || dto.CicloId.Value <= 0)
                 {
                     dto.CicloId = await connection.ExecuteScalarAsync<int?>(
-                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC", transaction: transaction);
+                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC", transaction: transaction);
                 }
 
                 if (dto.CicloId.HasValue && dto.CicloId.Value > 0)
@@ -2479,7 +2479,7 @@ namespace Transporte.Infrastructure.Repositories
                 else
                 {
                     var activoId = await connection.ExecuteScalarAsync<int?>(
-                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC", transaction: transaction) ?? 0;
+                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC", transaction: transaction) ?? 0;
                     if (activoId > 0) listaCiclos.Add(activoId);
                 }
 
@@ -2581,7 +2581,7 @@ namespace Transporte.Infrastructure.Repositories
                 if (!listaCiclos.Any())
                 {
                     int defaultCiclo = await connection.ExecuteScalarAsync<int?>(
-                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC", transaction: transaction) ?? 0;
+                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC", transaction: transaction) ?? 0;
                     if (defaultCiclo > 0) listaCiclos.Add(defaultCiclo);
                 }
 
@@ -3228,7 +3228,7 @@ namespace Transporte.Infrastructure.Repositories
                 LEFT JOIN TB_RUTAS_RECOLECCION r ON c.Id = r.CicloId
                 WHERE c.Estado = 'ABIERTO'
                 GROUP BY c.Id, c.Codigo, c.FechaInicio, c.FechaFin, c.Estado, c.Observaciones, c.StockInicialTanques, c.StockFinalTanques
-                ORDER BY c.FechaInicio DESC";
+                ORDER BY c.FechaInicio ASC, c.Id ASC";
 
             return await connection.QueryFirstOrDefaultAsync<SemanaDetalleDto>(sql);
         }
@@ -3796,7 +3796,7 @@ namespace Transporte.Infrastructure.Repositories
             var cicloId = await connection.ExecuteScalarAsync<int?>(cicloSql, new { fechaEntrega });
             if (cicloId == null)
             {
-                var cicloRecienteSql = "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC";
+                var cicloRecienteSql = "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC";
                 cicloId = await connection.ExecuteScalarAsync<int?>(cicloRecienteSql);
                 if (cicloId == null)
                     throw new Exception("No existe una semana operativa activa en el sistema.");
@@ -4719,7 +4719,7 @@ namespace Transporte.Infrastructure.Repositories
             decimal tasaActual = await ObtenerTasaActualAsync(connection);
 
             int cIdActivo = await connection.ExecuteScalarAsync<int?>(
-                "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC") ?? 0;
+                "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC") ?? 0;
 
             int? cicloIdFiltro = await connection.ExecuteScalarAsync<int?>(
                 "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE @fechaInicio >= CAST(FechaInicio AS DATE) AND @fechaInicio <= CAST(FechaFin AS DATE)",
@@ -5118,7 +5118,7 @@ namespace Transporte.Infrastructure.Repositories
                 if (cId <= 0)
                 {
                     cId = await connection.ExecuteScalarAsync<int?>(
-                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC") ?? 0;
+                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC") ?? 0;
                 }
             }
 
@@ -5168,7 +5168,7 @@ namespace Transporte.Infrastructure.Repositories
                 if (cId <= 0)
                 {
                     cId = await connection.ExecuteScalarAsync<int?>(
-                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC") ?? 0;
+                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC") ?? 0;
                 }
             }
 
@@ -7504,7 +7504,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     new { fechaControl });
                 if (!cicloId.HasValue)
                     cicloId = await connection.ExecuteScalarAsync<int?>(
-                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC");
+                        "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC");
             }
 
             int diferencia = dto.TotalLitrosFinca - dto.TotalLitrosReceptoria;
@@ -7943,7 +7943,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             if (!cicloId.HasValue)
             {
                 cicloId = await connection.ExecuteScalarAsync<int?>(
-                    "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio DESC");
+                    "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC");
             }
 
             var sqlInsert = @"

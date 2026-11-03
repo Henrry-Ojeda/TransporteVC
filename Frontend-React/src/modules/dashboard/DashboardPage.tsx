@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/client';
@@ -79,6 +79,48 @@ export const DashboardPage: React.FC = () => {
     staleTime: 1000 * 60 * 15,
   });
 
+  // Selección automática por defecto de la semana operativa ACTIVA más vieja
+  useEffect(() => {
+    if (ciclos.length > 0 && !cicloSeleccionado) {
+      const activas = ciclos.filter((c: any) => {
+        const est = String(c.estado || c.Estado || '').toUpperCase();
+        return est === 'ABIERTO' || est === '1' || c.activo === true;
+      });
+
+      if (activas.length > 0) {
+        // Ordenar de la más vieja a la más nueva (la más antigua activa primero)
+        const masViejaActiva = [...activas].sort((a: any, b: any) => {
+          const tA = new Date(a.fechaInicio || a.FechaInicio || 0).getTime();
+          const tB = new Date(b.fechaInicio || b.FechaInicio || 0).getTime();
+          return tA - tB || (a.id ?? 0) - (b.id ?? 0);
+        })[0];
+        setCicloSeleccionado(masViejaActiva.id);
+      } else {
+        setCicloSeleccionado(ciclos[0]?.id);
+      }
+    }
+  }, [ciclos, cicloSeleccionado]);
+
+  // Lista de ciclos ordenada: semanas activas primero (la más vieja arriba), luego cerradas
+  const ciclosOrdenados = useMemo(() => {
+    const activas = ciclos.filter((c: any) => String(c.estado || c.Estado || '').toUpperCase() === 'ABIERTO');
+    const cerradas = ciclos.filter((c: any) => String(c.estado || c.Estado || '').toUpperCase() !== 'ABIERTO');
+
+    const activasOrd = [...activas].sort((a: any, b: any) => {
+      const tA = new Date(a.fechaInicio || a.FechaInicio || 0).getTime();
+      const tB = new Date(b.fechaInicio || b.FechaInicio || 0).getTime();
+      return tA - tB || (a.id ?? 0) - (b.id ?? 0);
+    });
+
+    const cerradasOrd = [...cerradas].sort((a: any, b: any) => {
+      const tA = new Date(a.fechaInicio || a.FechaInicio || 0).getTime();
+      const tB = new Date(b.fechaInicio || b.FechaInicio || 0).getTime();
+      return tB - tA || (b.id ?? 0) - (a.id ?? 0);
+    });
+
+    return [...activasOrd, ...cerradasOrd];
+  }, [ciclos]);
+
   // Query principal del Dashboard
   const { data: dashboardData, isLoading, refetch } = useQuery({
     queryKey: ['dashboard-data', modoDashboard, fechaFiltro, cicloSeleccionado],
@@ -113,15 +155,14 @@ export const DashboardPage: React.FC = () => {
 
   // Cálculos de RUTA vs TRANSPORTE
   const metricas = useMemo(() => {
-    // 1. RUTA
-    const rutasTipo1 = rutas.filter((r) => {
-      const s = String(r.tipoServicio || r.servicio || '').toUpperCase();
-      return s === '1' || s.includes('RUTA');
-    });
-    const entregasTipo1 = entregas.filter((e) => {
-      const s = String(e.tipoServicio || e.servicio || '').toUpperCase();
-      return s === '1' || s.includes('RUTA');
-    });
+    const esServicioTransporte = (item: any) => {
+      const val = item.tipoServicioId ?? item.TipoServicioId ?? item.tipoServicio ?? item.servicio;
+      return val === 2 || String(val) === '2' || String(val || '').toUpperCase().includes('TRANSPORTE');
+    };
+
+    // 1. RUTA (Por defecto todo es RUTA a menos que sea explícitamente TRANSPORTE = 2)
+    const rutasTipo1 = rutas.filter((r) => !esServicioTransporte(r));
+    const entregasTipo1 = entregas.filter((e) => !esServicioTransporte(e));
 
     const ltsRutaFincas = rutasTipo1.reduce((sum, r) => sum + (r.litros || r.litrosLeche || 0), 0);
     const fincasRutaCount = new Set(rutasTipo1.map((r) => r.fincaId || r.fincaNombre)).size;
@@ -131,15 +172,9 @@ export const DashboardPage: React.FC = () => {
     const mermaRutaPct = ltsRutaFincas > 0 ? (mermaRutaLitros / ltsRutaFincas) * 100 : 0;
     const ltsRutaEnTanque = Math.max(0, ltsRutaReceptoria);
 
-    // 2. TRANSPORTE
-    const rutasTipo2 = rutas.filter((r) => {
-      const s = String(r.tipoServicio || r.servicio || '').toUpperCase();
-      return s === '2' || s.includes('TRANSPORTE');
-    });
-    const entregasTipo2 = entregas.filter((e) => {
-      const s = String(e.tipoServicio || e.servicio || '').toUpperCase();
-      return s === '2' || s.includes('TRANSPORTE');
-    });
+    // 2. TRANSPORTE (TipoServicioId === 2)
+    const rutasTipo2 = rutas.filter((r) => esServicioTransporte(r));
+    const entregasTipo2 = entregas.filter((e) => esServicioTransporte(e));
 
     const ltsTranspFincas = rutasTipo2.reduce((sum, r) => sum + (r.litros || r.litrosLeche || 0), 0);
     const fincasTranspCount = new Set(rutasTipo2.map((r) => r.fincaId || r.fincaNombre)).size;
@@ -420,11 +455,16 @@ export const DashboardPage: React.FC = () => {
               onChange={(e) => setCicloSeleccionado(e.target.value ? Number(e.target.value) : undefined)}
             >
               <option value="">-- Seleccionar Semana Operativa --</option>
-              {ciclos.map((c) => (
-                <option key={c.id} value={c.id}>
-                  Semana #{c.numeroSemana} ({c.año}) {c.estado === 'ABIERTO' ? '★ [ACTIVA]' : ''}
-                </option>
-              ))}
+              {ciclosOrdenados.map((c: any) => {
+                const esActiva = String(c.estado || c.Estado || '').toUpperCase() === 'ABIERTO';
+                const semNum = c.numeroSemana || c.NumeroSemana || '';
+                const anio = c.año || c.Anio || (c.fechaInicio ? new Date(c.fechaInicio).getFullYear() : '');
+                return (
+                  <option key={c.id} value={c.id}>
+                    Semana #{semNum} ({anio}) {esActiva ? '★ [ACTIVA]' : ''}
+                  </option>
+                );
+              })}
             </select>
             <button
               type="button"
