@@ -1268,6 +1268,11 @@ namespace Transporte.Core.DTOs
         // Ruta Logística y Combustible
         public int? RutaLogisticaId { get; set; }
         public string? RutaLogisticaNombre { get; set; }
+        public List<int>? RutasLogisticasIds { get; set; }
+        public string? RutasLogisticasNombres { get; set; }
+        public int? CamionId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public int? CapacidadCamionLitros { get; set; }
         public decimal? CombustibleLitrosSalida { get; set; }
         public decimal? CombustibleLitrosLlegada { get; set; }
         public decimal? CombustibleConsumidoLitros { get; set; }
@@ -1368,6 +1373,7 @@ namespace Transporte.Core.DTOs
         public int? UsuarioId { get => ConductorId; set => ConductorId = value; }
         public int? CamionId { get; set; }
         public int? RutaLogisticaId { get; set; } // Ruta asignada (Zona Sur, etc.)
+        public List<int>? RutasLogisticasIds { get; set; } // Múltiples rutas combinadas
         public decimal? OdometroInicialKm { get; set; }
         public string? Observacion { get; set; }
         public string? Observaciones { get => Observacion; set => Observacion = value; }

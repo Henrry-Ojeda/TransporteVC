@@ -6,10 +6,13 @@ export interface ControlRutaDto {
   nombreConductor?: string;
   camionId?: number;
   camionPlaca?: string;
+  capacidadCamionLitros?: number;
   choferId?: number;
   choferNombre?: string;
   procesoActualId?: number;
   rutaLogisticaId?: number;
+  rutasLogisticasIds?: number[];
+  rutasLogisticasNombres?: string;
   rutaLogisticaNombre?: string;
   rutaNombre?: string;
   totalLitrosFinca?: number;

@@ -7732,6 +7732,9 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     pt.Icono AS IconoProceso,
                     cr.RutaLogisticaId,
                     rl.Nombre AS RutaLogisticaNombre,
+                    cam.Id AS CamionId,
+                    cam.Placa AS CamionPlaca,
+                    cam.CapacidadLitros AS CapacidadCamionLitros,
                     cr.TipoDestino,
                     cr.LitrosRecibidosReceptoria,
                     cr.DiferenciaReceptoria,
@@ -7752,6 +7755,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_COMPANIAS cp ON cr.CompaniaDestinoId = cp.Id
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
                 LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
+                LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
                 WHERE CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin
                   AND (@cicloId IS NULL OR cr.CicloId = @cicloId)
                   AND (@rol = 'ADMIN' OR cr.UsuarioId = @usuarioId)
@@ -7794,6 +7798,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_COMPANIAS cp ON cr.CompaniaDestinoId = cp.Id
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
                 LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
+                LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
                 WHERE cr.Id = @id";
             return await connection.QueryFirstOrDefaultAsync<ControlRutaDto>(sql, new { id });
         }
@@ -8273,6 +8278,21 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE Estado = 'ABIERTO' ORDER BY FechaInicio ASC, Id ASC");
             }
 
+            var primaryRutaId = dto.RutaLogisticaId;
+            var observacionFinal = dto.Observacion ?? "Viaje iniciado por el chofer";
+            if (dto.RutasLogisticasIds != null && dto.RutasLogisticasIds.Any())
+            {
+                if (!primaryRutaId.HasValue || primaryRutaId.Value <= 0)
+                {
+                    primaryRutaId = dto.RutasLogisticasIds.First();
+                }
+                var rutasTag = $"[RUTAS:{string.Join(",", dto.RutasLogisticasIds)}]";
+                if (!observacionFinal.Contains("[RUTAS:"))
+                {
+                    observacionFinal = $"{rutasTag} {observacionFinal}".Trim();
+                }
+            }
+
             var sqlInsert = @"
                 INSERT INTO TB_CONTROL_RUTAS
                 (Fecha, UsuarioId, CicloId, TotalLitrosFinca, TotalLitrosReceptoria, DiferenciaLitros, PorcentajeMerma, Estado, ProcesoActualId, RutaLogisticaId, Observacion, CreatedAt, CreatedBy)
@@ -8282,8 +8302,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             var nuevoId = await connection.ExecuteScalarAsync<long>(sqlInsert, new
             {
                 fecha, conductorEfectivo, cicloId, 
-                rutaLogisticaId = dto.RutaLogisticaId,
-                observacion = dto.Observacion ?? "Viaje iniciado por el chofer", usuarioId
+                rutaLogisticaId = primaryRutaId,
+                observacion = observacionFinal, usuarioId
             });
 
             // Registrar en historial inicial
