@@ -301,42 +301,182 @@ export const RutasLogisticaPage: React.FC = () => {
     },
   ];
 
+  // Resumen ejecutivo de rutas y cobertura
+  const resumenRutas = useMemo(() => {
+    const totalRutas = rutas.length;
+    const fincasAsignadas = fincas.filter((f) => f.rutaId != null && f.rutaId > 0).length;
+    const volumenEstimadoTotal = fincas.reduce((acc, f) => {
+      if (f.rutaId) {
+        return acc + (f.promedioLitrosDiarios || f.ultimoLitros || 250);
+      }
+      return acc;
+    }, 0);
+    const rutasConCamion = rutas.filter((r) => r.camionPredeterminadoId != null && r.camionPredeterminadoId > 0).length;
+    const porcentajeCobertura = totalRutas > 0 ? Math.round((rutasConCamion / totalRutas) * 100) : 0;
+
+    return {
+      totalRutas,
+      fincasAsignadas,
+      volumenEstimadoTotal,
+      rutasConCamion,
+      porcentajeCobertura,
+    };
+  }, [rutas, fincas]);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* HEADER DE PLANIFICACIÓN DE RUTAS 1:1 */}
+      <div className="view-header">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Recolección en Ruta</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-              Circuitos de Transporte
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span
+              className="badge"
+              style={{
+                background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '4px 10px',
+                borderRadius: '20px',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <RouteIcon className="w-3.5 h-3.5 inline mr-1" /> Circuitos de Transporte
+            </span>
+            <span
+              className="badge"
+              style={{
+                background: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #a7f3d0',
+                fontWeight: 800,
+                fontSize: '11px',
+                padding: '4px 10px',
+                borderRadius: '20px',
+              }}
+            >
+              {resumenRutas.totalRutas} Rutas Planificadas
             </span>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Definición de rutas fijas de recolección de leche, asignación de fincas asociadas y vehículos de carga.
+
+          <h1 className="view-title">
+            <RouteIcon className="inline-block text-blue-600 mr-2 w-6 h-6" />
+            Planificación de Rutas Logísticas
+          </h1>
+          <p className="view-subtitle">
+            Definición de circuitos lecheros, vinculación de fincas ganaderas y asignación logística flexible de cisternas y conductores.
           </p>
         </div>
 
-        <button
-          onClick={abrirModalCrear}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors shadow-sm cursor-pointer"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Nueva Ruta
-        </button>
+        <div className="view-actions">
+          <button
+            type="button"
+            onClick={abrirModalCrear}
+            className="btn btn-primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 700,
+              borderRadius: '10px',
+              padding: '9px 18px',
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              border: 'none',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+              color: '#ffffff',
+              cursor: 'pointer',
+            }}
+          >
+            <PlusCircle className="w-4 h-4" />
+            Nueva Ruta
+          </button>
+        </div>
       </div>
 
-      {/* Tabla */}
+      {/* TARJETAS KPI RESUMEN DE PLANIFICACIÓN */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+              Rutas Activas
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+              <RouteIcon className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
+            {resumenRutas.totalRutas}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Circuitos lecheros registrados
+          </div>
+        </div>
+
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>
+              Fincas en Circuito
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+              <Landmark className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', fontFamily: 'monospace' }}>
+            {resumenRutas.fincasAsignadas} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>de {fincas.length}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Fincas con recolección planificada
+          </div>
+        </div>
+
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>
+              Volumen Estimado Día
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+              <Layers className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#0284c7', fontFamily: 'monospace' }}>
+            {resumenRutas.volumenEstimadoTotal.toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Lts/d</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Capacidad proyectada total
+          </div>
+        </div>
+
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#d97706', textTransform: 'uppercase' }}>
+              Cisternas Asignadas
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(217, 119, 6, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+              <Truck className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#d97706', fontFamily: 'monospace' }}>
+            {resumenRutas.rutasConCamion} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>({resumenRutas.porcentajeCobertura}%)</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            {resumenRutas.totalRutas - resumenRutas.rutasConCamion} sin cisterna fija (Opcional)
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla con Librería DataTable */}
       <DataTable
         data={rutas}
         columns={columns}
         isLoading={isLoading}
-        searchPlaceholder="Buscar por nombre de ruta o camión..."
-        exportFileName="rutas_recoleccion"
+        searchPlaceholder="Buscar por nombre de ruta, camión o chofer..."
+        exportFileName="planificacion_rutas_logisticas"
         searchFilter={(row, term) =>
           Boolean(
             row.nombre.toLowerCase().includes(term) ||
-            (row.camionPlaca && row.camionPlaca.toLowerCase().includes(term))
+            (row.camionPlaca && row.camionPlaca.toLowerCase().includes(term)) ||
+            (row.choferNombre && row.choferNombre.toLowerCase().includes(term))
           )
         }
       />
@@ -410,14 +550,6 @@ export const RutasLogisticaPage: React.FC = () => {
                   Swal.fire({ icon: 'warning', title: 'Campo Requerido', text: 'El nombre de la ruta es obligatorio', confirmButtonColor: '#2563eb' });
                   return;
                 }
-                if (!form.camionPredeterminadoId) {
-                  Swal.fire({ icon: 'warning', title: 'Camión Requerido', text: 'No es opcional: debes asignar un camión cisterna a la ruta.', confirmButtonColor: '#2563eb' });
-                  return;
-                }
-                if (!form.choferPredeterminadoId) {
-                  Swal.fire({ icon: 'warning', title: 'Chofer Requerido', text: 'No es opcional: debes asignar el chofer habitual de la ruta.', confirmButtonColor: '#2563eb' });
-                  return;
-                }
                 guardarMutation.mutate(form);
               }}
               style={{ padding: '24px' }}
@@ -456,7 +588,7 @@ export const RutasLogisticaPage: React.FC = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Camión Cisterna Asignado <span style={{ color: '#ef4444' }}>*</span>
+                      Camión Cisterna Asignado <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>(Opcional)</span>
                     </label>
                     <CamionSelect
                       value={form.camionPredeterminadoId}
@@ -467,13 +599,14 @@ export const RutasLogisticaPage: React.FC = () => {
                           choferPredeterminadoId: camion?.usuarioId || form.choferPredeterminadoId,
                         });
                       }}
-                      placeholder="-- Seleccionar camión cisterna obligatorio --"
+                      placeholder="-- Opcional / Sin camión predeterminado --"
+                      allowClear
                     />
                   </div>
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Chofer Habitual de Ruta <span style={{ color: '#ef4444' }}>*</span>
+                      Chofer Habitual de Ruta <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>(Opcional)</span>
                     </label>
                     <ChoferSelect
                       value={form.choferPredeterminadoId}
@@ -485,7 +618,8 @@ export const RutasLogisticaPage: React.FC = () => {
                           camionPredeterminadoId: form.camionPredeterminadoId || camMatch?.id,
                         });
                       }}
-                      placeholder="-- Seleccionar chofer obligatorio --"
+                      placeholder="-- Opcional / Sin chofer predeterminado --"
+                      allowClear
                     />
                   </div>
 

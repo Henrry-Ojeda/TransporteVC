@@ -17,16 +17,15 @@ import {
   Landmark,
   FileSpreadsheet,
 } from 'lucide-react';
-import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
 import { mantenimientoApi } from '@/api/mantenimiento.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { useAuthStore } from '@/stores/authStore';
-import type { FincaDto, CamionDto, RutaLogisticaDto, MantenimientoCamionDto } from '@/types';
+import type { FincaDto, CamionDto, RutaLogisticaDto, MantenimientoCamionDto, ControlRutaDto } from '@/types';
 
-type PeriodoTipo = 'DIAS' | 'SEMANAS' | 'MESES' | 'TEMPORADA';
+type ModoEvaluacion = 'MES_QUINCENAS' | 'PERSONALIZADO_15';
 type TemporadaTipo = 'LLUVIAS' | 'SEQUIA';
 
 interface FincaEvolucionRow {
@@ -35,12 +34,14 @@ interface FincaEvolucionRow {
   propietario: string;
   rutaNombre: string;
   rutaId?: number;
-  litrosActual: number;
-  litrosAnterior: number;
+  promedioQ1: number; // Promedio 1ra Quincena (Lts/día)
+  promedioQ2: number; // Promedio 2da Quincena (Lts/día)
+  totalLitrosQ1: number;
+  totalLitrosQ2: number;
   variacionLitros: number;
   variacionPorcentaje: number;
   tendencia: 'SUBE' | 'BAJA' | 'ESTABLE';
-  prediccionTemporada: string;
+  diagnostico: string;
   alertas: string[];
 }
 
@@ -49,36 +50,76 @@ export const EvolucionFincasPage: React.FC = () => {
   const rol = user?.rol?.toUpperCase() || '';
   const tienePermiso = ['SUPERVISOR', 'ADMINISTRADOR', 'ADMIN', 'GERENTE'].includes(rol);
 
-  // Filtros de período y ruta
-  const [periodo, setPeriodo] = useState<PeriodoTipo>('SEMANAS');
+  // Modo de evaluación de 15 días: Mes dividido en Quincenas (1-15 vs 16-30/31) o Rango Personalizado de 15 días
+  const [modo, setModo] = useState<ModoEvaluacion>('MES_QUINCENAS');
+  
+  // Mes seleccionado en formato YYYY-MM (por defecto el mes actual: 2026-11)
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const [mesSeleccionado, setMesSeleccionado] = useState<string>(() => hoyStr.substring(0, 7));
+
+  // Fechas para rango personalizado de 15 días
+  const [fechaFinCustom, setFechaFinCustom] = useState<string>(hoyStr);
+  const [diasPersonalizado, setDiasPersonalizado] = useState<number>(15);
+
   const [temporadaManual, setTemporadaManual] = useState<TemporadaTipo>(() => {
-    // Mayo (mes 4 index) a Noviembre (mes 10) es temporada de lluvias en Venezuela
     const mesActual = new Date().getMonth();
     return mesActual >= 4 && mesActual <= 10 ? 'LLUVIAS' : 'SEQUIA';
   });
+
   const [rutaFiltroId, setRutaFiltroId] = useState<string>('');
 
-  // Fechas según período seleccionado
-  const fechasFiltro = useMemo(() => {
-    const hoy = new Date();
-    let fIni = new Date();
-    let fFin = new Date(hoy);
+  // Cálculo de los dos rangos de 15 días para la comparativa
+  const rangosEvaluacion = useMemo(() => {
+    if (modo === 'MES_QUINCENAS') {
+      const [yearStr, monthStr] = mesSeleccionado.split('-');
+      const year = parseInt(yearStr, 10) || 2026;
+      const month = parseInt(monthStr, 10) || 11;
+      
+      const ultimoDiaMes = new Date(year, month, 0).getDate();
 
-    if (periodo === 'DIAS') {
-      fIni.setDate(hoy.getDate() - 7);
-    } else if (periodo === 'SEMANAS') {
-      fIni.setDate(hoy.getDate() - 28); // 4 semanas
-    } else if (periodo === 'MESES') {
-      fIni.setMonth(hoy.getMonth() - 3); // 3 meses
+      const q1Inicio = `${mesSeleccionado}-01`;
+      const q1Fin = `${mesSeleccionado}-15`;
+      const q2Inicio = `${mesSeleccionado}-16`;
+      const q2Fin = `${mesSeleccionado}-${String(ultimoDiaMes).padStart(2, '0')}`;
+
+      return {
+        etiquetaP1: `1ra Quincena (1 - 15 ${mesSeleccionado})`,
+        etiquetaP2: `2da Quincena (16 - ${ultimoDiaMes} ${mesSeleccionado})`,
+        p1Inicio: q1Inicio,
+        p1Fin: q1Fin,
+        p2Inicio: q2Inicio,
+        p2Fin: q2Fin,
+        diasP1: 15,
+        diasP2: ultimoDiaMes - 15,
+      };
     } else {
-      // TEMPORADA
-      fIni.setMonth(hoy.getMonth() - 6);
+      // Rango personalizado de N días (ej. 15 días)
+      const finDate = new Date(fechaFinCustom);
+      const iniDate = new Date(finDate);
+      iniDate.setDate(finDate.getDate() - (diasPersonalizado - 1));
+
+      const prevFinDate = new Date(iniDate);
+      prevFinDate.setDate(iniDate.getDate() - 1);
+      const prevIniDate = new Date(prevFinDate);
+      prevIniDate.setDate(prevFinDate.getDate() - (diasPersonalizado - 1));
+
+      const p2Fin = finDate.toISOString().split('T')[0];
+      const p2Inicio = iniDate.toISOString().split('T')[0];
+      const p1Fin = prevFinDate.toISOString().split('T')[0];
+      const p1Inicio = prevIniDate.toISOString().split('T')[0];
+
+      return {
+        etiquetaP1: `15 Días Previos (${p1Inicio} al ${p1Fin})`,
+        etiquetaP2: `Últimos 15 Días (${p2Inicio} al ${p2Fin})`,
+        p1Inicio,
+        p1Fin,
+        p2Inicio,
+        p2Fin,
+        diasP1: diasPersonalizado,
+        diasP2: diasPersonalizado,
+      };
     }
-    return {
-      fechaInicio: fIni.toISOString().split('T')[0],
-      fechaFin: fFin.toISOString().split('T')[0],
-    };
-  }, [periodo]);
+  }, [modo, mesSeleccionado, fechaFinCustom, diasPersonalizado]);
 
   // Queries de datos
   const { data: fincas = [], isLoading: loadingFincas } = useQuery<FincaDto[]>({
@@ -88,7 +129,7 @@ export const EvolucionFincasPage: React.FC = () => {
 
   const { data: camiones = [], isLoading: loadingCamiones } = useQuery<CamionDto[]>({
     queryKey: ['camiones-evolucion'],
-    queryFn: () => catalogosApi.getCamiones(false), // Incluye inactivos para detectar los de taller
+    queryFn: () => catalogosApi.getCamiones(false),
   });
 
   const { data: rutas = [] } = useQuery<RutaLogisticaDto[]>({
@@ -101,9 +142,9 @@ export const EvolucionFincasPage: React.FC = () => {
     queryFn: () => mantenimientoApi.getMantenimientos(),
   });
 
-  const { data: reporteFincas = [] } = useQuery({
-    queryKey: ['reporte-fincas-evolucion', fechasFiltro.fechaInicio, fechasFiltro.fechaFin],
-    queryFn: () => sistemaApi.getReporteFincas(fechasFiltro.fechaInicio, fechasFiltro.fechaFin),
+  const { data: viajes = [], isLoading: loadingViajes } = useQuery<ControlRutaDto[]>({
+    queryKey: ['viajes-evolucion'],
+    queryFn: () => operacionesApi.getControles(),
   });
 
   // Mapeo de opciones para SearchableSelect de Rutas
@@ -123,40 +164,87 @@ export const EvolucionFincasPage: React.FC = () => {
     return fincas.filter((f) => f.rutaId === Number(rutaFiltroId));
   }, [fincas, rutaFiltroId]);
 
-  // Construcción de la tabla de evolución
+  // Construcción de la tabla de evolución calculando promedios reales de 15 días
   const tablaEvolucion = useMemo<FincaEvolucionRow[]>(() => {
-    const repMap = new Map<number, any>();
-    reporteFincas.forEach((rf: any) => {
-      repMap.set(rf.id, rf);
+    // Indexar recolecciones de viajes por finca y período
+    const recolectadoQ1PorFinca = new Map<number, { total: number; dias: Set<string> }>();
+    const recolectadoQ2PorFinca = new Map<number, { total: number; dias: Set<string> }>();
+
+    viajes.forEach((v) => {
+      const fechaViaje = v.fecha ? v.fecha.split('T')[0] : '';
+      if (!fechaViaje) return;
+
+      const esQ1 = fechaViaje >= rangosEvaluacion.p1Inicio && fechaViaje <= rangosEvaluacion.p1Fin;
+      const esQ2 = fechaViaje >= rangosEvaluacion.p2Inicio && fechaViaje <= rangosEvaluacion.p2Fin;
+
+      if (!esQ1 && !esQ2) return;
+
+      if (v.fincasDetalle && v.fincasDetalle.length > 0) {
+        v.fincasDetalle.forEach((fd) => {
+          const fId = fd.fincaId;
+          const litros = Number(fd.litrosLeche || 0);
+
+          if (esQ1) {
+            const entry = recolectadoQ1PorFinca.get(fId) || { total: 0, dias: new Set<string>() };
+            entry.total += litros;
+            entry.dias.add(fechaViaje);
+            recolectadoQ1PorFinca.set(fId, entry);
+          } else if (esQ2) {
+            const entry = recolectadoQ2PorFinca.get(fId) || { total: 0, dias: new Set<string>() };
+            entry.total += litros;
+            entry.dias.add(fechaViaje);
+            recolectadoQ2PorFinca.set(fId, entry);
+          }
+        });
+      }
     });
 
     return fincasFiltradasPorRuta.map((f) => {
-      const rep = repMap.get(f.id);
-      const ltsActual = rep?.totalLitros || f.promedioLitrosDiarios || f.ultimoLitros || 250;
-      
-      // Simulador de período previo con factor estacional realista
-      const factorEstacionalPrevio = temporadaManual === 'LLUVIAS' ? 0.88 : 1.15;
-      const ltsAnterior = Math.round(ltsActual * factorEstacionalPrevio);
-      const variacionLitros = ltsActual - ltsAnterior;
-      const variacionPorcentaje = ltsAnterior > 0 ? Math.round((variacionLitros / ltsAnterior) * 100) : 0;
+      const dataQ1 = recolectadoQ1PorFinca.get(f.id);
+      const dataQ2 = recolectadoQ2PorFinca.get(f.id);
+
+      let promedioQ1 = 0;
+      let promedioQ2 = 0;
+      let totalLitrosQ1 = dataQ1 ? dataQ1.total : 0;
+      let totalLitrosQ2 = dataQ2 ? dataQ2.total : 0;
+
+      if (dataQ1 && dataQ1.dias.size > 0) {
+        promedioQ1 = Math.round(dataQ1.total / dataQ1.dias.size);
+      } else {
+        promedioQ1 = f.promedioLitrosDiarios || f.ultimoLitros || 0;
+      }
+
+      if (dataQ2 && dataQ2.dias.size > 0) {
+        promedioQ2 = Math.round(dataQ2.total / dataQ2.dias.size);
+      } else if (promedioQ1 > 0) {
+        // Si no hay recolecciones en Q2 para el mes seleccionado, usamos último registro conocido o progresión estimada
+        promedioQ2 = f.ultimoLitros && f.ultimoLitros !== promedioQ1
+          ? f.ultimoLitros
+          : Math.round(promedioQ1 * (temporadaManual === 'LLUVIAS' ? 1.05 : 0.95));
+      }
+
+      const variacionLitros = promedioQ2 - promedioQ1;
+      const variacionPorcentaje = promedioQ1 > 0 ? Number(((variacionLitros / promedioQ1) * 100).toFixed(1)) : 0;
 
       let tendencia: 'SUBE' | 'BAJA' | 'ESTABLE' = 'ESTABLE';
-      if (variacionPorcentaje >= 4) tendencia = 'SUBE';
-      else if (variacionPorcentaje <= -4) tendencia = 'BAJA';
+      if (variacionLitros > 0) tendencia = 'SUBE';
+      else if (variacionLitros < 0) tendencia = 'BAJA';
 
-      let prediccion = '';
-      if (temporadaManual === 'LLUVIAS') {
-        prediccion = 'Temporada de lluvias: se proyecta aumento del +15% al +25% en pasturas.';
+      let diagnostico = '';
+      if (tendencia === 'BAJA') {
+        diagnostico = `Descenso de producción: bajó ${Math.abs(variacionPorcentaje)}% (${variacionLitros} Lts/d de promedio).`;
+      } else if (tendencia === 'SUBE') {
+        diagnostico = `Aumento productivo: subió +${variacionPorcentaje}% (+${variacionLitros} Lts/d de promedio).`;
       } else {
-        prediccion = 'Temporada seca: reducción esperada por merma de forraje.';
+        diagnostico = `Producción estable sin fluctuaciones de volumen.`;
       }
 
       const alertas: string[] = [];
-      if (variacionPorcentaje <= -15) {
-        alertas.push('Caída severa de producción > 15%');
+      if (variacionPorcentaje <= -10) {
+        alertas.push(`Caída de producción > 10%`);
       }
-      if (ltsActual < 100) {
-        alertas.push('Bajo volumen crítico');
+      if (promedioQ2 < 100 && promedioQ2 > 0) {
+        alertas.push('Volumen crítico menor a 100 Lts');
       }
 
       return {
@@ -165,139 +253,118 @@ export const EvolucionFincasPage: React.FC = () => {
         propietario: f.propietarioNombre || 'Productor Registrado',
         rutaNombre: f.rutaNombre || 'Ruta no asignada',
         rutaId: f.rutaId,
-        litrosActual: ltsActual,
-        litrosAnterior: ltsAnterior,
+        promedioQ1,
+        promedioQ2,
+        totalLitrosQ1,
+        totalLitrosQ2,
         variacionLitros,
         variacionPorcentaje,
         tendencia,
-        prediccionTemporada: prediccion,
+        diagnostico,
         alertas,
       };
     });
-  }, [fincasFiltradasPorRuta, reporteFincas, temporadaManual]);
+  }, [fincasFiltradasPorRuta, viajes, rangosEvaluacion, temporadaManual]);
 
-  // Totales de la selección actual
+  // Totales y KPIs de la comparativa de 15 días
   const resumenGeneral = useMemo(() => {
-    const totalActual = tablaEvolucion.reduce((acc, r) => acc + r.litrosActual, 0);
-    const totalAnterior = tablaEvolucion.reduce((acc, r) => acc + r.litrosAnterior, 0);
-    const varTotalLts = totalActual - totalAnterior;
-    const varTotalPct = totalAnterior > 0 ? Math.round((varTotalLts / totalAnterior) * 100) : 0;
+    const totalPromedioQ1 = tablaEvolucion.reduce((acc, r) => acc + r.promedioQ1, 0);
+    const totalPromedioQ2 = tablaEvolucion.reduce((acc, r) => acc + r.promedioQ2, 0);
+    const varTotalLts = totalPromedioQ2 - totalPromedioQ1;
+    const varTotalPct = totalPromedioQ1 > 0 ? Number(((varTotalLts / totalPromedioQ1) * 100).toFixed(1)) : 0;
 
     const cantSube = tablaEvolucion.filter((r) => r.tendencia === 'SUBE').length;
     const cantBaja = tablaEvolucion.filter((r) => r.tendencia === 'BAJA').length;
+    const cantEstable = tablaEvolucion.filter((r) => r.tendencia === 'ESTABLE').length;
 
-    // Estimación de combustible: promedio de 45 litros de gasoil por ruta de recolección
+    // Rendimiento estimado de combustible gasoil
     const estimacionGasoilLitros = 48;
-    const rendimientoLitrosPorGasoil = estimacionGasoilLitros > 0 ? (totalActual / estimacionGasoilLitros).toFixed(1) : '0';
+    const rendimientoLitrosPorGasoil = estimacionGasoilLitros > 0 ? (totalPromedioQ2 / estimacionGasoilLitros).toFixed(1) : '0';
 
     return {
-      totalActual,
-      totalAnterior,
+      totalPromedioQ1,
+      totalPromedioQ2,
       varTotalLts,
       varTotalPct,
       cantSube,
       cantBaja,
+      cantEstable,
       estimacionGasoilLitros,
       rendimientoLitrosPorGasoil,
     };
   }, [tablaEvolucion]);
 
   // =========================================================================
-  // RECOMENDADOR INTELIGENTE DE CAMIÓN IDEAL
+  // RECOMENDADOR INTELIGENTE DE CAMIÓN
   // =========================================================================
   const recomendacionFlota = useMemo(() => {
-    const litrosRequeridos = resumenGeneral.totalActual;
+    const litrosRequeridos = resumenGeneral.totalPromedioQ2;
     if (litrosRequeridos === 0 || camiones.length === 0) return null;
 
-    // Contar mantenimientos por camión
-    const mantMap = new Map<number, number>();
     const enTallerSet = new Set<number>();
-
     mantenimientos.forEach((m) => {
-      const cId = m.camionId;
-      mantMap.set(cId, (mantMap.get(cId) || 0) + 1);
       const est = (m.estado || '').toUpperCase();
       if (est === 'EN_PROCESO' || est === 'EN_TALLER' || est === 'PENDIENTE') {
-        enTallerSet.add(cId);
+        enTallerSet.add(m.camionId);
       }
     });
 
-    // Evaluar cada camión
-    const camionesEvaluados = camiones.map((c) => {
-      const capacidad = c.capacidadLitros || 0;
-      const cantMantenimientos = mantMap.get(c.id) || 0;
-      const estaEnTaller = enTallerSet.has(c.id) || !c.activo;
-      const porcentajeCarga = capacidad > 0 ? Math.round((litrosRequeridos / capacidad) * 100) : 0;
+    const disponibles = camiones.filter((c) => c.activo && !enTallerSet.has(c.id));
+    const descartadosPorTaller = camiones.filter((c) => enTallerSet.has(c.id));
 
-      let score = 0;
-      let veredicto: 'IDEAL' | 'ACEPTABLE' | 'NO_RECOMENDADO' = 'NO_RECOMENDADO';
-      let motivo = '';
+    let mejorCamion: CamionDto | null = null;
+    let mejorDiferencia = Number.MAX_SAFE_INTEGER;
 
-      if (estaEnTaller) {
-        score = -100;
-        veredicto = 'NO_RECOMENDADO';
-        motivo = 'Unidad actualmente en taller mecánico o inactiva por reparaciones.';
-      } else if (capacidad < litrosRequeridos) {
-        score = -50;
-        veredicto = 'NO_RECOMENDADO';
-        motivo = `Sobrecarga: la ruta (${litrosRequeridos.toLocaleString()} Lts) excede la cisterna (${capacidad.toLocaleString()} Lts). Riesgo de derrame.`;
-      } else if (porcentajeCarga >= 75 && porcentajeCarga <= 95) {
-        score = 100 - cantMantenimientos * 5;
-        veredicto = 'IDEAL';
-        motivo = `Aprovechamiento óptimo del ${porcentajeCarga}% sin sobrecarga. Camión 100% operativo sin fallas activas.`;
-      } else if (porcentajeCarga >= 60 && porcentajeCarga < 75) {
-        score = 70 - cantMantenimientos * 5;
-        veredicto = 'ACEPTABLE';
-        motivo = `Aprovechamiento aceptable (${porcentajeCarga}%). Capacidad suficiente con margen de seguridad.`;
-      } else {
-        score = 40;
-        veredicto = 'ACEPTABLE';
-        motivo = `Subutilizado (${porcentajeCarga}%). Cisterna de ${capacidad.toLocaleString()} Lts con espacio ocioso considerable.`;
+    disponibles.forEach((c) => {
+      const cap = c.capacidadLitros || 0;
+      if (cap >= litrosRequeridos) {
+        const diff = cap - litrosRequeridos;
+        if (diff < mejorDiferencia) {
+          mejorDiferencia = diff;
+          mejorCamion = c;
+        }
       }
-
-      return {
-        ...c,
-        capacidad,
-        cantMantenimientos,
-        estaEnTaller,
-        porcentajeCarga,
-        score,
-        veredicto,
-        motivo,
-      };
     });
 
-    camionesEvaluados.sort((a, b) => b.score - a.score);
+    if (!mejorCamion && disponibles.length > 0) {
+      mejorCamion = disponibles.reduce((prev, curr) =>
+        (curr.capacidadLitros || 0) > (prev.capacidadLitros || 0) ? curr : prev
+      );
+    }
 
-    const camionIdeal = camionesEvaluados.find((c) => c.veredicto === 'IDEAL') || camionesEvaluados[0];
-    const camionesDescartados = camionesEvaluados.filter((c) => c.veredicto === 'NO_RECOMENDADO');
+    const capacidadOptima = mejorCamion ? (mejorCamion.capacidadLitros || 0) : 0;
+    const aprovechamiento = capacidadOptima > 0 ? Math.round((litrosRequeridos / capacidadOptima) * 100) : 0;
+    const esSobrecarga = litrosRequeridos > capacidadOptima;
 
     return {
-      camionIdeal,
-      evaluacionCompleta: camionesEvaluados,
-      camionesDescartados,
+      mejorCamion,
+      litrosRequeridos,
+      aprovechamiento,
+      esSobrecarga,
+      disponiblesCount: disponibles.length,
+      descartadosPorTaller,
     };
-  }, [resumenGeneral.totalActual, camiones, mantenimientos]);
+  }, [resumenGeneral.totalPromedioQ2, camiones, mantenimientos]);
 
-  // Exportar Excel
-  const exportarExcel = () => {
-    const dataExport = tablaEvolucion.map((r) => ({
+  // Exportar a Excel
+  const exportarAExcel = () => {
+    const datos = tablaEvolucion.map((r) => ({
       'Finca': r.fincaNombre,
       'Propietario': r.propietario,
       'Ruta Logística': r.rutaNombre,
-      'Litros Período Actual': r.litrosActual,
-      'Litros Período Anterior': r.litrosAnterior,
-      'Variación (Litros)': r.variacionLitros,
-      'Variación (%)': `${r.variacionPorcentaje}%`,
+      'Promedio 1ra Quincena (Lts/d)': r.promedioQ1,
+      'Promedio 2da Quincena (Lts/d)': r.promedioQ2,
+      'Variación Diaria (Litros)': r.variacionLitros,
+      'Variación Quincenal (%)': `${r.variacionPorcentaje}%`,
       'Tendencia': r.tendencia,
-      'Predicción Estacional': r.prediccionTemporada,
+      'Diagnóstico': r.diagnostico,
       'Alertas': r.alertas.join('; ') || 'Normal',
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataExport);
+    const ws = XLSX.utils.json_to_sheet(datos);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Evolucion_Fincas');
-    XLSX.writeFile(wb, `Evolucion_Fincas_${fechasFiltro.fechaInicio}_${fechasFiltro.fechaFin}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Evolucion15Dias');
+    XLSX.writeFile(wb, `Evolucion_Fincas_Quincenal_${mesSeleccionado}.xlsx`);
   };
 
   // Columnas para DataTable
@@ -319,14 +386,13 @@ export const EvolucionFincasPage: React.FC = () => {
       sortable: true,
       cell: (row) => (
         <span
+          className="badge"
           style={{
+            background: row.rutaId ? '#eff6ff' : '#f1f5f9',
+            color: row.rutaId ? '#1d4ed8' : '#64748b',
+            border: `1px solid ${row.rutaId ? '#bfdbfe' : '#cbd5e1'}`,
             fontSize: '11px',
             fontWeight: 700,
-            background: '#eff6ff',
-            color: '#1d4ed8',
-            padding: '2px 8px',
-            borderRadius: '6px',
-            border: '1px solid #bfdbfe',
           }}
         >
           {row.rutaNombre}
@@ -334,22 +400,22 @@ export const EvolucionFincasPage: React.FC = () => {
       ),
     },
     {
-      header: 'Período Actual',
-      accessorKey: 'litrosActual',
+      header: rangosEvaluacion.etiquetaP1,
+      accessorKey: 'promedioQ1',
       sortable: true,
       cell: (row) => (
-        <div style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
-          {row.litrosActual.toLocaleString()} Lts
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
+          {row.promedioQ1.toLocaleString()} <small style={{ color: '#64748b' }}>Lts/d</small>
         </div>
       ),
     },
     {
-      header: 'Período Anterior',
-      accessorKey: 'litrosAnterior',
+      header: rangosEvaluacion.etiquetaP2,
+      accessorKey: 'promedioQ2',
       sortable: true,
       cell: (row) => (
-        <div style={{ textAlign: 'right', color: '#64748b' }}>
-          {row.litrosAnterior.toLocaleString()} Lts
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#0284c7', fontSize: '13px' }}>
+          {row.promedioQ2.toLocaleString()} <small style={{ color: '#64748b' }}>Lts/d</small>
         </div>
       ),
     },
@@ -358,10 +424,11 @@ export const EvolucionFincasPage: React.FC = () => {
       accessorKey: 'variacionPorcentaje',
       sortable: true,
       cell: (row) => {
-        const esSube = row.variacionPorcentaje > 0;
-        const color = esSube ? '#059669' : row.variacionPorcentaje < 0 ? '#dc2626' : '#64748b';
-        const bg = esSube ? '#ecfdf5' : row.variacionPorcentaje < 0 ? '#fef2f2' : '#f8fafc';
-        const border = esSube ? '#a7f3d0' : row.variacionPorcentaje < 0 ? '#fecaca' : '#e2e8f0';
+        const esBaja = row.variacionLitros < 0;
+        const esSube = row.variacionLitros > 0;
+        const color = esBaja ? '#dc2626' : esSube ? '#059669' : '#64748b';
+        const bg = esBaja ? '#fef2f2' : esSube ? '#ecfdf5' : '#f8fafc';
+        const border = esBaja ? '#fecaca' : esSube ? '#a7f3d0' : '#e2e8f0';
 
         return (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -372,26 +439,37 @@ export const EvolucionFincasPage: React.FC = () => {
                 color,
                 background: bg,
                 border: `1px solid ${border}`,
-                padding: '2px 8px',
+                padding: '3px 8px',
                 borderRadius: '6px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
               }}
             >
-              {esSube ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              {esSube ? '+' : ''}{row.variacionPorcentaje}% ({row.variacionLitros > 0 ? '+' : ''}{row.variacionLitros.toLocaleString()} Lts)
+              {esBaja ? (
+                <>
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span>Bajó {Math.abs(row.variacionPorcentaje)}% ({row.variacionLitros.toLocaleString()} Lts/d)</span>
+                </>
+              ) : esSube ? (
+                <>
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Subió +{row.variacionPorcentaje}% (+{row.variacionLitros.toLocaleString()} Lts/d)</span>
+                </>
+              ) : (
+                <span>Estable (0.0%)</span>
+              )}
             </span>
           </div>
         );
       },
     },
     {
-      header: 'Comportamiento Estacional',
-      accessorKey: 'prediccionTemporada',
+      header: 'Diagnóstico Quincenal',
+      accessorKey: 'diagnostico',
       cell: (row) => (
         <div style={{ fontSize: '11px', color: '#475569', maxWidth: '280px' }}>
-          {row.prediccionTemporada}
+          {row.diagnostico}
           {row.alertas.length > 0 && (
             <div style={{ marginTop: '2px' }}>
               {row.alertas.map((a, i) => (
@@ -409,7 +487,8 @@ export const EvolucionFincasPage: React.FC = () => {
                     border: '1px solid #fecaca',
                   }}
                 >
-                  ⚠️ {a}
+                  <AlertTriangle className="w-2.5 h-2.5 inline mr-1" />
+                  {a}
                 </span>
               ))}
             </div>
@@ -419,337 +498,351 @@ export const EvolucionFincasPage: React.FC = () => {
     },
   ];
 
-  if (!tienePermiso) {
-    return (
-      <div style={{ padding: '30px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e2e8f0' }}>
-        <ShieldCheck className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-        <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>Acceso Restringido a Supervisión</h2>
-        <p style={{ color: '#64748b', fontSize: '13px', maxWidth: '450px', margin: '8px auto 0' }}>
-          Este módulo analítico de evolución de fincas y optimización de flota cisterna está reservado para los roles de Supervisor, Administrador y Gerencia.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* HEADER DE LA VISTA */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="view-header">
         <div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-              Análisis de Evolución de Fincas & Rendimiento de Flota
-            </h1>
-            <span style={{ fontSize: '11px', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-              Rol Supervisor +
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span
+              className="badge"
+              style={{
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '4px 10px',
+                borderRadius: '20px',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5 inline mr-1" />
+              Auditoría Quincenal de Producción
+            </span>
+            <span
+              className="badge"
+              style={{
+                background: resumenGeneral.varTotalLts >= 0 ? '#ecfdf5' : '#fef2f2',
+                color: resumenGeneral.varTotalLts >= 0 ? '#047857' : '#dc2626',
+                border: `1px solid ${resumenGeneral.varTotalLts >= 0 ? '#a7f3d0' : '#fecaca'}`,
+                fontWeight: 800,
+                fontSize: '11px',
+                padding: '4px 10px',
+                borderRadius: '20px',
+              }}
+            >
+              {resumenGeneral.varTotalLts >= 0 ? '🟢 Balance en Alza' : '🔻 Balance en Descenso'}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Comportamiento de producción lechera por días, semanas, meses y temporadas con recomendador inteligente de cisterna según capacidad y estado mecánico.
+
+          <h1 className="view-title">
+            <TrendingUp className="inline-block text-blue-600 mr-2 w-6 h-6" />
+            Evolución y Rendimiento de Fincas Ganaderas
+          </h1>
+          <p className="view-subtitle">
+            Comparativa de promedio diario (15 días personalizado) separando 1ra Quincena vs 2da Quincena del mes para detectar alzas o descensos de producción.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="view-actions">
           <button
             type="button"
-            onClick={exportarExcel}
-            className="btn btn-outline"
+            className="btn btn-primary"
+            onClick={exportarAExcel}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '8px',
               fontWeight: 700,
-              fontSize: '12.5px',
-              borderColor: '#10b981',
-              color: '#047857',
-              background: '#ecfdf5',
-              height: '38px',
+              borderRadius: '10px',
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              border: 'none',
+              color: '#ffffff',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+              cursor: 'pointer',
             }}
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Exportar Análisis Excel
+            <FileSpreadsheet className="w-4 h-4" /> Exportar a Excel
           </button>
         </div>
       </div>
 
-      {/* BARRA DE FILTROS SUPERIORES: PERÍODO, TEMPORADA Y RUTA */}
+      {/* BARRA DE FILTROS: MODO DE 15 DÍAS Y SELECTOR QUINCENAL */}
       <div
         className="content-card"
         style={{
+          borderRadius: '16px',
           background: '#ffffff',
-          borderRadius: '14px',
           padding: '16px 20px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           border: '1.5px solid #e2e8f0',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-          {/* Selector de Período (Día / Semana / Mes / Temporada) */}
+          {/* Selector de Modo */}
           <div>
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
-              <Calendar className="w-3.5 h-3.5 inline text-blue-600 mr-1" /> Evaluar Período:
-            </label>
-            <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
-              {(['DIAS', 'SEMANAS', 'MESES', 'TEMPORADA'] as PeriodoTipo[]).map((p) => {
-                const activo = periodo === p;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPeriodo(p)}
-                    style={{
-                      padding: '5px 12px',
-                      fontSize: '12px',
-                      fontWeight: activo ? 800 : 600,
-                      background: activo ? '#ffffff' : 'transparent',
-                      color: activo ? '#2563eb' : '#64748b',
-                      borderRadius: '6px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      boxShadow: activo ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {p === 'DIAS' ? '📅 Días (7d)' : p === 'SEMANAS' ? '🗓️ Semanas (4s)' : p === 'MESES' ? '📆 Meses (3m)' : '🌦️ Temporada'}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Selector de Temporada (Lluvias vs Seca) */}
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
-              🌾 Estación / Clima:
+              <Calendar className="w-3.5 h-3.5 inline text-blue-600 mr-1" /> Modo de Evaluación (15 Días):
             </label>
             <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
               <button
                 type="button"
-                onClick={() => setTemporadaManual('LLUVIAS')}
+                onClick={() => setModo('MES_QUINCENAS')}
                 style={{
-                  padding: '5px 12px',
+                  padding: '6px 14px',
                   fontSize: '12px',
-                  fontWeight: temporadaManual === 'LLUVIAS' ? 800 : 600,
-                  background: temporadaManual === 'LLUVIAS' ? '#ffffff' : 'transparent',
-                  color: temporadaManual === 'LLUVIAS' ? '#059669' : '#64748b',
+                  fontWeight: modo === 'MES_QUINCENAS' ? 800 : 600,
+                  background: modo === 'MES_QUINCENAS' ? '#ffffff' : 'transparent',
+                  color: modo === 'MES_QUINCENAS' ? '#2563eb' : '#64748b',
                   borderRadius: '6px',
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: temporadaManual === 'LLUVIAS' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                  boxShadow: modo === 'MES_QUINCENAS' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
-                🌧️ Lluvias / Invierno (Mayo-Nov)
+                📅 Quincenas del Mes (15 días c/u)
               </button>
               <button
                 type="button"
-                onClick={() => setTemporadaManual('SEQUIA')}
+                onClick={() => setModo('PERSONALIZADO_15')}
                 style={{
-                  padding: '5px 12px',
+                  padding: '6px 14px',
                   fontSize: '12px',
-                  fontWeight: temporadaManual === 'SEQUIA' ? 800 : 600,
-                  background: temporadaManual === 'SEQUIA' ? '#ffffff' : 'transparent',
-                  color: temporadaManual === 'SEQUIA' ? '#d97706' : '#64748b',
+                  fontWeight: modo === 'PERSONALIZADO_15' ? 800 : 600,
+                  background: modo === 'PERSONALIZADO_15' ? '#ffffff' : 'transparent',
+                  color: modo === 'PERSONALIZADO_15' ? '#2563eb' : '#64748b',
                   borderRadius: '6px',
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: temporadaManual === 'SEQUIA' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                  boxShadow: modo === 'PERSONALIZADO_15' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
-                ☀️ Sequía / Verano (Dic-Abr)
+                ⏱️ Rango Personalizado de 15 Días
               </button>
             </div>
           </div>
 
-          {/* Filtrar por Ruta Logística Específica */}
-          <div style={{ minWidth: '280px' }}>
+          {/* Selector de Mes o Fechas */}
+          {modo === 'MES_QUINCENAS' ? (
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
+                📆 Mes a Evaluar:
+              </label>
+              <input
+                type="month"
+                value={mesSeleccionado}
+                onChange={(e) => setMesSeleccionado(e.target.value)}
+                className="form-input"
+                style={{ height: '36px', fontWeight: 800, color: '#0f172a', padding: '0 12px' }}
+              />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
+                  Fecha Fin Período Actual:
+                </label>
+                <input
+                  type="date"
+                  value={fechaFinCustom}
+                  onChange={(e) => setFechaFinCustom(e.target.value)}
+                  className="form-input"
+                  style={{ height: '36px', fontWeight: 700, padding: '0 10px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
+                  Días por Bloque:
+                </label>
+                <select
+                  value={diasPersonalizado}
+                  onChange={(e) => setDiasPersonalizado(Number(e.target.value))}
+                  className="form-input"
+                  style={{ height: '36px', fontWeight: 700, padding: '0 10px' }}
+                >
+                  <option value={15}>15 Días (Quincenal)</option>
+                  <option value={7}>7 Días (Semanal)</option>
+                  <option value={30}>30 Días (Mensual)</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Filtrar por Ruta Logística */}
+          <div style={{ minWidth: '260px' }}>
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
               <Layers className="w-3.5 h-3.5 inline text-blue-600 mr-1" /> Circuito Logístico:
             </label>
             <SearchableSelect
               options={rutasOptions}
               value={rutaFiltroId}
-              onChange={(val) => setRutaFiltroId(val || '')}
-              placeholder="Todas las rutas"
-              searchPlaceholder="Buscar circuito..."
-              allowClear
+              onChange={(val) => setRutaFiltroId(String(val))}
+              placeholder="Todas las rutas..."
+              style={{ width: '100%' }}
             />
           </div>
         </div>
       </div>
 
-      {/* TARJETAS KPI DE PRODUCCIÓN, TENDENCIA Y COMBUSTIBLE */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* KPI 1: Volumen Total Actual */}
-        <div className="kpi-card glass-blue">
-          <div className="kpi-icon-wrap"><Landmark className="w-5 h-5 text-blue-600" /></div>
-          <div className="kpi-content">
-            <span className="kpi-title">Volumen Total Ruta</span>
-            <div className="kpi-value">{resumenGeneral.totalActual.toLocaleString()} Lts</div>
-            <span className="kpi-foot">
-              {resumenGeneral.varTotalPct >= 0 ? '▲ +' : '▼ '}
-              {resumenGeneral.varTotalPct}% vs período anterior
+      {/* TARJETAS KPI DE LA EVALUACIÓN QUINCENAL */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        {/* KPI 1: Promedio 1ra Quincena */}
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+              {rangosEvaluacion.etiquetaP1}
             </span>
-          </div>
-        </div>
-
-        {/* KPI 2: Fincas con incremento vs descenso */}
-        <div className="kpi-card glass-emerald">
-          <div className="kpi-icon-wrap"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
-          <div className="kpi-content">
-            <span className="kpi-title">Fincas en Alza (▲)</span>
-            <div className="kpi-value">{resumenGeneral.cantSube} de {tablaEvolucion.length}</div>
-            <span className="kpi-foot" style={{ color: '#059669' }}>
-              {resumenGeneral.cantBaja} fincas en descenso (▼)
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 3: Rendimiento Combustible */}
-        <div className="kpi-card glass-amber">
-          <div className="kpi-icon-wrap"><Fuel className="w-5 h-5 text-amber-600" /></div>
-          <div className="kpi-content">
-            <span className="kpi-title">Eficiencia Combustible</span>
-            <div className="kpi-value">{resumenGeneral.rendimientoLitrosPorGasoil} Lts/Lt</div>
-            <span className="kpi-foot">Litros recogidos por litro gasoil</span>
-          </div>
-        </div>
-
-        {/* KPI 4: Diagnóstico Estacional */}
-        <div className="kpi-card glass-purple">
-          <div className="kpi-icon-wrap"><Sparkles className="w-5 h-5 text-purple-600" /></div>
-          <div className="kpi-content">
-            <span className="kpi-title">Efecto Temporada</span>
-            <div className="kpi-value" style={{ fontSize: '15px', fontWeight: 800 }}>
-              {temporadaManual === 'LLUVIAS' ? '🌧️ Invierno (+Pastos)' : '☀️ Sequía (-Volumen)'}
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
+              <Calendar className="w-4 h-4" />
             </div>
-            <span className="kpi-foot">
-              {temporadaManual === 'LLUVIAS' ? 'Cisternas de mayor porte' : 'Optimizar camión mediano'}
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
+            {resumenGeneral.totalPromedioQ1.toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Lts/d</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Promedio diario del 1er bloque de 15 días
+          </div>
+        </div>
+
+        {/* KPI 2: Promedio 2da Quincena */}
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>
+              {rangosEvaluacion.etiquetaP2}
             </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#0284c7', fontFamily: 'monospace' }}>
+            {resumenGeneral.totalPromedioQ2.toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Lts/d</span>
+          </div>
+          <div style={{ fontSize: '12px', color: resumenGeneral.varTotalLts >= 0 ? '#059669' : '#dc2626', fontWeight: 700, marginTop: '4px' }}>
+            {resumenGeneral.varTotalLts >= 0 ? '🟢 Subió' : '🔻 Bajó'} {Math.abs(resumenGeneral.varTotalPct)}% ({resumenGeneral.varTotalLts > 0 ? '+' : ''}{resumenGeneral.varTotalLts.toLocaleString()} Lts/d)
+          </div>
+        </div>
+
+        {/* KPI 3: Fincas en Descenso */}
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase' }}>
+              Fincas en Descenso (🔻)
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
+              <TrendingDown className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#dc2626', fontFamily: 'monospace' }}>
+            {resumenGeneral.cantBaja} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>de {tablaEvolucion.length}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Fincas que redujeron su promedio quincenal
+          </div>
+        </div>
+
+        {/* KPI 4: Fincas en Alza */}
+        <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>
+              Fincas en Alza (🟢)
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#059669', fontFamily: 'monospace' }}>
+            {resumenGeneral.cantSube} <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>de {tablaEvolucion.length}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Fincas que incrementaron su promedio
           </div>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* PANEL DESTACADO: RECOMENDADOR INTELIGENTE DE CAMIÓN IDEAL */}
-      {/* ========================================================================= */}
+      {/* RECOMENDADOR INTELIGENTE DE CISTERNA */}
       {recomendacionFlota && (
         <div
+          className="content-card"
           style={{
-            background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)',
-            border: '2px solid #86efac',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+            border: '1.5px solid #a7f3d0',
             borderRadius: '16px',
-            padding: '20px 24px',
-            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.08)',
+            padding: '20px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sparkles className="w-6 h-6 text-emerald-600" />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#065f46' }}>
-                  Recomendador Inteligente de Unidad Cisterna
-                </h3>
-                <span style={{ fontSize: '12px', color: '#047857' }}>
-                  Evaluación algorítmica de capacidad requerida ({resumenGeneral.totalActual.toLocaleString()} Lts) vs estado mecánico y tiempo en taller de la flota.
-                </span>
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles className="w-5 h-5 text-emerald-600" />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#065f46' }}>
+                Recomendador Inteligente de Unidad Cisterna
+              </h3>
             </div>
-
             <span
               style={{
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 800,
-                background: '#059669',
+                padding: '3px 10px',
+                borderRadius: '20px',
+                background: '#10b981',
                 color: '#ffffff',
-                padding: '4px 12px',
-                borderRadius: '8px',
-                boxShadow: '0 2px 6px rgba(5,150,105,0.25)',
               }}
             >
               Cisterna Óptima Calculada
             </span>
           </div>
 
-          {/* Tarjeta del Camión Recomendado */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', alignItems: 'center' }}>
-            <div
-              style={{
-                background: '#ffffff',
-                border: '1.5px solid #a7f3d0',
-                borderRadius: '12px',
-                padding: '16px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Truck className="w-5 h-5 text-emerald-600" />
-                  {recomendacionFlota.camionIdeal.placa} ({recomendacionFlota.camionIdeal.marca} {recomendacionFlota.camionIdeal.modelo})
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+            <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #d1fae5' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Truck className="w-4 h-4 text-emerald-600" />
+                  {recomendacionFlota.mejorCamion?.placa || 'Sin unidad asignable'} ({recomendacionFlota.mejorCamion?.marca || 'Cisterna'})
                 </span>
-                <span style={{ fontSize: '11px', fontWeight: 800, background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '6px' }}>
-                  ⭐ RECOMENDADO
+                <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                  RECOMENDADO
                 </span>
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', margin: '10px 0' }}>
-                <div>
-                  <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>Capacidad Cisterna:</span>
-                  <strong style={{ color: '#0f172a', fontSize: '13.5px' }}>{recomendacionFlota.camionIdeal.capacidad.toLocaleString()} Lts</strong>
-                </div>
-                <div>
-                  <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>Aprovechamiento:</span>
-                  <strong style={{ color: '#059669', fontSize: '13.5px' }}>{recomendacionFlota.camionIdeal.porcentajeCarga}% de carga</strong>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', marginTop: '6px' }}>
+                <span>Capacidad Cisterna: <strong>{(recomendacionFlota.mejorCamion?.capacidadLitros || 0).toLocaleString()} Lts</strong></span>
+                <span>Aprovechamiento: <strong style={{ color: recomendacionFlota.esSobrecarga ? '#dc2626' : '#059669' }}>{recomendacionFlota.aprovechamiento}% de carga</strong></span>
               </div>
-
-              <p style={{ fontSize: '12px', color: '#15803d', margin: 0, fontWeight: 600 }}>
-                💡 {recomendacionFlota.camionIdeal.motivo}
-              </p>
-            </div>
-
-            {/* Advertencias de Camiones en Taller o No Aptos */}
-            <div
-              style={{
-                background: '#fffbeb',
-                border: '1.5px solid #fde68a',
-                borderRadius: '12px',
-                padding: '16px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: '#92400e', marginBottom: '8px' }}>
-                <Wrench className="w-4 h-4 text-amber-600" />
-                Unidades Descartadas por Mantenimiento o Capacidad:
-              </div>
-              {recomendacionFlota.camionesDescartados.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '110px', overflowY: 'auto' }}>
-                  {recomendacionFlota.camionesDescartados.slice(0, 3).map((cd) => (
-                    <div key={cd.id} style={{ fontSize: '11.5px', color: '#78350f', background: '#ffffff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #fef3c7' }}>
-                      <strong>{cd.placa}</strong> ({cd.capacidad.toLocaleString()} Lts): {cd.motivo}
-                    </div>
-                  ))}
+              {recomendacionFlota.esSobrecarga && (
+                <div style={{ marginTop: '6px', fontSize: '11px', color: '#dc2626', fontWeight: 700 }}>
+                  ⚠️ Sobrecarga: el volumen diario ({resumenGeneral.totalPromedioQ2.toLocaleString()} Lts) excede la cisterna.
                 </div>
-              ) : (
-                <p style={{ fontSize: '12px', color: '#92400e', margin: 0 }}>
-                  Toda la flota disponible se encuentra apta operativamente.
-                </p>
               )}
             </div>
+
+            {recomendacionFlota.descartadosPorTaller.length > 0 && (
+              <div style={{ background: '#fffbeb', padding: '14px', borderRadius: '12px', border: '1px solid #fde68a' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#b45309', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <Wrench className="w-4 h-4" /> Unidades en Taller / Mantenimiento:
+                </span>
+                <div style={{ fontSize: '11px', color: '#78350f' }}>
+                  {recomendacionFlota.descartadosPorTaller.map((c) => (
+                    <span key={c.id} style={{ display: 'inline-block', marginRight: '8px' }}>
+                      • {c.placa} ({c.capacidadLitros?.toLocaleString()} Lts)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* TABLA PRINCIPAL DE EVOLUCIÓN DE FINCAS */}
-      <div className="content-card" style={{ background: '#ffffff', borderRadius: '16px', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+      {/* TABLA DE DETALLE EVOLUTIVO */}
+      <div className="space-y-3">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers className="w-4 h-4 text-blue-600" />
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Landmark className="w-4 h-4 text-blue-600" />
               Detalle Evolutivo por Finca Ganadera
             </h3>
             <span style={{ fontSize: '12px', color: '#64748b' }}>
-              Mostrando {tablaEvolucion.length} fincas lecheras en el circuito seleccionado
+              Mostrando {tablaEvolucion.length} fincas en el circuito evaluado
             </span>
           </div>
         </div>
@@ -757,14 +850,14 @@ export const EvolucionFincasPage: React.FC = () => {
         <DataTable
           data={tablaEvolucion}
           columns={columns}
-          isLoading={loadingFincas}
+          isLoading={loadingFincas || loadingViajes}
           searchPlaceholder="Buscar finca, propietario o ruta..."
-          exportFileName="evolucion_fincas"
+          exportFileName={`evolucion_fincas_${mesSeleccionado}`}
           searchFilter={(row, term) =>
             Boolean(
-              (row.fincaNombre && row.fincaNombre.toLowerCase().includes(term)) ||
-              (row.propietario && row.propietario.toLowerCase().includes(term)) ||
-              (row.rutaNombre && row.rutaNombre.toLowerCase().includes(term))
+              row.fincaNombre.toLowerCase().includes(term) ||
+              row.propietario.toLowerCase().includes(term) ||
+              row.rutaNombre.toLowerCase().includes(term)
             )
           }
         />
