@@ -230,12 +230,12 @@ export const ViajesTicketsPage: React.FC = () => {
       cell: (row) => (
         <div>
           <div style={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <i className="fa-solid fa-truck" style={{ color: '#64748b' }}></i>
-            {row.camionPlaca || `Camión #${row.camionId}`}
+            <i className="fa-solid fa-truck" style={{ color: '#2563eb' }}></i>
+            {row.camionPlaca || row.rutaLogisticaNombre || (row.camionId ? `Camión #${row.camionId}` : 'Camión de Ruta')}
           </div>
           <div style={{ fontSize: '11.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
             <i className="fa-regular fa-user" style={{ color: '#94a3b8' }}></i>
-            {row.choferNombre || 'Chofer Asignado'}
+            {row.choferNombre || row.nombreConductor || 'Chofer Asignado'}
           </div>
         </div>
       ),
@@ -264,7 +264,7 @@ export const ViajesTicketsPage: React.FC = () => {
       sortable: true,
       cell: (row) => (
         <span style={{ fontWeight: 800, color: '#2563eb', fontSize: '13.5px' }}>
-          {(row.totalLitrosRecogidos || 0).toLocaleString()} <small>L</small>
+          {(row.totalLitrosFinca != null ? row.totalLitrosFinca : (row.totalLitrosRecogidos || 0)).toLocaleString()} <small>L</small>
         </span>
       ),
     },
@@ -274,19 +274,20 @@ export const ViajesTicketsPage: React.FC = () => {
       sortable: true,
       cell: (row) => (
         <span style={{ fontWeight: 800, color: '#059669', fontSize: '13.5px' }}>
-          {(row.totalLitrosEntregados || 0).toLocaleString()} <small>L</small>
+          {((row.litrosEntregadosCompania != null ? row.litrosEntregadosCompania : (row.totalLitrosReceptoria != null ? row.totalLitrosReceptoria : (row.totalLitrosEntregados || 0)))).toLocaleString()} <small>L</small>
         </span>
       ),
     },
     {
       header: 'MERMA',
       cell: (row) => {
-        const mermaPct = row.mermaPorcentaje || 0;
+        const mermaLts = row.diferenciaLitros != null ? row.diferenciaLitros : (row.mermaLitros || 0);
+        const mermaPct = row.porcentajeMerma != null ? row.porcentajeMerma : (row.mermaPorcentaje || 0);
         const alerta = Math.abs(mermaPct) > 1.5;
         return (
           <div>
             <span style={{ fontWeight: 800, color: alerta ? '#dc2626' : '#334155' }}>
-              {(row.mermaLitros || 0).toLocaleString()} L
+              {mermaLts.toLocaleString()} L
             </span>
             <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '4px' }}>
               ({mermaPct.toFixed(2)}%)
@@ -298,7 +299,7 @@ export const ViajesTicketsPage: React.FC = () => {
     {
       header: 'ESTADO',
       accessorKey: 'estadoProceso',
-      cell: (row) => getBadgeEstado(row.estadoProceso),
+      cell: (row) => getBadgeEstado(row.nombreProceso || row.estadoProceso || row.estado || 'EN RUTA'),
     },
     {
       header: 'ACCIONES',

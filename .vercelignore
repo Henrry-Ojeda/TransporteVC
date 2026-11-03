@@ -1,0 +1,9 @@
+.vs
+Backend
+publish_linux
+*.zip
+*.bak
+Ejecutables
+Docs
+Frontend
+

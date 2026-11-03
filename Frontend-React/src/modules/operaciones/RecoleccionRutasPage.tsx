@@ -145,6 +145,15 @@ export const RecoleccionRutasPage: React.FC = () => {
       ),
     },
     {
+      header: 'TICKET / VIAJE',
+      sortable: true,
+      cell: (row) => (
+        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#4f46e5', fontSize: '13px' }}>
+          {row.ticketCodigo || (row.controlRutaId ? `TKT-${row.controlRutaId}` : '-')}
+        </span>
+      ),
+    },
+    {
       header: 'FINCA PRODUCTORA',
       accessorKey: 'fincaNombre',
       sortable: true,
@@ -207,14 +216,6 @@ export const RecoleccionRutasPage: React.FC = () => {
             Normal (Fría)
           </span>
         ),
-    },
-    {
-      header: 'TICKET / VIAJE',
-      cell: (row) => (
-        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#4f46e5' }}>
-          {row.ticketCodigo || (row.controlRutaId ? `TKT-${row.controlRutaId}` : '-')}
-        </span>
-      ),
     },
   ];
 
@@ -408,42 +409,45 @@ export const RecoleccionRutasPage: React.FC = () => {
                 >
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontWeight: 900, fontFamily: 'monospace', color: '#4f46e5', fontSize: '14px' }}>
+                      <span style={{ fontWeight: 900, fontFamily: 'monospace', color: '#4f46e5', fontSize: '15px' }}>
                         TICKET #{v.codigoTicket || v.id}
                       </span>
                       <span
                         className="badge"
                         style={{
-                          background: v.estadoProceso === 'CERRADO' ? '#ecfdf5' : '#eff6ff',
-                          color: v.estadoProceso === 'CERRADO' ? '#047857' : '#1d4ed8',
+                          background: (v.estado === 'FINALIZADO' || v.estado === 'CERRADO' || v.estadoProceso === 'CERRADO') ? '#ecfdf5' : '#eff6ff',
+                          color: (v.estado === 'FINALIZADO' || v.estado === 'CERRADO' || v.estadoProceso === 'CERRADO') ? '#047857' : '#1d4ed8',
+                          border: `1px solid ${(v.estado === 'FINALIZADO' || v.estado === 'CERRADO' || v.estadoProceso === 'CERRADO') ? '#a7f3d0' : '#bfdbfe'}`,
                           fontWeight: 800,
+                          fontSize: '11px',
+                          textTransform: 'uppercase',
                         }}
                       >
-                        {v.estadoProceso}
+                        {v.nombreProceso || v.estadoProceso || v.estado || 'EN RUTA'}
                       </span>
                     </div>
 
-                    <div style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px' }}>
-                      <i className="fa-solid fa-truck" style={{ color: '#64748b', marginRight: '6px' }}></i>
-                      <strong>{v.camionPlaca || `Camión #${v.camionId}`}</strong>
+                    <div style={{ fontSize: '13.5px', color: '#0f172a', marginBottom: '6px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-solid fa-truck" style={{ color: '#2563eb' }}></i>
+                      <span>{v.camionPlaca || v.rutaLogisticaNombre || (v.camionId ? `Camión #${v.camionId}` : 'Ruta Logística Activa')}</span>
                     </div>
 
-                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
-                      <i className="fa-regular fa-user" style={{ marginRight: '6px' }}></i>
-                      Chofer: {v.choferNombre || 'Sin asignar'}
+                    <div style={{ fontSize: '12.5px', color: '#475569', marginBottom: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-regular fa-user" style={{ color: '#64748b' }}></i>
+                      <span>Chofer: <strong style={{ color: '#1e293b' }}>{v.choferNombre || v.nombreConductor || 'Sin asignar'}</strong></span>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
                       <div>
-                        <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Recolectado</span>
+                        <span style={{ fontSize: '10.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '2px' }}>Recolectado</span>
                         <span style={{ fontSize: '16px', fontWeight: 800, color: '#2563eb' }}>
-                          {(v.totalLitrosRecogidos || 0).toLocaleString()} L
+                          {(v.totalLitrosFinca != null ? v.totalLitrosFinca : (v.totalLitrosRecogidos || 0)).toLocaleString()} L
                         </span>
                       </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Entregado</span>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '10.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '2px' }}>Entregado</span>
                         <span style={{ fontSize: '16px', fontWeight: 800, color: '#059669' }}>
-                          {(v.totalLitrosEntregados || 0).toLocaleString()} L
+                          {(v.litrosEntregadosCompania != null ? v.litrosEntregadosCompania : (v.totalLitrosReceptoria != null ? v.totalLitrosReceptoria : (v.totalLitrosEntregados || 0))).toLocaleString()} L
                         </span>
                       </div>
                     </div>

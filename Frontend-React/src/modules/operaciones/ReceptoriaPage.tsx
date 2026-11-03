@@ -1207,8 +1207,8 @@ export const ReceptoriaPage: React.FC = () => {
                 <th style={{ textAlign: 'center', width: '140px' }}>
                   MERMA / BALANCE
                 </th>
-                <th>OBSERVACIÓN</th>
-                <th style={{ width: '110px', textAlign: 'center' }}>ACCIONES</th>
+                <th style={{ maxWidth: '240px', width: '220px' }}>OBSERVACIÓN</th>
+                <th style={{ width: '80px', minWidth: '80px', textAlign: 'center' }}>ACCIONES</th>
               </tr>
             </thead>
             <tbody>
@@ -1365,15 +1365,30 @@ export const ReceptoriaPage: React.FC = () => {
                       </td>
 
                       {/* 7. OBSERVACIÓN */}
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <span style={{ color: '#475569', fontSize: '12px', fontWeight: 500, lineHeight: 1.4, display: 'block', maxWidth: '280px' }}>
+                      <td style={{ verticalAlign: 'middle', maxWidth: '220px', paddingRight: '12px' }}>
+                        <span 
+                          title={e.observacion || ''}
+                          style={{ 
+                            color: '#475569', 
+                            fontSize: '11.5px', 
+                            fontWeight: 500, 
+                            lineHeight: 1.35, 
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            wordBreak: 'break-word',
+                            maxWidth: '220px'
+                          }}
+                        >
                           {e.observacion || '-'}
                         </span>
                       </td>
 
                       {/* 8. ACCIONES */}
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'middle', width: '80px', minWidth: '80px', paddingLeft: '8px' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
                           <button
                             type="button"
                             className="btn btn-sm btn-outline"
@@ -1383,7 +1398,7 @@ export const ReceptoriaPage: React.FC = () => {
                               }
                             }}
                             title="Eliminar entrega"
-                            style={{ height: '30px', width: '30px', padding: 0, borderRadius: '6px', color: '#ef4444', borderColor: '#fca5a5' }}
+                            style={{ height: '30px', width: '30px', padding: 0, borderRadius: '6px', color: '#ef4444', borderColor: '#fca5a5', background: '#fff' }}
                           >
                             <i className="fa-solid fa-trash-can" style={{ fontSize: '11px' }}></i>
                           </button>
