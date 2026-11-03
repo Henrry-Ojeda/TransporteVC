@@ -76,14 +76,6 @@ export const useAuthStore = create<AuthState>()(
         const user = get().user;
         const code = moduloCodigo.toUpperCase();
 
-        // En Campo Verde, Búfala está estrictamente deshabilitada
-        if (typeof window !== 'undefined') {
-          const host = window.location.hostname.toLowerCase();
-          if ((host.includes('campoverde') || host.includes('quesera')) && code === 'MOD_LECHE_BUFALA') {
-            return false;
-          }
-        }
-
         if (user?.modulosHabilitados && Array.isArray(user.modulosHabilitados)) {
           return user.modulosHabilitados.includes(code);
         }

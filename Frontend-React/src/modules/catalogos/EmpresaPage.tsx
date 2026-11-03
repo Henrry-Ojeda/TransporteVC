@@ -8,11 +8,11 @@ export const EmpresaPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   const [form, setForm] = useState<EmpresaConfigDto>({
-    nombreEmpresa: 'TRANSPORTE VERGEL & CARRILLO',
-    rif: 'J-50000000-0',
-    direccion: 'Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela',
-    telefono: '+58 414-0000000',
-    email: 'contacto@transporte-vergel-carrillo.com',
+    nombreEmpresa: '',
+    rif: '',
+    direccion: '',
+    telefono: '',
+    email: '',
     monedaPrincipal: 'USD',
     toleranciaMermaPct: 1.5,
   });
@@ -26,11 +26,11 @@ export const EmpresaPage: React.FC = () => {
     if (config) {
       setForm({
         id: config.id,
-        nombreEmpresa: config.nombreEmpresa || 'TRANSPORTE VERGEL & CARRILLO',
-        rif: config.rif || 'J-50000000-0',
-        direccion: config.direccion || 'Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela',
-        telefono: config.telefono || '+58 414-0000000',
-        email: config.email || 'contacto@transporte-vergel-carrillo.com',
+        nombreEmpresa: config.nombreEmpresa || '',
+        rif: config.rif || '',
+        direccion: config.direccion || '',
+        telefono: config.telefono || '',
+        email: config.email || '',
         monedaPrincipal: config.monedaPrincipal || 'USD',
         toleranciaMermaPct: config.toleranciaMermaPct ?? 1.5,
       });
@@ -167,7 +167,7 @@ export const EmpresaPage: React.FC = () => {
                 type="text"
                 value={form.nombreEmpresa}
                 onChange={(e) => setForm({ ...form, nombreEmpresa: e.target.value })}
-                placeholder="Ej: TRANSPORTE VERGEL & CARRILLO"
+                placeholder="Ej: Mi Empresa Láctea C.A."
                 className="form-input"
                 style={{ width: '100%', height: '44px', fontSize: '14px', fontWeight: 700, color: '#0f172a', borderRadius: '8px' }}
                 required
@@ -213,7 +213,7 @@ export const EmpresaPage: React.FC = () => {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="Ej: contacto@transporte-vergel-carrillo.com"
+                placeholder="Ej: contacto@empresa.com"
                 className="form-input"
                 style={{ width: '100%', height: '44px', fontSize: '13.5px', color: '#0f172a', borderRadius: '8px' }}
               />
