@@ -2,12 +2,9 @@
 
 Sistema de Gestión de Rutas y Transporte de Leche V2.
 
-### 🚀 Inicio Rápido
-- **Servidor y API Backend**: http://localhost:5188/
-- **Documentación Swagger**: http://localhost:5188/swagger
-- **Ejecutar Aplicación**: Ejecutar [`Iniciar_Servidor.bat`](file:///c:/Users/Usuario/source/repos/Transporte_V2/Iniciar_Servidor.bat)
-
-### 🛠️ Compilación y Sincronización del Frontend
-El frontend está organizado en arquitectura modular por componentes en `Frontend/src/components/`.
-- **Compilar componentes**: `npm run build` (dentro de `Frontend/`) o `powershell -File .\sync_frontend_all.ps1`.
-- **Modo Observador en Vivo**: `npm run watch` (dentro de `Frontend/`).
+### 📋 REGLAS MAESTRAS DE OBLIGATORIO CUMPLIMIENTO
+1. **Duda sobre módulos o diseños**: Buscar en la carpeta `C:\Users\Usuario\Downloads\Transporte_V2_3_11_26` para replicar el diseño exacto 1:1 de `V2_3_11_26`.
+2. **Tablas**: Toda tabla debe usar obligatoriamente el componente `<DataTable />` con buscador, paginador y exportación.
+3. **Campos desplegables**: Todo selector debe ser con filtro/búsqueda integrada (`<SearchableSelect />`, `<CamionSelect />`, `<ChoferSelect />`).
+4. **Módulos relacionados (ej: Búfala, Diferir Litros)**: Estructurar de manera consistente en todas las vistas donde aplique (Reportes Fincas, Receptoría, Liquidación/Pagos, Balances). Si está habilitado en SaaS se muestra en todas las vistas; si está deshabilitado se oculta.
+5. **Despliegues PADRE ➔ HIJOS**: Todo cambio subido a `main` de `Transporte_Base` debe desplegarse en Vercel (`npx vercel --prod`) y reasignar los alias de los HIJOS (`transporte-vergel-carrillo.vercel.app`, `campoverde-omega.vercel.app`, `transporte-base.vercel.app`).
