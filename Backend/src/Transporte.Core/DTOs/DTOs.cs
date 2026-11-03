@@ -229,7 +229,9 @@ namespace Transporte.Core.DTOs
     {
         public int Id { get; set; }
         public string Nombre { get; set; } = string.Empty;
+        public string NombreCompleto => Nombre;
         public string? CedulaRIF { get; set; }
+        public string? CedulaRif => CedulaRIF;
         public string? Telefono { get; set; }
         public string? Email { get; set; }
         public int? BancoId { get; set; }
@@ -237,6 +239,7 @@ namespace Transporte.Core.DTOs
         public string? NumeroCuenta { get; set; }
         public string? Observacion { get; set; }
         public string Estado { get; set; } = "ACTIVO";
+        public bool Activo => Estado == "ACTIVO" || Estado == "1";
         public int TotalFincas { get; set; }
         public List<string> FincasNombres { get; set; } = new();
     }

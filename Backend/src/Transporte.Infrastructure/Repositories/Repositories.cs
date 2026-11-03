@@ -244,13 +244,13 @@ namespace Transporte.Infrastructure.Repositories
             }
             else if (fechaInicio.HasValue && fechaFin.HasValue)
             {
-                whereFilter = "CAST(r.Fecha AS DATE) >= @fechaInicio AND CAST(r.Fecha AS DATE) <= @fechaFin";
+                whereFilter = "r.Fecha >= @fechaInicio AND r.Fecha <= @fechaFin";
                 param = new { fechaInicio = fechaInicio.Value.Date, fechaFin = fechaFin.Value.Date, usuarioId, rol };
             }
             else
             {
                 var fechaConsulta = (fecha ?? DateTime.Today).Date;
-                whereFilter = "CAST(r.Fecha AS DATE) = @fechaConsulta";
+                whereFilter = "r.Fecha = @fechaConsulta";
                 param = new { fechaConsulta, usuarioId, rol };
             }
 
@@ -3231,6 +3231,17 @@ namespace Transporte.Infrastructure.Repositories
         {
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
+                WITH RecoleccionesPorCiclo AS (
+                    SELECT 
+                        CicloId,
+                        SUM(Litros) AS TotalLitros,
+                        SUM(Litros * ISNULL(PrecioLitroUSDAplicado, 0)) AS TotalMontoUSD,
+                        SUM(Litros * ISNULL(PrecioLitroUSDAplicado, 0) * ISNULL(TasaDolarBsAplicada, 0)) AS TotalBrutoBs,
+                        COUNT(DISTINCT FincaId) AS TotalFincasParticipantes
+                    FROM TB_RUTAS_RECOLECCION
+                    WHERE CicloId IS NOT NULL
+                    GROUP BY CicloId
+                )
                 SELECT 
                     c.Id,
                     c.Codigo,
@@ -3239,17 +3250,16 @@ namespace Transporte.Infrastructure.Repositories
                     c.Estado,
                     DATEPART(isowk, c.FechaInicio) AS NumeroSemana,
                     YEAR(c.FechaInicio) AS Anio,
-                    ISNULL(SUM(r.Litros), 0) AS TotalLitros,
-                    ISNULL(SUM(r.Litros * ISNULL(r.PrecioLitroUSDAplicado, 0)), 0) AS TotalMontoUSD,
-                    ISNULL(SUM(r.Litros * ISNULL(r.PrecioLitroUSDAplicado, 0) * ISNULL(r.TasaDolarBsAplicada, 0)), 0) AS TotalBrutoBs,
-                    COUNT(DISTINCT r.FincaId) AS TotalFincasParticipantes,
-                    (SELECT COUNT(DISTINCT e.CompaniaId) FROM TB_ENTREGAS_COMPANIA e WHERE e.Fecha BETWEEN c.FechaInicio AND c.FechaFin) AS TotalCompaniasParticipantes,
+                    ISNULL(r.TotalLitros, 0) AS TotalLitros,
+                    ISNULL(r.TotalMontoUSD, 0) AS TotalMontoUSD,
+                    ISNULL(r.TotalBrutoBs, 0) AS TotalBrutoBs,
+                    ISNULL(r.TotalFincasParticipantes, 0) AS TotalFincasParticipantes,
+                    0 AS TotalCompaniasParticipantes,
                     c.Observaciones AS Observaciones,
                     ISNULL(c.StockInicialTanques, 0) AS StockInicialTanques,
                     c.StockFinalTanques AS StockFinalTanques
                 FROM TB_CICLOS_OPERATIVOS c
-                LEFT JOIN TB_RUTAS_RECOLECCION r ON c.Id = r.CicloId
-                GROUP BY c.Id, c.Codigo, c.FechaInicio, c.FechaFin, c.Estado, c.Observaciones, c.StockInicialTanques, c.StockFinalTanques
+                LEFT JOIN RecoleccionesPorCiclo r ON c.Id = r.CicloId
                 ORDER BY CASE WHEN c.Estado = 'ABIERTO' THEN 0 ELSE 1 END, c.FechaInicio DESC";
 
             return await connection.QueryAsync<SemanaDetalleDto>(sql);
@@ -3659,13 +3669,13 @@ namespace Transporte.Infrastructure.Repositories
             }
             else if (fechaInicio.HasValue && fechaFin.HasValue)
             {
-                whereFilter = "CAST(e.Fecha AS DATE) >= @fechaInicio AND CAST(e.Fecha AS DATE) <= @fechaFin";
+                whereFilter = "e.Fecha >= @fechaInicio AND e.Fecha <= @fechaFin";
                 param = new { fechaInicio = fechaInicio.Value.Date, fechaFin = fechaFin.Value.Date, usuarioId, rol };
             }
             else
             {
                 var fechaConsulta = (fecha ?? DateTime.Today).Date;
-                whereFilter = "CAST(e.Fecha AS DATE) = @fechaConsulta";
+                whereFilter = "e.Fecha = @fechaConsulta";
                 param = new { fechaConsulta, usuarioId, rol };
             }
 

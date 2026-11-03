@@ -655,11 +655,15 @@ export const FincasPage: React.FC = () => {
                     Propietario Ganadero <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
                   <SearchableSelect
-                    options={propietarios.map((p) => ({
-                      value: p.id,
-                      label: p.nombreCompleto,
-                      subLabel: p.cedulaRif ? `RIF: ${p.cedulaRif}` : 'Sin RIF',
-                    }))}
+                    options={propietarios.map((p: any) => {
+                      const nombre = p.nombre || p.nombreCompleto || 'Sin nombre';
+                      const rif = p.cedulaRIF || p.cedulaRif;
+                      return {
+                        value: p.id,
+                        label: nombre,
+                        subLabel: rif ? `RIF: ${rif}` : 'Sin RIF',
+                      };
+                    })}
                     value={form.propietarioId}
                     onChange={(val) => setForm({ ...form, propietarioId: val ? Number(val) : undefined })}
                     placeholder="-- Seleccionar o buscar por nombre o cédula --"

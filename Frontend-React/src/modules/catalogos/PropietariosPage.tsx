@@ -92,8 +92,8 @@ export const PropietariosPage: React.FC = () => {
   const abrirModalEditar = (item: PropietarioDto) => {
     setModoEdicionId(item.id);
     setForm({
-      nombreCompleto: item.nombreCompleto,
-      cedulaRif: item.cedulaRif,
+      nombreCompleto: item.nombreCompleto || item.nombre || '',
+      cedulaRif: item.cedulaRif || item.cedulaRIF || '',
       telefono: item.telefono || '',
       email: item.email || '',
       bancoId: item.bancoId,
@@ -125,9 +125,9 @@ export const PropietariosPage: React.FC = () => {
       sortable: true,
       cell: (row) => (
         <div>
-          <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.nombreCompleto}</div>
+          <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.nombre || row.nombreCompleto}</div>
           <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
-            C.I / RIF: {row.cedulaRif || 'S/C'}
+            C.I / RIF: {row.cedulaRIF || row.cedulaRif || 'S/C'}
           </span>
         </div>
       ),
@@ -278,13 +278,12 @@ export const PropietariosPage: React.FC = () => {
         isLoading={isLoading}
         searchPlaceholder="Buscar por nombre, cédula, teléfono..."
         exportFileName="catalogo_propietarios"
-        searchFilter={(row, term) =>
-          Boolean(
-            (row.nombreCompleto && row.nombreCompleto.toLowerCase().includes(term)) ||
-            (row.cedulaRif && row.cedulaRif.toLowerCase().includes(term)) ||
-            (row.telefono && row.telefono.toLowerCase().includes(term))
-          )
-        }
+        searchFilter={(row, term) => {
+          const nom = (row.nombre || row.nombreCompleto || '').toLowerCase();
+          const rif = (row.cedulaRIF || row.cedulaRif || '').toLowerCase();
+          const tel = (row.telefono || '').toLowerCase();
+          return Boolean(nom.includes(term) || rif.includes(term) || tel.includes(term));
+        }}
       />
 
       {/* MODAL CREAR / EDITAR */}

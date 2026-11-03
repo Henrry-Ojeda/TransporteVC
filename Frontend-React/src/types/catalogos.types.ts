@@ -37,8 +37,10 @@ export interface GuardarFincaDto {
 
 export interface PropietarioDto {
   id: number;
-  nombreCompleto: string;
-  cedulaRif: string;
+  nombre?: string;
+  nombreCompleto?: string;
+  cedulaRif?: string;
+  cedulaRIF?: string;
   telefono?: string;
   email?: string;
   bancoId?: number;

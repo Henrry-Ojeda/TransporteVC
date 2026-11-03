@@ -35,16 +35,29 @@ namespace Transporte.API.Multitenancy
 
         private TenantInfo? _currentTenant;
 
-        public static bool IsRunningInDocker => 
-            File.Exists("/.dockerenv") || 
-            string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
+        private static readonly Lazy<bool> _isDockerOrSqlInstancia = new(() =>
+        {
+            try
+            {
+                if (File.Exists("/.dockerenv")) return true;
+                if (string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)) return true;
+                var entry = System.Net.Dns.GetHostEntry("sql_instancia");
+                if (entry != null && entry.AddressList.Length > 0) return true;
+            }
+            catch { }
+            return false;
+        });
+
+        public static bool IsRunningInDocker => _isDockerOrSqlInstancia.Value;
 
         public static string AdjustConnectionStringForEnvironment(string connStr)
         {
             if (string.IsNullOrWhiteSpace(connStr)) return connStr;
-            if (IsRunningInDocker && connStr.Contains("84.247.178.194"))
+            if (IsRunningInDocker)
             {
-                return connStr.Replace("84.247.178.194", "sql_instancia");
+                connStr = connStr.Replace("84.247.178.194", "sql_instancia");
+                connStr = connStr.Replace("127.0.0.1", "sql_instancia");
+                connStr = connStr.Replace("localhost", "sql_instancia");
             }
             return connStr;
         }
@@ -143,11 +156,11 @@ namespace Transporte.API.Multitenancy
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Fallback a conexión local: {Msg}", ex.Message);
+                _logger.LogWarning("Fallback a conexión local para host {Host}: {Msg}", host, ex.Message);
             }
 
             string fallbackConn = _configuration.GetConnectionString("DefaultConnection") 
-                ?? "Server=84.247.178.194,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
+                ?? "Server=sql_instancia,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
             
             _currentTenant = new TenantInfo
             {
@@ -158,6 +171,9 @@ namespace Transporte.API.Multitenancy
                 FechaVencimiento = DateTime.UtcNow.AddYears(1),
                 Modulos = new List<string> { "MOD_DASHBOARD", "MOD_LECHE_VACA", "MOD_LECHE_BUFALA", "MOD_LOGISTICA_RUTAS", "MOD_RECEPTORIA", "MOD_COMBUSTIBLE", "MOD_MANTENIMIENTO", "MOD_REPUESTOS", "MOD_LIQUIDACIONES", "MOD_HISTORIAL_BCV" }
             };
+
+            // Cachear fallback por 1 minuto para evitar reintentos continuos y congelamientos
+            _tenantCache[host] = (_currentTenant, DateTime.UtcNow.AddMinutes(-9));
         }
 
         private static void cleanHost(ref string host)
