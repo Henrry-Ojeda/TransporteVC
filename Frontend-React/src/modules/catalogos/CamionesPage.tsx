@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { ChoferSelect } from '@/components/selectors';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { CamionDto, GuardarCamionDto, ChoferDto } from '@/types';
 
@@ -302,26 +303,29 @@ export const CamionesPage: React.FC = () => {
             className="content-card"
             style={{
               width: '100%',
-              maxWidth: '520px',
+              maxWidth: '640px',
               padding: '0',
-              overflow: 'hidden',
+              overflow: 'visible',
               borderRadius: '16px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              backgroundColor: '#ffffff',
             }}
           >
             <div
               style={{
-                padding: '16px 20px',
-                background: '#f8fafc',
-                borderBottom: '1px solid #e2e8f0',
+                padding: '18px 24px',
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                color: '#ffffff',
+                borderTopLeftRadius: '16px',
+                borderTopRightRadius: '16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }}
             >
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fa-solid fa-truck" style={{ color: '#0284c7' }}></i>
-                {modoEdicionId ? 'Editar Camión Cisterna' : 'Registrar Nuevo Camión'}
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <i className="fa-solid fa-truck-droplet" style={{ fontSize: '18px' }}></i>
+                {modoEdicionId ? 'Editar Camión Cisterna' : 'Registrar Nuevo Camión Cisterna'}
               </h3>
               <button
                 type="button"
@@ -329,9 +333,11 @@ export const CamionesPage: React.FC = () => {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#64748b',
+                  color: '#ffffff',
                   cursor: 'pointer',
-                  fontSize: '18px',
+                  fontSize: '20px',
+                  lineHeight: 1,
+                  padding: '4px',
                 }}
               >
                 &times;
@@ -347,11 +353,11 @@ export const CamionesPage: React.FC = () => {
                 }
                 guardarMutation.mutate(form);
               }}
-              style={{ padding: '20px' }}
+              style={{ padding: '24px', overflow: 'visible' }}
             >
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Placa del Vehículo *
                   </label>
                   <input
@@ -360,13 +366,13 @@ export const CamionesPage: React.FC = () => {
                     onChange={(e) => setForm({ ...form, placa: e.target.value.toUpperCase() })}
                     placeholder="Ej: A84DE3A"
                     className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px', fontFamily: 'monospace', fontWeight: 700 }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px', fontFamily: 'monospace', fontWeight: 700, fontSize: '14px' }}
                     required
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Capacidad (Litros) *
                   </label>
                   <input
@@ -375,15 +381,15 @@ export const CamionesPage: React.FC = () => {
                     onChange={(e) => setForm({ ...form, capacidadLitros: Number(e.target.value) })}
                     placeholder="10000"
                     className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px', fontWeight: 700 }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px', fontWeight: 700, fontSize: '14px' }}
                     required
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Marca
                   </label>
                   <input
@@ -392,12 +398,12 @@ export const CamionesPage: React.FC = () => {
                     onChange={(e) => setForm({ ...form, marca: e.target.value })}
                     placeholder="Mack, Ford..."
                     className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Modelo
                   </label>
                   <input
@@ -406,64 +412,59 @@ export const CamionesPage: React.FC = () => {
                     onChange={(e) => setForm({ ...form, modelo: e.target.value })}
                     placeholder="CH613, Cargo..."
                     className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Año
                   </label>
                   <input
                     type="number"
                     value={form.año || ''}
                     onChange={(e) => setForm({ ...form, año: Number(e.target.value) })}
-                    placeholder="2012"
+                    placeholder="2026"
                     className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px' }}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Odómetro Actual (Km)
                   </label>
                   <input
                     type="number"
                     value={form.odometroActualKm || 0}
                     onChange={(e) => setForm({ ...form, odometroActualKm: Number(e.target.value) })}
-                    placeholder="150000"
+                    placeholder="0"
                     className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Chofer Habitual <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
-                  <SearchableSelect
-                    options={choferes.map((ch) => ({
-                      value: ch.id,
-                      label: ch.nombreCompleto,
-                      subLabel: `Cédula: ${ch.cedula}`,
-                    }))}
+                  <ChoferSelect
                     value={form.usuarioId}
-                    onChange={(val) => setForm({ ...form, usuarioId: val ? Number(val) : undefined })}
+                    onChange={(val) => setForm({ ...form, usuarioId: val })}
                     placeholder="-- Seleccionar o buscar chofer --"
-                    searchPlaceholder="Buscar chofer por nombre o cédula..."
+                    allowClear
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
                 <button
                   type="button"
                   onClick={cerrarModal}
                   className="btn btn-outline"
-                  style={{ height: '38px', padding: '0 16px', borderRadius: '8px' }}
+                  style={{ height: '40px', padding: '0 20px', borderRadius: '8px', fontWeight: 600 }}
                 >
                   Cancelar
                 </button>
@@ -472,12 +473,14 @@ export const CamionesPage: React.FC = () => {
                   disabled={guardarMutation.isPending}
                   className="btn btn-primary"
                   style={{
-                    height: '38px',
-                    padding: '0 20px',
+                    height: '40px',
+                    padding: '0 24px',
                     borderRadius: '8px',
-                    background: '#0284c7',
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
                     border: 'none',
                     fontWeight: 700,
+                    color: '#ffffff',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
                   }}
                 >
                   {guardarMutation.isPending ? 'Guardando...' : (modoEdicionId ? 'Guardar Cambios' : 'Registrar Camión')}

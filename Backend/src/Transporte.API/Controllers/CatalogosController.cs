@@ -31,6 +31,14 @@ namespace Transporte.API.Controllers
             return Ok(semanas);
         }
 
+        [HttpGet("propietarios")]
+        [HttpGet("/api/propietarios")]
+        public async Task<IActionResult> ObtenerPropietarios()
+        {
+            var result = await _catalogosRepository.ObtenerPropietariosAsync();
+            return Ok(result);
+        }
+
         // ==========================================
         // 1. FINCAS (CRUD COMPLETO Y PRECIOS)
         // ==========================================

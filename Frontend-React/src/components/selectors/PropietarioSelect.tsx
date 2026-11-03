@@ -44,8 +44,9 @@ export const PropietarioSelect: React.FC<PropietarioSelectProps> = ({
       })
       .map((p: any) => {
         const id = p.id ?? p.Id;
-        const nombre = p.nombre || p.Nombre || p.nombreCompleto || p.NombreCompleto || `Ganadero #${id}`;
-        const rif = p.cedulaRIF || p.cedulaRif || p.CedulaRIF || p.rif || p.RIF;
+        const rawName = String(p.nombre || p.Nombre || p.nombreCompleto || p.NombreCompleto || p.propietario || p.Propietario || '').trim();
+        const rif = String(p.cedulaRIF || p.cedulaRif || p.CedulaRIF || p.rif || p.RIF || '').trim();
+        const nombre = rawName || (rif ? `Ganadero (${rif})` : `Ganadero #${id}`);
         const totalFincas = p.totalFincas ?? p.TotalFincas ?? 0;
 
         let subLabel = rif ? `RIF: ${rif}` : 'Sin RIF';
@@ -77,3 +78,4 @@ export const PropietarioSelect: React.FC<PropietarioSelectProps> = ({
     />
   );
 };
+

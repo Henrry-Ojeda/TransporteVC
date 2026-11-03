@@ -701,7 +701,9 @@ export const ViajesTicketsPage: React.FC = () => {
                   Detalle del Viaje #{viajeSeleccionado.codigoTicket || viajeSeleccionado.id}
                 </h3>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  Fecha: {new Date(viajeSeleccionado.fecha).toLocaleDateString('es-VE')} | Camión: {viajeSeleccionado.camionPlaca} | Chofer: {viajeSeleccionado.choferNombre}
+                  Fecha: {new Date(viajeSeleccionado.fecha).toLocaleDateString('es-VE')} &bull; Camión:{' '}
+                  <strong>{viajeSeleccionado.camionPlaca || (viajeSeleccionado.camionId ? `Cisterna #${viajeSeleccionado.camionId}` : 'Cisterna')}</strong> &bull; Chofer:{' '}
+                  <strong>{viajeSeleccionado.choferNombre || viajeSeleccionado.nombreConductor || (viajeSeleccionado as any).chofer?.nombre || 'Chofer'}</strong>
                 </span>
               </div>
               <button
@@ -738,32 +740,61 @@ export const ViajesTicketsPage: React.FC = () => {
                     <th>Finca</th>
                     <th style={{ textAlign: 'right' }}>Litros</th>
                     <th style={{ textAlign: 'center' }}>Tipo</th>
+                    <th style={{ textAlign: 'center' }}>Calidad</th>
                     <th style={{ textAlign: 'center' }}>Temp (°C)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fincasViaje.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', color: '#94a3b8', padding: '16px' }}>
+                      <td colSpan={5} style={{ textAlign: 'center', color: '#94a3b8', padding: '16px' }}>
                         No hay recolecciones registradas en este viaje aún.
                       </td>
                     </tr>
                   ) : (
-                    fincasViaje.map((f, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <strong>{f.fincaNombre || `Finca #${f.fincaId}`}</strong>
-                          <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>{f.propietarioNombre}</span>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
-                          {(f.litrosLeche || 0).toLocaleString()} L
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className="badge">{f.tipoLeche || 'VACA'}</span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>{f.temperatura ? `${f.temperatura}°C` : '-'}</td>
-                      </tr>
-                    ))
+                    fincasViaje.map((f, idx) => {
+                      const lts = Number((f as any).litros ?? (f as any).Litros ?? f.litrosLeche ?? 0);
+                      const esBuf = String(f.tipoLeche || (f as any).TipoLeche || '').toUpperCase().includes('BUFAL');
+                      const esAc = Boolean((f as any).esAcida ?? (f as any).EsAcida ?? false);
+
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <strong>{f.fincaNombre || (f as any).finca || `Finca #${f.fincaId}`}</strong>
+                            <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>{f.propietarioNombre || (f as any).propietario}</span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb', fontSize: '14px' }}>
+                            {lts.toLocaleString()} <small>Lts</small>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              className="badge"
+                              style={{
+                                background: esBuf ? '#f3e8ff' : '#e0f2fe',
+                                color: esBuf ? '#7e22ce' : '#0369a1',
+                                border: `1px solid ${esBuf ? '#d8b4fe' : '#bae6fd'}`,
+                                fontWeight: 800,
+                                fontSize: '11px',
+                              }}
+                            >
+                              {esBuf ? '🐃 BÚFALA' : '🥛 VACA'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {esAc ? (
+                              <span className="badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 800, fontSize: '11px' }}>
+                                ÁCIDA
+                              </span>
+                            ) : (
+                              <span className="badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700, fontSize: '11px' }}>
+                                Normal
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>{f.temperatura ? `${f.temperatura}°C` : '-'}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

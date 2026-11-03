@@ -40,9 +40,29 @@ export const BalanceLechePage: React.FC = () => {
     queryFn: () => operacionesApi.getControles(),
   });
 
+  // Helpers de normalización robusta de litros y datos de ruta
+  const getLitrosRecogidos = (v: any) =>
+    Number(v.totalLitrosFinca ?? v.totalLitrosRecogidos ?? v.TotalLitrosFinca ?? v.litrosRecogidos ?? 0);
+
+  const getLitrosEntregados = (v: any) =>
+    Number(
+      v.totalLitrosReceptoria ??
+      v.litrosEntregadosCompania ??
+      v.totalLitrosEntregados ??
+      v.TotalLitrosReceptoria ??
+      v.LitrosEntregadosCompania ??
+      0
+    );
+
+  const getChoferNombre = (v: any) =>
+    v.nombreConductor || v.choferNombre || (v as any).NombreConductor || (v as any).conductorNombre || 'Chofer Asignado';
+
+  const getCamionPlaca = (v: any) =>
+    v.camionPlaca || (v as any).CamionPlaca || (v.camionId ? `Camión #${v.camionId}` : 'Cisterna');
+
   // Cálculos volumétricos
-  const totalRecolectadoFincas = viajes.reduce((acc, v) => acc + (v.totalLitrosRecogidos || 0), 0);
-  const totalEntregadoPlantas = viajes.reduce((acc, v) => acc + (v.totalLitrosEntregados || 0), 0);
+  const totalRecolectadoFincas = viajes.reduce((acc, v) => acc + getLitrosRecogidos(v), 0);
+  const totalEntregadoPlantas = viajes.reduce((acc, v) => acc + getLitrosEntregados(v), 0);
   const mermaTotalRuta = Math.max(0, totalRecolectadoFincas - totalEntregadoPlantas);
   const porcentajeMerma = totalRecolectadoFincas > 0 ? (mermaTotalRuta / totalRecolectadoFincas) * 100 : 0;
 
@@ -54,8 +74,8 @@ export const BalanceLechePage: React.FC = () => {
 
   // Mapeo a movimientos de auditoría
   const movimientos: MovimientoBalance[] = viajes.map((v) => {
-    const recogidos = v.totalLitrosRecogidos || 0;
-    const entregados = v.totalLitrosEntregados || 0;
+    const recogidos = getLitrosRecogidos(v);
+    const entregados = getLitrosEntregados(v);
     const merma = Math.max(0, recogidos - entregados);
     const pct = recogidos > 0 ? (merma / recogidos) * 100 : 0;
     const proceso = v.rutaLogisticaId ? 2 : (recogidos > 5000 ? 1 : 3);
@@ -71,8 +91,8 @@ export const BalanceLechePage: React.FC = () => {
       fecha: v.fecha,
       procesoId: proceso,
       procesoNombre: procesoNombres[proceso] || 'Proceso Estándar',
-      chofer: v.choferNombre || 'Chofer Asignado',
-      camion: v.camionPlaca || 'Cisterna',
+      chofer: getChoferNombre(v),
+      camion: getCamionPlaca(v),
       fincaOPlanta: v.fincasDetalle && v.fincasDetalle.length > 0 ? `${v.fincasDetalle.length} Fincas` : 'Ruta Lechera',
       litrosEntrada: recogidos,
       litrosSalida: entregados,

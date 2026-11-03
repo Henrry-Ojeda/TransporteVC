@@ -42,8 +42,17 @@ export const catalogosApi = {
 
   // PROPIETARIOS
   getPropietarios: async (): Promise<PropietarioDto[]> => {
-    const res = await apiClient.get<PropietarioDto[]>('/propietarios');
-    return Array.isArray(res.data) ? res.data : [];
+    try {
+      const res = await apiClient.get<PropietarioDto[]>('/propietarios');
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      try {
+        const res = await apiClient.get<PropietarioDto[]>('/catalogos/propietarios');
+        return Array.isArray(res.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    }
   },
   crearPropietario: async (dto: CrearPropietarioDto): Promise<{ id: number; message: string }> => {
     const res = await apiClient.post('/propietarios', dto);

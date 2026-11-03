@@ -9,6 +9,8 @@ namespace Transporte.API.Controllers
     [Authorize]
     [ApiController]
     [Route("api/rutas-logistica")]
+    [Route("api/rutaslogistica")]
+    [Route("api/rutaslogisticas")]
     public class RutasLogisticaController : ControllerBase
     {
         private readonly IRutasLogisticaRepository _rutasLogisticaRepository;

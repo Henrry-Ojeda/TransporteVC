@@ -1,6 +1,8 @@
-export * from './CamionSelect';
-export * from './ChoferSelect';
-export * from './CompaniaSelect';
-export * from './TipoLecheSelect';
-export * from './FincaSelect';
-export * from './PropietarioSelect';
+export { CamionSelect } from './CamionSelect';
+export { ChoferSelect } from './ChoferSelect';
+export { CompaniaSelect } from './CompaniaSelect';
+export { TipoLecheSelect } from './TipoLecheSelect';
+export { FincaSelect } from './FincaSelect';
+export { PropietarioSelect } from './PropietarioSelect';
+
+

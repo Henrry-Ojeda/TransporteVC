@@ -66,28 +66,53 @@ export const operacionesApi = {
 
   // RUTAS LOGÍSTICAS
   getRutasLogistica: async (): Promise<RutaLogisticaDto[]> => {
-    const res = await apiClient.get<RutaLogisticaDto[]>('/rutaslogistica');
-    return Array.isArray(res.data) ? res.data : [];
+    try {
+      const res = await apiClient.get<RutaLogisticaDto[]>('/rutas-logistica');
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      const res = await apiClient.get<RutaLogisticaDto[]>('/rutaslogistica');
+      return Array.isArray(res.data) ? res.data : [];
+    }
   },
 
   crearRutaLogistica: async (dto: { nombre: string; descripcion?: string; camionPredeterminadoId?: number; choferPredeterminadoId?: number }): Promise<{ id: number; message: string }> => {
-    const res = await apiClient.post('/rutaslogistica', dto);
-    return res.data;
+    try {
+      const res = await apiClient.post('/rutas-logistica', dto);
+      return res.data;
+    } catch {
+      const res = await apiClient.post('/rutaslogistica', dto);
+      return res.data;
+    }
   },
 
   actualizarRutaLogistica: async (id: number, dto: { nombre: string; descripcion?: string; camionPredeterminadoId?: number; choferPredeterminadoId?: number; activo?: boolean }): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.put(`/rutaslogistica/${id}`, dto);
-    return res.data;
+    try {
+      const res = await apiClient.put(`/rutas-logistica/${id}`, dto);
+      return res.data;
+    } catch {
+      const res = await apiClient.put(`/rutaslogistica/${id}`, dto);
+      return res.data;
+    }
   },
 
   asignarFincasARuta: async (id: number, fincaIds: number[]): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/rutaslogistica/${id}/fincas`, { fincaIds });
-    return res.data;
+    try {
+      const res = await apiClient.post(`/rutas-logistica/${id}/fincas`, { fincaIds });
+      return res.data;
+    } catch {
+      const res = await apiClient.post(`/rutaslogistica/${id}/fincas`, { fincaIds });
+      return res.data;
+    }
   },
 
   eliminarRutaLogistica: async (id: number): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.delete(`/rutaslogistica/${id}`);
-    return res.data;
+    try {
+      const res = await apiClient.delete(`/rutas-logistica/${id}`);
+      return res.data;
+    } catch {
+      const res = await apiClient.delete(`/rutaslogistica/${id}`);
+      return res.data;
+    }
   },
 
   // CONTROL COMPAÑÍAS / RECEPTORÍA

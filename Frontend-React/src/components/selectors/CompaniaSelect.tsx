@@ -62,3 +62,4 @@ export const CompaniaSelect: React.FC<CompaniaSelectProps> = ({
     />
   );
 };
+
