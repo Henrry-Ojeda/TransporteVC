@@ -898,84 +898,141 @@ export const ViajesTicketsPage: React.FC = () => {
       {activeTab === 'timelapse' && (
         <div>
           {/* SELECTOR DE CAMIONES / VIAJES ACTIVOS */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#334155', textTransform: 'uppercase' }}>
-                <i className="fa-solid fa-truck-moving" style={{ color: '#6366f1', marginRight: '6px' }}></i>
-                Seleccionar Camión en Ruta para Monitoreo:
-              </span>
-              <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                Auto-actualización reactiva cada 8s ⚡
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '6px' }}>
-              {viajes.slice(0, 10).map((v) => {
-                const isSelected = viajeTimelapseActual?.id === v.id;
-                const isEnRuta = v.estadoProceso !== 'CERRADO' && v.estado !== 'CERRADO';
-                const cam = camiones.find((c) => c.id === v.camionId || c.placa === v.camionPlaca);
-
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setTimelapseViajeId(v.id)}
+          <div style={{ marginBottom: '16px', background: '#f8fafc', padding: '14px 18px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-truck-moving" style={{ color: '#6366f1' }}></i>
+                  MONITOREO DE JORNADA (TIMELAPSE EN VIVO):
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Fecha:</label>
+                  <input
+                    type="date"
+                    value={fechaMonitoreo}
+                    onChange={(e) => {
+                      setFechaMonitoreo(e.target.value);
+                      setTimelapseViajeId(null);
+                    }}
                     style={{
-                      flex: '0 0 auto',
-                      padding: '10px 14px',
-                      borderRadius: '12px',
-                      border: isSelected ? '2px solid #6366f1' : '1px solid #e2e8f0',
-                      background: isSelected ? '#eef2ff' : '#ffffff',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 4px 12px rgba(99, 102, 241, 0.15)' : 'none',
-                      minWidth: '220px',
+                      padding: '6px 10px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#0f172a'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFechaMonitoreo(new Date().toISOString().split('T')[0]);
+                      setTimelapseViajeId(null);
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      border: '1px solid #c7d2fe',
+                      background: '#eef2ff',
+                      color: '#4f46e5',
+                      cursor: 'pointer'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 800, color: isSelected ? '#4f46e5' : '#0f172a', fontSize: '13px' }}>
-                        🚛 {v.camionPlaca || (v.camionId ? `Cisterna #${v.camionId}` : 'Camión')}
-                      </span>
-                      {isEnRuta ? (
-                        <span
-                          style={{
-                            fontSize: '9.5px',
-                            fontWeight: 800,
-                            color: '#0284c7',
-                            background: '#e0f2fe',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                          }}
-                        >
-                          EN RUTA
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: '9.5px',
-                            fontWeight: 700,
-                            color: '#047857',
-                            background: '#ecfdf5',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                          }}
-                        >
-                          CERRADO
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <i className="fa-regular fa-user"></i>
-                      {v.choferNombre || v.nombreConductor || 'Chofer'}
-                    </div>
-                    <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>
-                      {(v.totalLitrosFinca || v.totalLitrosRecogidos || 0).toLocaleString()} L / {(cam?.capacidadLitros || 8000).toLocaleString()} L
-                    </div>
+                    Hoy (En Vivo) ⚡
                   </button>
-                );
-              })}
+                </div>
+              </div>
+              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                {viajesDelDiaMonitoreo.length} {viajesDelDiaMonitoreo.length === 1 ? 'camión en la fecha' : 'camiones en la fecha'} &bull; Auto-actualización reactiva 8s
+              </span>
             </div>
+
+            {viajesDelDiaMonitoreo.length === 0 ? (
+              <div style={{ padding: '20px', background: '#ffffff', border: '1.5px dashed #cbd5e1', borderRadius: '12px', textAlign: 'center', color: '#64748b' }}>
+                <i className="fa-solid fa-calendar-xmark" style={{ fontSize: '20px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}></i>
+                No se registraron viajes u operaciones de ruta para el día <strong>{fechaMonitoreo}</strong>.
+                <div style={{ marginTop: '6px', fontSize: '12px', color: '#6366f1' }}>
+                  Selecciona otra fecha en el calendario o pulsa "Hoy (En Vivo) ⚡" para monitorear la jornada actual.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '6px' }}>
+                {viajesDelDiaMonitoreo.map((v) => {
+                  const isSelected = viajeTimelapseActual?.id === v.id;
+                  const isEnRuta = v.estadoProceso !== 'CERRADO' && v.estado !== 'CERRADO';
+                  const cam = camiones.find((c) => c.id === v.camionId || c.placa === v.camionPlaca);
+                  const placaFinal = v.camionPlaca || cam?.placa || (v.camionId ? 'Cisterna #' + v.camionId : 'Unidad Cisterna');
+                  const marcaFinal = cam?.marca ? '[' + cam.marca + ']' : '';
+                  const choferFinal = v.choferNombre || v.nombreConductor || cam?.choferNombre || 'Chofer Asignado';
+
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => {
+                        setTimelapseViajeId(v.id);
+                        setViajeSeleccionado(v);
+                      }}
+                      style={{
+                        flex: '0 0 auto',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: isSelected ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                        background: isSelected ? '#eef2ff' : '#ffffff',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 4px 12px rgba(99, 102, 241, 0.18)' : '0 1px 3px rgba(0,0,0,0.05)',
+                        minWidth: '240px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 800, color: isSelected ? '#4f46e5' : '#0f172a', fontSize: '13.5px' }}>
+                          🚛 {placaFinal} <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{marcaFinal}</span>
+                        </span>
+                        {isEnRuta ? (
+                          <span
+                            style={{
+                              fontSize: '9.5px',
+                              fontWeight: 800,
+                              color: '#0284c7',
+                              background: '#e0f2fe',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            EN RUTA
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              color: '#047857',
+                              background: '#ecfdf5',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            CERRADO
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
+                        <i className="fa-regular fa-user" style={{ color: '#94a3b8' }}></i>
+                        <strong>{choferFinal}</strong>
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb' }}>
+                        {(v.totalLitrosFinca || v.totalLitrosRecogidos || 0).toLocaleString()} L <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>/ {(cam?.capacidadLitros || 8000).toLocaleString()} L</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* TARJETAS SUPERIORES DEL TIMELAPSE: DETALLE DE LA UNIDAD & CAPACIDAD */}

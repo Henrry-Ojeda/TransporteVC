@@ -22,6 +22,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { operacionesApi } from '@/api/operaciones.api';
+import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import type { RutaLogisticaDto, CamionDto, ChoferDto, FincaDto } from '@/types';
@@ -65,6 +66,40 @@ export const RutasLogisticaPage: React.FC = () => {
     queryFn: () => catalogosApi.getChoferes(),
   });
 
+  // Fechas para cálculo dinámico en vivo del promedio de los últimos 15 días
+  const fechaHoyStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const fecha15DiasAtrasStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 15);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const { data: reporteFincas15Dias = [] } = useQuery({
+    queryKey: ['reporte-fincas-15d-rutas', fecha15DiasAtrasStr, fechaHoyStr],
+    queryFn: () => sistemaApi.getReporteFincas(fecha15DiasAtrasStr, fechaHoyStr),
+    staleTime: 60000,
+  });
+
+  const mapaPromedios15Dias = useMemo(() => {
+    const map = new Map<number, number>();
+    reporteFincas15Dias.forEach((rf: any) => {
+      const cant = rf.detalle && rf.detalle.length > 0 ? rf.detalle.length : 1;
+      const total = Number(rf.totalLitros || 0);
+      const prom = total > 0 ? Math.round(total / cant) : 0;
+      if (prom > 0) {
+        map.set(rf.id, prom);
+      }
+    });
+    return map;
+  }, [reporteFincas15Dias]);
+
+  const getPromedioReal15Dias = (fincaId: number, f?: any): number => {
+    if (mapaPromedios15Dias.has(fincaId)) {
+      return mapaPromedios15Dias.get(fincaId)!;
+    }
+    return f?.promedioLitrosDiarios || f?.ultimoLitros || 0;
+  };
+
   const { data: fincas = [] } = useQuery<FincaDto[]>({
     queryKey: ['fincas'],
     queryFn: () => catalogosApi.getFincas(true),
@@ -83,7 +118,7 @@ export const RutasLogisticaPage: React.FC = () => {
   const totalLitrosRutaEstimados = useMemo(() => {
     return fincasSeleccionadas.reduce((acc, fId) => {
       const f = fincas.find((item) => item.id === fId);
-      const lts = f?.promedioLitrosDiarios || f?.ultimoLitros || 250;
+      const lts = getPromedioReal15Dias(fId, f);
       return acc + lts;
     }, 0);
   }, [fincasSeleccionadas, fincas]);
@@ -255,7 +290,7 @@ export const RutasLogisticaPage: React.FC = () => {
     const fincasAsignadas = fincas.filter((f) => f.rutaId != null && f.rutaId > 0).length;
     const volumenEstimadoTotal = fincas.reduce((acc, f) => {
       if (f.rutaId) {
-        return acc + (f.promedioLitrosDiarios || f.ultimoLitros || 250);
+        return acc + getPromedioReal15Dias(f.id, f);
       }
       return acc;
     }, 0);
@@ -322,7 +357,7 @@ export const RutasLogisticaPage: React.FC = () => {
       header: 'Litros Estimados / Capacidad',
       cell: (row) => {
         const fincasDeRuta = fincas.filter((f) => f.rutaId === row.id);
-        const ltsTot = fincasDeRuta.reduce((acc, f) => acc + (f.promedioLitrosDiarios || f.ultimoLitros || 250), 0);
+        const ltsTot = fincasDeRuta.reduce((acc, f) => acc + getPromedioReal15Dias(f.id, f), 0);
         const cam = camiones.find((c) => c.id === row.camionPredeterminadoId);
         const cap = cam?.capacidadLitros || row.capacidadCamionLitros || 0;
         const pct = cap > 0 ? Math.round((ltsTot / cap) * 100) : 0;
@@ -407,7 +442,7 @@ export const RutasLogisticaPage: React.FC = () => {
       accessorKey: 'promedioLitrosDiarios',
       sortable: true,
       cell: (row) => {
-        const lts = row.promedioLitrosDiarios || row.ultimoLitros || 250;
+        const lts = getPromedioReal15Dias(row.id, row);
         return (
           <span className="font-extrabold text-blue-700 text-sm">
             {lts.toLocaleString()} <small className="text-gray-500 font-normal">Lts/d</small>
@@ -682,8 +717,8 @@ export const RutasLogisticaPage: React.FC = () => {
       {/* MODAL CREAR / EDITAR RUTA — AUTO-AJUSTABLE CON TAILWIND (MAX-H / SCROLL)   */}
       {/* ========================================================================= */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl lg:max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             {/* Header del Modal - Fijo */}
             <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
@@ -718,6 +753,24 @@ export const RutasLogisticaPage: React.FC = () => {
                     icon: 'warning',
                     title: 'Campo Requerido',
                     text: 'El nombre de la ruta es obligatorio',
+                    confirmButtonColor: '#2563eb',
+                  });
+                  return;
+                }
+                if (!form.camionPredeterminadoId) {
+                  Swal.fire({
+                    icon: 'warning',
+                    title: 'Camión Cisterna Obligatorio',
+                    text: 'Debe seleccionar un camión cisterna obligatorio para la ruta.',
+                    confirmButtonColor: '#2563eb',
+                  });
+                  return;
+                }
+                if (!form.choferPredeterminadoId) {
+                  Swal.fire({
+                    icon: 'warning',
+                    title: 'Chofer Obligatorio',
+                    text: 'Debe seleccionar un chofer habitual obligatorio para la ruta.',
                     confirmButtonColor: '#2563eb',
                   });
                   return;
@@ -758,7 +811,7 @@ export const RutasLogisticaPage: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Camión Cisterna Asignado <span className="text-xs text-slate-400 font-normal">(Opcional)</span>
+                      Camión Cisterna Asignado <span className="text-red-500 font-bold">*</span>
                     </label>
                     <CamionSelect
                       value={form.camionPredeterminadoId}
@@ -769,14 +822,14 @@ export const RutasLogisticaPage: React.FC = () => {
                           choferPredeterminadoId: camion?.usuarioId || form.choferPredeterminadoId,
                         });
                       }}
-                      placeholder="-- Opcional / Sin camión predeterminado --"
+                      placeholder="-- Seleccionar camión cisterna obligatorio --"
                       allowClear
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Chofer Habitual de Ruta <span className="text-xs text-slate-400 font-normal">(Opcional)</span>
+                      Chofer Habitual de Ruta <span className="text-red-500 font-bold">*</span>
                     </label>
                     <ChoferSelect
                       value={form.choferPredeterminadoId}
@@ -788,7 +841,7 @@ export const RutasLogisticaPage: React.FC = () => {
                           camionPredeterminadoId: form.camionPredeterminadoId || camMatch?.id,
                         });
                       }}
-                      placeholder="-- Opcional / Sin chofer predeterminado --"
+                      placeholder="-- Seleccionar chofer obligatorio --"
                       allowClear
                     />
                   </div>
@@ -872,7 +925,7 @@ export const RutasLogisticaPage: React.FC = () => {
                     ) : (
                       <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                         {fincasEnModal.seleccionadas.map((f) => {
-                          const lts = f.promedioLitrosDiarios || f.ultimoLitros || 250;
+                          const lts = getPromedioReal15Dias(f.id, f);
                           return (
                             <div
                               key={f.id}
@@ -928,7 +981,7 @@ export const RutasLogisticaPage: React.FC = () => {
                         </div>
                       ) : (
                         fincasEnModal.disponibles.map((f) => {
-                          const lts = f.promedioLitrosDiarios || f.ultimoLitros || 250;
+                          const lts = getPromedioReal15Dias(f.id, f);
                           const tieneOtraRuta = f.rutaId && f.rutaId !== modoEdicionId;
                           return (
                             <div
@@ -1028,7 +1081,7 @@ export const RutasLogisticaPage: React.FC = () => {
                   {fincaParaAsignarDirecta.nombre}
                 </strong>
                 <span className="text-xs text-slate-600 block mt-0.5">
-                  Propietario: {fincaParaAsignarDirecta.propietarioNombre || 'Sin propietario'} • ~{fincaParaAsignarDirecta.promedioLitrosDiarios || 250} Lts/d
+                  Propietario: {fincaParaAsignarDirecta.propietarioNombre || 'Sin propietario'} • ~{getPromedioReal15Dias(fincaParaAsignarDirecta.id, fincaParaAsignarDirecta)} Lts/d
                 </span>
               </div>
 

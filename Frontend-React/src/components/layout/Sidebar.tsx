@@ -128,6 +128,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     return grp.items.some(it => location.pathname === it.href);
   };
 
+  // Estado para contraer/achicar menú lateral en pantallas pequeñas
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1280;
+    }
+    return false;
+  });
+
   // Estado para colapsar manualmente con clic
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -140,17 +148,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   return (
     <aside
-      className={`sidebar hover-accordion-sidebar ${isOpen ? 'mobile-open' : ''}`}
+      className={`sidebar hover-accordion-sidebar ${isOpen ? 'mobile-open' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}
       id="mainSidebar"
       style={{
-        width: '260px',
-        minWidth: '260px',
-        maxWidth: '260px',
+        width: isCollapsed ? '68px' : '230px',
+        minWidth: isCollapsed ? '68px' : '230px',
+        maxWidth: isCollapsed ? '68px' : '230px',
         flexShrink: 0,
         height: '100%',
         overflowY: 'auto',
+        transition: 'width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease',
       }}
     >
+      {/* Botón para achicar/expandir menú lateral */}
+      <div style={{ display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          title={isCollapsed ? 'Expandir menú lateral' : 'Achicar menú lateral'}
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: '#94a3b8',
+            borderRadius: '6px',
+            padding: '3px 7px',
+            cursor: 'pointer',
+            fontSize: '11px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <i className={`fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
+          {!isCollapsed && <span style={{ fontSize: '10.5px', fontWeight: 600 }}>Achicar</span>}
+        </button>
+      </div>
       <nav className="sidebar-nav">
         {groups.map((grp) => {
           const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
@@ -169,9 +201,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <div className="nav-accordion-header" onClick={() => toggleGroup(grp.id)}>
                 <div className="header-main">
                   <i className={`${grp.iconClass} group-icon ${grp.groupIconClass}`}></i>
-                  <span className="group-title">{grp.title}</span>
+                  {!isCollapsed && <span className="group-title">{grp.title}</span>}
                 </div>
-                <i className="fa-solid fa-chevron-right group-chevron"></i>
+                {!isCollapsed && <i className="fa-solid fa-chevron-right group-chevron"></i>}
               </div>
               <div className="nav-accordion-body">
                 <div className="accordion-subitems">
@@ -188,7 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       }
                     >
                       <i className={item.icon} style={item.color ? { color: item.color } : undefined}></i>
-                      <span>{item.name}</span>
+                      {!isCollapsed && <span>{item.name}</span>}
                     </NavLink>
                   ))}
                 </div>
@@ -201,7 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       <div className="sidebar-footer">
         <div className="connection-status">
           <span className="status-dot online"></span>
-          <span>Sistema Conectado</span>
+          {!isCollapsed && <span>Sistema Conectado</span>}
         </div>
       </div>
     </aside>
