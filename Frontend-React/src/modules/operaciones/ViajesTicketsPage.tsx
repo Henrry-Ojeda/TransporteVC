@@ -5,6 +5,7 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { CamionSelect } from '@/components/selectors';
 import type { ControlRutaDto, CamionDto, RutaLogisticaDto, FincaDto, CompaniaDto } from '@/types';
 
 export const ViajesTicketsPage: React.FC = () => {
@@ -585,12 +586,10 @@ export const ViajesTicketsPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Unidad Cisterna *
                   </label>
-                  <SearchableSelect
-                    options={camionesOptions}
-                    value={formIniciar.camionId || ''}
-                    onChange={(val) => setFormIniciar({ ...formIniciar, camionId: Number(val) })}
+                  <CamionSelect
+                    value={formIniciar.camionId || undefined}
+                    onChange={(val) => setFormIniciar({ ...formIniciar, camionId: val || 0 })}
                     placeholder="-- Seleccionar Unidad Cisterna --"
-                    searchPlaceholder="Buscar por placa, marca o chofer..."
                   />
                 </div>
 

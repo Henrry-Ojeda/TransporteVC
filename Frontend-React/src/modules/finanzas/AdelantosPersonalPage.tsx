@@ -5,6 +5,7 @@ import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { bcvApi } from '@/api/bcv.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { ChoferSelect } from '@/components/selectors';
 import type { AdelantoDto, ChoferDto } from '@/types';
 
 export const AdelantosPersonalPage: React.FC = () => {
@@ -344,18 +345,12 @@ export const AdelantosPersonalPage: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                   Trabajador / Chofer *
                 </label>
-                <select
+                <ChoferSelect
                   value={form.usuarioId}
-                  onChange={(e) => setForm({ ...form, usuarioId: Number(e.target.value) })}
-                  className="form-input"
-                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                  onChange={(id) => setForm({ ...form, usuarioId: id })}
+                  placeholder="-- Seleccionar Trabajador / Chofer --"
                   required
-                >
-                  <option value="0">Seleccionar chofer / personal...</option>
-                  {choferes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombreCompleto} ({c.cedula})</option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>

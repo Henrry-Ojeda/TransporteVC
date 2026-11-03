@@ -5,6 +5,7 @@ import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { bcvApi } from '@/api/bcv.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { FincaSelect } from '@/components/selectors';
 import type { AdelantoDto, FincaDto } from '@/types';
 
 export const AdelantosFincasPage: React.FC = () => {
@@ -348,18 +349,12 @@ export const AdelantosFincasPage: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                   Finca / Productor *
                 </label>
-                <select
+                <FincaSelect
                   value={form.fincaId}
-                  onChange={(e) => setForm({ ...form, fincaId: Number(e.target.value) })}
-                  className="form-input"
-                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                  onChange={(id) => setForm({ ...form, fincaId: id })}
+                  placeholder="-- Seleccionar Finca / Productor --"
                   required
-                >
-                  <option value="0">Seleccionar finca...</option>
-                  {fincas.map((f) => (
-                    <option key={f.id} value={f.id}>{f.codigo ? `[${f.codigo}] ` : ''}{f.nombre} ({f.propietarioNombre || 'Productor'})</option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>

@@ -5,6 +5,7 @@ import { mantenimientoApi } from '@/api/mantenimiento.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
+import { CamionSelect } from '@/components/selectors';
 import type {
   MantenimientoCamionDto,
   CrearMantenimientoCamionDto,
@@ -627,20 +628,12 @@ export const MantenimientoPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Camión Cisterna *
                   </label>
-                  <select
-                    className="form-input"
+                  <CamionSelect
+                    value={form.camionId}
+                    onChange={(id) => setForm({ ...form, camionId: id })}
+                    placeholder="-- Seleccionar Camión Cisterna --"
                     required
-                    value={form.camionId || ''}
-                    onChange={(e) => setForm({ ...form, camionId: Number(e.target.value) })}
-                    style={{ height: '38px', fontWeight: 700 }}
-                  >
-                    <option value="">-- Seleccionar --</option>
-                    {camiones.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.placa} ({c.marca} {c.modelo})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>

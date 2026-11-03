@@ -14,6 +14,8 @@
 ## Build outputs & Published deployments
 /Despliegue/
 /Ejecutables/
+publish_linux/
+*.zip
 
 ## Database backups & Large binary files (sensitive / large)
 *.bak

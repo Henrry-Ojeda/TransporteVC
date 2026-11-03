@@ -17,8 +17,14 @@ export const finanzasApi = {
     const res = await apiClient.get<CicloSemanalDto>('/catalogos/ciclo-activo');
     return res.data;
   },
-  crearCiclo: async (dto: { numeroSemana: number; año: number; fechaInicio: string; fechaFin: string }): Promise<{ id: number; message: string }> => {
-    const res = await apiClient.post('/ciclos', dto);
+  crearCiclo: async (dto: { numeroSemana: number; año: number; fechaInicio: string; fechaFin: string; codigo?: string }): Promise<{ id: number; message: string }> => {
+    const payload = {
+      ...dto,
+      codigo: dto.codigo || `Semana #${dto.numeroSemana} (${dto.año})`,
+      fechaInicio: dto.fechaInicio,
+      fechaFin: dto.fechaFin,
+    };
+    const res = await apiClient.post('/ciclos', payload);
     return res.data;
   },
   cerrarCiclo: async (id: number, tasaBCV: number): Promise<{ success: boolean; message: string }> => {

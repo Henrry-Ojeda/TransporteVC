@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
+import { CamionSelect, ChoferSelect } from '@/components/selectors';
 import {
   Route as RouteIcon,
   PlusCircle,
@@ -302,46 +303,35 @@ export const RutasLogisticaPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Camión Predeterminado
                   </label>
-                  <select
-                    value={form.camionPredeterminadoId ?? ''}
-                    onChange={(e) =>
+                  <CamionSelect
+                    value={form.camionPredeterminadoId}
+                    onChange={(id, camion) => {
                       setForm({
                         ...form,
-                        camionPredeterminadoId: e.target.value ? Number(e.target.value) : undefined,
-                      })
-                    }
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Sin asignar</option>
-                    {camiones.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.placa} ({c.marca})
-                      </option>
-                    ))}
-                  </select>
+                        camionPredeterminadoId: id || undefined,
+                        choferPredeterminadoId: camion?.usuarioId || form.choferPredeterminadoId,
+                      });
+                    }}
+                    placeholder="Sin asignar"
+                    allowClear
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Chofer Predeterminado
                   </label>
-                  <select
-                    value={form.choferPredeterminadoId ?? ''}
-                    onChange={(e) =>
+                  <ChoferSelect
+                    value={form.choferPredeterminadoId}
+                    onChange={(id) =>
                       setForm({
                         ...form,
-                        choferPredeterminadoId: e.target.value ? Number(e.target.value) : undefined,
+                        choferPredeterminadoId: id || undefined,
                       })
                     }
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Sin asignar</option>
-                    {choferes.map((ch) => (
-                      <option key={ch.id} value={ch.id}>
-                        {ch.nombreCompleto}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Sin asignar"
+                    allowClear
+                  />
                 </div>
               </div>
 

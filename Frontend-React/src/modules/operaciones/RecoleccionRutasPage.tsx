@@ -6,6 +6,7 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { CamionSelect, ChoferSelect, CompaniaSelect, TipoLecheSelect, FincaSelect } from '@/components/selectors';
 import { confirmDialog } from '@/lib/sweetalert';
 import { useAuthStore } from '@/stores/authStore';
 import type { ControlRutaDto, FincaDto, CamionDto, CompaniaDto } from '@/types';
@@ -1080,12 +1081,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Finca Ganadera * <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
-                  <SearchableSelect
-                    options={fincasDisponibles.map((f) => ({
-                      value: f.id,
-                      label: f.nombre,
-                      subLabel: f.propietarioNombre ? `Ganadero: ${f.propietarioNombre}` : 'Sin propietario',
-                    }))}
+                  <FincaSelect
                     value={formFinca.fincaId || undefined}
                     onChange={(val) => {
                       const fId = Number(val || 0);
@@ -1094,7 +1090,6 @@ export const RecoleccionRutasPage: React.FC = () => {
                       setFormFinca({ ...formFinca, fincaId: fId, tipoLeche: tipo });
                     }}
                     placeholder="-- Seleccionar o buscar finca --"
-                    searchPlaceholder="Buscar finca por nombre o propietario..."
                   />
                 </div>
 
@@ -1118,10 +1113,9 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Tipo de Leche *
                     </label>
-                    <SearchableSelect
-                      options={tiposLecheOptions}
+                    <TipoLecheSelect
                       value={formFinca.tipoLeche}
-                      onChange={(val) => setFormFinca({ ...formFinca, tipoLeche: val })}
+                      onChange={(val) => setFormFinca({ ...formFinca, tipoLeche: val || 'VACA' })}
                       allowClear={false}
                     />
                   </div>
@@ -1197,12 +1191,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Finca Ganadera *
                   </label>
-                  <SearchableSelect
-                    options={fincas.map((f) => ({
-                      value: f.id,
-                      label: f.nombre,
-                      subLabel: f.propietarioNombre ? `Ganadero: ${f.propietarioNombre}` : 'Sin propietario',
-                    }))}
+                  <FincaSelect
                     value={formEditar.fincaId}
                     onChange={(val) => setFormEditar({ ...formEditar, fincaId: Number(val || 0) })}
                     placeholder="-- Seleccionar finca --"
@@ -1228,10 +1217,9 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Tipo de Leche *
                     </label>
-                    <SearchableSelect
-                      options={tiposLecheOptions}
+                    <TipoLecheSelect
                       value={formEditar.tipoLeche}
-                      onChange={(val) => setFormEditar({ ...formEditar, tipoLeche: val })}
+                      onChange={(val) => setFormEditar({ ...formEditar, tipoLeche: val || 'VACA' })}
                       allowClear={false}
                     />
                   </div>
@@ -1366,16 +1354,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Compañía / Quesera Destino *
                   </label>
-                  <SearchableSelect
-                    options={companias.map((c) => ({
-                      value: c.id,
-                      label: c.nombre,
-                      subLabel: c.encargado ? `Encargado: ${c.encargado}` : undefined,
-                    }))}
+                  <CompaniaSelect
                     value={formCompania.companiaId || undefined}
                     onChange={(val) => setFormCompania({ ...formCompania, companiaId: Number(val || 0) })}
                     placeholder="-- Seleccionar compañía destino --"
-                    searchPlaceholder="Buscar por nombre de quesera..."
                   />
                 </div>
 
@@ -1398,10 +1380,9 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Tipo de Leche Despachada
                     </label>
-                    <SearchableSelect
-                      options={tiposLecheOptions}
+                    <TipoLecheSelect
                       value={formCompania.tipoLeche}
-                      onChange={(val) => setFormCompania({ ...formCompania, tipoLeche: val })}
+                      onChange={(val) => setFormCompania({ ...formCompania, tipoLeche: val || 'VACA' })}
                       allowClear={false}
                     />
                   </div>
@@ -1558,16 +1539,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Unidad Cisterna * <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
-                  <SearchableSelect
-                    options={camiones.map((c) => ({
-                      value: c.id,
-                      label: `${c.placa} - ${c.marca || 'Cisterna'}`,
-                      subLabel: c.choferNombre ? `Chofer: ${c.choferNombre}` : `Capacidad: ${c.capacidadLitros} Lts`,
-                    }))}
+                  <CamionSelect
                     value={formIniciar.camionId || undefined}
                     onChange={(val) => setFormIniciar({ ...formIniciar, camionId: Number(val || 0) })}
                     placeholder="-- Seleccionar camión cisterna --"
-                    searchPlaceholder="Buscar por placa o marca..."
                   />
                 </div>
 
@@ -1575,16 +1550,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Conductor Asignado
                   </label>
-                  <SearchableSelect
-                    options={conductores.map((ch: any) => ({
-                      value: ch.id,
-                      label: ch.nombreCompleto || ch.nombre || 'Sin nombre',
-                      subLabel: ch.cedula ? `C.I: ${ch.cedula}` : undefined,
-                    }))}
+                  <ChoferSelect
                     value={formIniciar.choferId || undefined}
                     onChange={(val) => setFormIniciar({ ...formIniciar, choferId: Number(val || 0) })}
                     placeholder="-- Seleccionar chofer --"
-                    searchPlaceholder="Buscar chofer por nombre o cédula..."
                   />
                 </div>
 

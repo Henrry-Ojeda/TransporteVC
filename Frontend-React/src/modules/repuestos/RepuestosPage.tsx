@@ -5,6 +5,7 @@ import { repuestosApi } from '@/api/repuestos.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
+import { CamionSelect } from '@/components/selectors';
 import type {
   RepuestoDto,
   GuardarRepuestoDto,
@@ -821,20 +822,12 @@ export const RepuestosPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Camión Cisterna Receptor *
                   </label>
-                  <select
-                    className="form-input"
+                  <CamionSelect
+                    value={formMovimiento.camionId}
+                    onChange={(id) => setFormMovimiento({ ...formMovimiento, camionId: id })}
+                    placeholder="-- Seleccionar Camión Cisterna --"
                     required
-                    value={formMovimiento.camionId || ''}
-                    onChange={(e) => setFormMovimiento({ ...formMovimiento, camionId: Number(e.target.value) })}
-                    style={{ height: '38px', fontWeight: 700 }}
-                  >
-                    <option value="">-- Seleccionar Camión --</option>
-                    {camiones.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.placa} ({c.marca} {c.modelo})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
 

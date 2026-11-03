@@ -59,8 +59,32 @@ export const SemanasPage: React.FC = () => {
 
   const displaySemana = (s: any) => {
     if (!s) return 'Semana';
-    const num = s.numeroSemana || s.NumeroSemana || s.codigo?.match(/#\s*(\d+)/)?.[1] || s.id;
-    const anio = s.anio || s.Anio || s.año || s.Año || (s.fechaInicio ? new Date(s.fechaInicio).getFullYear() : '');
+
+    // Si ya tiene un código explícito y válido (ej. "Semana 44 (2026)"), usarlo
+    if (s.codigo && typeof s.codigo === 'string' && s.codigo.trim() && !s.codigo.includes('# ()') && !s.codigo.endsWith('# ()')) {
+      return s.codigo;
+    }
+    if (s.Codigo && typeof s.Codigo === 'string' && s.Codigo.trim() && !s.Codigo.includes('# ()') && !s.Codigo.endsWith('# ()')) {
+      return s.Codigo;
+    }
+
+    const fechaRef = s.fechaInicio || s.FechaInicio;
+    const d = fechaRef ? new Date(fechaRef) : new Date();
+
+    // Cálculo ISO 8601 de número de semana y año
+    const target = new Date(d.valueOf());
+    const dayNr = (d.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = target.valueOf();
+    target.setMonth(0, 1);
+    if (target.getDay() !== 4) {
+      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+    }
+    const computedWeek = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+    const computedYear = new Date(firstThursday).getFullYear();
+
+    const num = s.numeroSemana || s.NumeroSemana || (s.codigo?.match(/(\d+)/)?.[1]) || computedWeek || s.id || s.Id || 1;
+    const anio = s.anio || s.Anio || s.año || s.Año || computedYear || d.getFullYear();
     return `Semana #${num} (${anio})`;
   };
 

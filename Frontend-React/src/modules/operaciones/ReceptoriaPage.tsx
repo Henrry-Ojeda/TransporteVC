@@ -7,6 +7,7 @@ import { sistemaApi } from '@/api/sistema.api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { CamionSelect, ChoferSelect, CompaniaSelect, TipoLecheSelect } from '@/components/selectors';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { CompaniaDto, CamionDto, UsuarioDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
 
@@ -916,12 +917,10 @@ export const ReceptoriaPage: React.FC = () => {
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Conductor / Operador *
                 </label>
-                <SearchableSelect
-                  options={conductoresOptions}
-                  value={formEntrega.usuarioId || ''}
-                  onChange={(val) => setFormEntrega({ ...formEntrega, usuarioId: Number(val) })}
+                <ChoferSelect
+                  value={formEntrega.usuarioId || undefined}
+                  onChange={(val) => setFormEntrega({ ...formEntrega, usuarioId: val || 0 })}
                   placeholder="-- Seleccionar Chofer --"
-                  searchPlaceholder="Buscar chofer por nombre..."
                 />
               </div>
 
@@ -930,12 +929,10 @@ export const ReceptoriaPage: React.FC = () => {
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Compañía / Planta *
                 </label>
-                <SearchableSelect
-                  options={companiasOptions}
-                  value={formEntrega.companiaId || ''}
-                  onChange={(val) => setFormEntrega({ ...formEntrega, companiaId: Number(val) })}
+                <CompaniaSelect
+                  value={formEntrega.companiaId || undefined}
+                  onChange={(val) => setFormEntrega({ ...formEntrega, companiaId: val || 0 })}
                   placeholder="-- Seleccionar Compañía / Silo --"
-                  searchPlaceholder="Buscar compañía o planta..."
                 />
               </div>
 
@@ -1281,8 +1278,8 @@ export const ReceptoriaPage: React.FC = () => {
                 <th style={{ textAlign: 'center', width: '140px' }}>
                   MERMA / BALANCE
                 </th>
-                <th style={{ maxWidth: '240px', width: '220px' }}>OBSERVACIÓN</th>
-                <th style={{ width: '80px', minWidth: '80px', textAlign: 'center' }}>ACCIONES</th>
+                <th style={{ width: '160px', maxWidth: '160px' }}>OBSERVACIÓN</th>
+                <th style={{ width: '110px', minWidth: '110px', textAlign: 'center' }}>ACCIONES</th>
               </tr>
             </thead>
             <tbody>
@@ -1439,21 +1436,18 @@ export const ReceptoriaPage: React.FC = () => {
                       </td>
 
                       {/* 7. OBSERVACIÓN */}
-                      <td style={{ verticalAlign: 'middle', maxWidth: '220px', paddingRight: '12px' }}>
+                      <td style={{ verticalAlign: 'middle', width: '160px', maxWidth: '160px', paddingRight: '8px' }}>
                         <span 
                           title={e.observacion || ''}
                           style={{ 
                             color: '#475569', 
                             fontSize: '11.5px', 
                             fontWeight: 500, 
-                            lineHeight: 1.35, 
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
+                            display: 'block',
+                            whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            wordBreak: 'break-word',
-                            maxWidth: '220px'
+                            maxWidth: '155px'
                           }}
                         >
                           {e.observacion || '-'}
@@ -1461,7 +1455,7 @@ export const ReceptoriaPage: React.FC = () => {
                       </td>
 
                       {/* 8. ACCIONES */}
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'middle', width: '80px', minWidth: '80px', paddingLeft: '8px' }}>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'middle', width: '110px', minWidth: '110px', paddingLeft: '8px' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
                           <button
                             type="button"
@@ -1627,11 +1621,10 @@ export const ReceptoriaPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                       Camión Cisterna Asignado *
                     </label>
-                    <SearchableSelect
-                      options={camionesOptions}
-                      value={despachoCamionId || ''}
+                    <CamionSelect
+                      value={despachoCamionId || undefined}
                       onChange={(val) => {
-                        const num = Number(val);
+                        const num = val || 0;
                         setDespachoCamionId(num);
                         const cMatch = camiones.find((c) => c.id === num);
                         if (cMatch && cMatch.usuarioId) {
@@ -1639,7 +1632,6 @@ export const ReceptoriaPage: React.FC = () => {
                         }
                       }}
                       placeholder="-- Seleccionar Camión Cisterna --"
-                      searchPlaceholder="Buscar por placa o marca..."
                     />
                   </div>
 
@@ -1648,12 +1640,10 @@ export const ReceptoriaPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                       Conductor Asignado *
                     </label>
-                    <SearchableSelect
-                      options={conductoresOptions}
-                      value={despachoUsuarioId || ''}
-                      onChange={(val) => setDespachoUsuarioId(Number(val))}
+                    <ChoferSelect
+                      value={despachoUsuarioId || undefined}
+                      onChange={(val) => setDespachoUsuarioId(val || 0)}
                       placeholder="-- Seleccionar Conductor --"
-                      searchPlaceholder="Buscar por nombre de chofer..."
                     />
                   </div>
                 </div>
@@ -1759,17 +1749,15 @@ export const ReceptoriaPage: React.FC = () => {
                           <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                             Planta Destino *
                           </label>
-                          <SearchableSelect
-                            options={companiasOptions}
-                            value={dest.companiaId || ''}
+                          <CompaniaSelect
+                            value={dest.companiaId || undefined}
                             onChange={(val) => {
                               const updated = destinosSalida.map((d) =>
-                                d.id === dest.id ? { ...d, companiaId: Number(val) } : d
+                                d.id === dest.id ? { ...d, companiaId: val || 0 } : d
                               );
                               setDestinosSalida(updated);
                             }}
                             placeholder="-- Seleccionar Planta Destino --"
-                            searchPlaceholder="Buscar por nombre de compañía..."
                           />
                         </div>
 
@@ -1800,12 +1788,11 @@ export const ReceptoriaPage: React.FC = () => {
                           <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                             Tipo de Leche *
                           </label>
-                          <SearchableSelect
-                            options={tiposLecheOptions}
+                          <TipoLecheSelect
                             value={dest.tipoLeche}
                             onChange={(val) => {
                               const updated = destinosSalida.map((d) =>
-                                d.id === dest.id ? { ...d, tipoLeche: val } : d
+                                d.id === dest.id ? { ...d, tipoLeche: val || 'VACA' } : d
                               );
                               setDestinosSalida(updated);
                             }}

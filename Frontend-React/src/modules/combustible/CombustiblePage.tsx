@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { combustibleApi } from '@/api/combustible.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { CamionSelect } from '@/components/selectors';
 import type {
   CombustibleHistorialDto,
   RegistrarDespachoCombustibleDto,
@@ -545,12 +546,10 @@ export const CombustiblePage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Vehículo / Camión Cisterna *
                   </label>
-                  <SearchableSelect
-                    options={camionesOptions}
-                    value={formDespacho.camionId || ''}
-                    onChange={(val) => setFormDespacho({ ...formDespacho, camionId: Number(val) })}
+                  <CamionSelect
+                    value={formDespacho.camionId || undefined}
+                    onChange={(val) => setFormDespacho({ ...formDespacho, camionId: val || 0 })}
                     placeholder="-- Seleccionar Unidad Cisterna --"
-                    searchPlaceholder="Buscar por placa o chofer..."
                   />
                 </div>
 
