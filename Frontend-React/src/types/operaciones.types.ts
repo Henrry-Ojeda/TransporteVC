@@ -114,3 +114,37 @@ export interface BalanceVolumetricoResumenDto {
   fechaFin?: string;
 }
 
+export interface ControlTanquesDiarioDto {
+  id?: number;
+  fecha: string;
+  tanque1Inicial: number;
+  tanque2Inicial: number;
+  tanque3Inicial: number;
+  tanque4Inicial: number;
+  tanque5Inicial: number;
+  totalInicialLitros: number;
+  aperturaConfirmada: boolean;
+  aperturaConfirmadaPorId?: number;
+  aperturaConfirmadaPorNombre?: string;
+  aperturaConfirmadaAt?: string;
+  totalEntradasRutasLitros: number;
+  totalSalidasPlantasLitros: number;
+  tanque1Final: number;
+  tanque2Final: number;
+  tanque3Final: number;
+  tanque4Final: number;
+  tanque5Final: number;
+  totalFinalFisicoLitros: number;
+  totalTeoricoLitros: number;
+  diferenciaMermaLitros: number;
+  cierreConfirmado: boolean;
+  cierreConfirmadoPorId?: number;
+  cierreConfirmadoPorNombre?: string;
+  cierreConfirmadoAt?: string;
+  estado?: string;
+  filasRecepcionJson?: string;
+  observaciones?: string;
+  puedeModificar?: boolean;
+}
+
+

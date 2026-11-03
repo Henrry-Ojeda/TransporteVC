@@ -112,5 +112,102 @@ namespace Transporte.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        // =========================================================================
+        // CONTROL DIARIO DE TANQUES Y AFORO (VALIDACIÓN Y CONFIRMACIÓN POR SUPERVISOR / ADMIN)
+        // =========================================================================
+        [HttpGet("control-tanques-diario")]
+        public async Task<IActionResult> ObtenerControlTanquesDiario([FromQuery] DateTime? fecha = null)
+        {
+            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "SUPERVISOR";
+            var targetFecha = fecha ?? DateTime.UtcNow.Date;
+            var result = await _entregasRepository.ObtenerControlTanquesDiarioAsync(targetFecha, rol);
+            return Ok(result);
+        }
+
+        [HttpPost("control-tanques-diario")]
+        public async Task<IActionResult> GuardarControlTanquesDiario([FromBody] ControlTanquesDiarioDto dto)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int userId = int.TryParse(userIdStr, out var u) ? u : 1;
+            var userName = User.FindFirstValue(ClaimTypes.Name) ?? User.FindFirstValue(ClaimTypes.GivenName) ?? "Supervisor";
+            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "SUPERVISOR";
+
+            try
+            {
+                var id = await _entregasRepository.GuardarControlTanquesDiarioAsync(dto, userId, userName, rol);
+                return Ok(new { id, message = "Control diario de tanques guardado correctamente." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("control-tanques-diario/confirmar-apertura")]
+        public async Task<IActionResult> ConfirmarAperturaTanques([FromBody] dynamic payload)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int userId = int.TryParse(userIdStr, out var u) ? u : 1;
+            var userName = User.FindFirstValue(ClaimTypes.Name) ?? User.FindFirstValue(ClaimTypes.GivenName) ?? "Supervisor";
+            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "SUPERVISOR";
+
+            DateTime fecha = DateTime.UtcNow.Date;
+            try
+            {
+                string fechaStr = (string?)payload?.fecha ?? "";
+                if (DateTime.TryParse(fechaStr, out var f)) fecha = f.Date;
+            }
+            catch {}
+
+            try
+            {
+                var ok = await _entregasRepository.ConfirmarAperturaTanquesAsync(fecha, userId, userName, rol);
+                return Ok(new { success = ok, message = $"Apertura del día {fecha:dd/MM/yyyy} validada y confirmada exitosamente por {userName}." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("control-tanques-diario/confirmar-cierre")]
+        public async Task<IActionResult> ConfirmarCierreTanques([FromBody] dynamic payload)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int userId = int.TryParse(userIdStr, out var u) ? u : 1;
+            var userName = User.FindFirstValue(ClaimTypes.Name) ?? User.FindFirstValue(ClaimTypes.GivenName) ?? "Supervisor";
+            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "SUPERVISOR";
+
+            DateTime fecha = DateTime.UtcNow.Date;
+            try
+            {
+                string fechaStr = (string?)payload?.fecha ?? "";
+                if (DateTime.TryParse(fechaStr, out var f)) fecha = f.Date;
+            }
+            catch {}
+
+            try
+            {
+                var ok = await _entregasRepository.ConfirmarCierreTanquesAsync(fecha, userId, userName, rol);
+                return Ok(new { success = ok, message = $"Cierre oficial del día {fecha:dd/MM/yyyy} confirmado y bloqueado para modificaciones. Registrado por {userName}." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

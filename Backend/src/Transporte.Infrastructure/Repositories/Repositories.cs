@@ -3762,6 +3762,10 @@ namespace Transporte.Infrastructure.Repositories
         Task<bool> EditarEntregaAsync(int entregaId, EditarEntregaDto dto, int usuarioId, string rol);
         Task<bool> EliminarEntregaAsync(int entregaId, int usuarioId, string rol);
         Task<BalanceVolumetricoDto> ObtenerBalanceVolumetricoAsync(int? cicloId = null, DateTime? fechaInicio = null, DateTime? fechaFin = null);
+        Task<ControlTanquesDiarioDto?> ObtenerControlTanquesDiarioAsync(DateTime fecha, string rol);
+        Task<int> GuardarControlTanquesDiarioAsync(ControlTanquesDiarioDto dto, int userId, string userName, string rol);
+        Task<bool> ConfirmarAperturaTanquesAsync(DateTime fecha, int userId, string userName, string rol);
+        Task<bool> ConfirmarCierreTanquesAsync(DateTime fecha, int userId, string userName, string rol);
     }
 
     public class EntregasRepository : IEntregasRepository
@@ -4125,6 +4129,15 @@ namespace Transporte.Infrastructure.Repositories
                     stockInicial = cicloMatch.Value.StockInicialTanques;
                 }
             }
+
+            // Reflejar apertura verificada de formulario diario de tanques si existe
+            var tanqueDiarioInicial = await connection.ExecuteScalarAsync<int?>(
+                "SELECT TOP 1 TotalInicialLitros FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha = CAST(@fInicio AS DATE) AND (AperturaConfirmada = 1 OR CierreConfirmado = 1)",
+                new { fInicio });
+            if (tanqueDiarioInicial.HasValue && tanqueDiarioInicial.Value > 0)
+            {
+                stockInicial = tanqueDiarioInicial.Value;
+            }
             else
             {
                 // Priorizar el ciclo ABIERTO / ACTIVO
@@ -4449,6 +4462,203 @@ namespace Transporte.Infrastructure.Repositories
             };
 
             return result;
+        }
+
+        public async Task<ControlTanquesDiarioDto?> ObtenerControlTanquesDiarioAsync(DateTime fecha, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = "SELECT * FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha = @fecha";
+            var record = await connection.QueryFirstOrDefaultAsync<ControlTanquesDiarioDto>(sql, new { fecha = fecha.Date });
+
+            bool esAdmin = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase);
+
+            if (record != null)
+            {
+                // Regla de Negocio: Si ya está cerrado o confirmado, o la fecha es anterior a hoy, SOLO ADMIN puede modificar
+                bool esPasadoOConfirmado = record.CierreConfirmado || record.Fecha.Date < DateTime.UtcNow.Date;
+                record.PuedeModificar = esAdmin || !esPasadoOConfirmado;
+                return record;
+            }
+
+            // Si no existe registro para hoy, auto-obtener el cierre del día anterior para el arranque de hoy
+            var sqlPrev = "SELECT TOP 1 TotalFinalFisicoLitros FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha < @fecha ORDER BY Fecha DESC";
+            int litrosArranque = await connection.ExecuteScalarAsync<int?>(sqlPrev, new { fecha = fecha.Date }) ?? 0;
+
+            return new ControlTanquesDiarioDto
+            {
+                Fecha = fecha.Date,
+                TotalInicialLitros = litrosArranque,
+                PuedeModificar = true,
+                Estado = "BORRADOR"
+            };
+        }
+
+        public async Task<int> GuardarControlTanquesDiarioAsync(ControlTanquesDiarioDto dto, int userId, string userName, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            bool esAdmin = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase);
+
+            // Verificar si ya existe
+            var existente = await connection.QueryFirstOrDefaultAsync<ControlTanquesDiarioDto>(
+                "SELECT * FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha = @fecha", new { fecha = dto.Fecha.Date });
+
+            if (existente != null && (existente.CierreConfirmado || existente.Fecha.Date < DateTime.UtcNow.Date))
+            {
+                if (!esAdmin)
+                {
+                    throw new UnauthorizedAccessException("Este control diario ya está confirmado y cerrado. De allí para atrás solo el Administrador puede modificar datos.");
+                }
+            }
+
+            dto.TotalInicialLitros = dto.Tanque1Inicial + dto.Tanque2Inicial + dto.Tanque3Inicial + dto.Tanque4Inicial + dto.Tanque5Inicial;
+            dto.TotalFinalFisicoLitros = dto.Tanque1Final + dto.Tanque2Final + dto.Tanque3Final + dto.Tanque4Final + dto.Tanque5Final;
+            dto.TotalTeoricoLitros = dto.TotalInicialLitros + dto.TotalEntradasRutasLitros - dto.TotalSalidasPlantasLitros;
+            dto.DiferenciaMermaLitros = dto.TotalFinalFisicoLitros - dto.TotalTeoricoLitros;
+
+            if (existente == null)
+            {
+                var sqlInsert = @"
+                    INSERT INTO TB_CONTROL_TANQUES_DIARIO (
+                        Fecha, Tanque1Inicial, Tanque2Inicial, Tanque3Inicial, Tanque4Inicial, Tanque5Inicial, TotalInicialLitros,
+                        AperturaConfirmada, AperturaConfirmadaPorId, AperturaConfirmadaPorNombre, AperturaConfirmadaAt,
+                        TotalEntradasRutasLitros, TotalSalidasPlantasLitros,
+                        Tanque1Final, Tanque2Final, Tanque3Final, Tanque4Final, Tanque5Final, TotalFinalFisicoLitros,
+                        TotalTeoricoLitros, DiferenciaMermaLitros, CierreConfirmado, Estado, FilasRecepcionJson, Observaciones,
+                        CreatedBy, CreatedAt
+                    )
+                    VALUES (
+                        @Fecha, @Tanque1Inicial, @Tanque2Inicial, @Tanque3Inicial, @Tanque4Inicial, @Tanque5Inicial, @TotalInicialLitros,
+                        @AperturaConfirmada, @AperturaConfirmadaPorId, @AperturaConfirmadaPorNombre, @AperturaConfirmadaAt,
+                        @TotalEntradasRutasLitros, @TotalSalidasPlantasLitros,
+                        @Tanque1Final, @Tanque2Final, @Tanque3Final, @Tanque4Final, @Tanque5Final, @TotalFinalFisicoLitros,
+                        @TotalTeoricoLitros, @DiferenciaMermaLitros, @CierreConfirmado, @Estado, @FilasRecepcionJson, @Observaciones,
+                        @CreatedBy, GETDATE()
+                    );
+                    SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+                return await connection.ExecuteScalarAsync<int>(sqlInsert, new
+                {
+                    dto.Fecha,
+                    dto.Tanque1Inicial,
+                    dto.Tanque2Inicial,
+                    dto.Tanque3Inicial,
+                    dto.Tanque4Inicial,
+                    dto.Tanque5Inicial,
+                    dto.TotalInicialLitros,
+                    dto.AperturaConfirmada,
+                    dto.AperturaConfirmadaPorId,
+                    dto.AperturaConfirmadaPorNombre,
+                    dto.AperturaConfirmadaAt,
+                    dto.TotalEntradasRutasLitros,
+                    dto.TotalSalidasPlantasLitros,
+                    dto.Tanque1Final,
+                    dto.Tanque2Final,
+                    dto.Tanque3Final,
+                    dto.Tanque4Final,
+                    dto.Tanque5Final,
+                    dto.TotalFinalFisicoLitros,
+                    dto.TotalTeoricoLitros,
+                    dto.DiferenciaMermaLitros,
+                    dto.CierreConfirmado,
+                    dto.Estado,
+                    dto.FilasRecepcionJson,
+                    dto.Observaciones,
+                    CreatedBy = userId
+                });
+            }
+            else
+            {
+                var sqlUpdate = @"
+                    UPDATE TB_CONTROL_TANQUES_DIARIO
+                    SET Tanque1Inicial = @Tanque1Inicial,
+                        Tanque2Inicial = @Tanque2Inicial,
+                        Tanque3Inicial = @Tanque3Inicial,
+                        Tanque4Inicial = @Tanque4Inicial,
+                        Tanque5Inicial = @Tanque5Inicial,
+                        TotalInicialLitros = @TotalInicialLitros,
+                        TotalEntradasRutasLitros = @TotalEntradasRutasLitros,
+                        TotalSalidasPlantasLitros = @TotalSalidasPlantasLitros,
+                        Tanque1Final = @Tanque1Final,
+                        Tanque2Final = @Tanque2Final,
+                        Tanque3Final = @Tanque3Final,
+                        Tanque4Final = @Tanque4Final,
+                        Tanque5Final = @Tanque5Final,
+                        TotalFinalFisicoLitros = @TotalFinalFisicoLitros,
+                        TotalTeoricoLitros = @TotalTeoricoLitros,
+                        DiferenciaMermaLitros = @DiferenciaMermaLitros,
+                        FilasRecepcionJson = @FilasRecepcionJson,
+                        Observaciones = @Observaciones,
+                        ModifiedBy = @ModifiedBy,
+                        ModifiedAt = GETDATE()
+                    WHERE Fecha = @Fecha";
+
+                await connection.ExecuteAsync(sqlUpdate, new
+                {
+                    dto.Fecha,
+                    dto.Tanque1Inicial,
+                    dto.Tanque2Inicial,
+                    dto.Tanque3Inicial,
+                    dto.Tanque4Inicial,
+                    dto.Tanque5Inicial,
+                    dto.TotalInicialLitros,
+                    dto.TotalEntradasRutasLitros,
+                    dto.TotalSalidasPlantasLitros,
+                    dto.Tanque1Final,
+                    dto.Tanque2Final,
+                    dto.Tanque3Final,
+                    dto.Tanque4Final,
+                    dto.Tanque5Final,
+                    dto.TotalFinalFisicoLitros,
+                    dto.TotalTeoricoLitros,
+                    dto.DiferenciaMermaLitros,
+                    dto.FilasRecepcionJson,
+                    dto.Observaciones,
+                    ModifiedBy = userId
+                });
+
+                return existente.Id;
+            }
+        }
+
+        public async Task<bool> ConfirmarAperturaTanquesAsync(DateTime fecha, int userId, string userName, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            bool esAdminOSup = rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Contains("SUPERVISOR", StringComparison.OrdinalIgnoreCase);
+            if (!esAdminOSup) throw new UnauthorizedAccessException("Solo un Supervisor o Administrador puede confirmar la apertura del día.");
+
+            var sql = @"
+                UPDATE TB_CONTROL_TANQUES_DIARIO
+                SET AperturaConfirmada = 1,
+                    AperturaConfirmadaPorId = @userId,
+                    AperturaConfirmadaPorNombre = @userName,
+                    AperturaConfirmadaAt = GETDATE(),
+                    ModifiedBy = @userId,
+                    ModifiedAt = GETDATE()
+                WHERE Fecha = @fecha";
+
+            var rows = await connection.ExecuteAsync(sql, new { fecha = fecha.Date, userId, userName });
+            return rows > 0;
+        }
+
+        public async Task<bool> ConfirmarCierreTanquesAsync(DateTime fecha, int userId, string userName, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            bool esAdminOSup = rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Contains("SUPERVISOR", StringComparison.OrdinalIgnoreCase);
+            if (!esAdminOSup) throw new UnauthorizedAccessException("Solo un Supervisor o Administrador puede confirmar el cierre del día.");
+
+            var sql = @"
+                UPDATE TB_CONTROL_TANQUES_DIARIO
+                SET CierreConfirmado = 1,
+                    Estado = 'CONFIRMADO',
+                    CierreConfirmadoPorId = @userId,
+                    CierreConfirmadoPorNombre = @userName,
+                    CierreConfirmadoAt = GETDATE(),
+                    ModifiedBy = @userId,
+                    ModifiedAt = GETDATE()
+                WHERE Fecha = @fecha";
+
+            var rows = await connection.ExecuteAsync(sql, new { fecha = fecha.Date, userId, userName });
+            return rows > 0;
         }
     }
 
@@ -9129,6 +9339,203 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 ORDER BY c.Id ASC";
             var result = await connection.QueryAsync<ControlCompaniaDto>(sql, new { controlRutaId });
             return result;
+        }
+
+        public async Task<ControlTanquesDiarioDto?> ObtenerControlTanquesDiarioAsync(DateTime fecha, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = "SELECT * FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha = @fecha";
+            var record = await connection.QueryFirstOrDefaultAsync<ControlTanquesDiarioDto>(sql, new { fecha = fecha.Date });
+
+            bool esAdmin = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase);
+
+            if (record != null)
+            {
+                // Regla de Negocio: Si ya está cerrado o confirmado, o la fecha es anterior a hoy, SOLO ADMIN puede modificar
+                bool esPasadoOConfirmado = record.CierreConfirmado || record.Fecha.Date < DateTime.UtcNow.Date;
+                record.PuedeModificar = esAdmin || !esPasadoOConfirmado;
+                return record;
+            }
+
+            // Si no existe registro para hoy, auto-obtener el cierre del día anterior para el arranque de hoy
+            var sqlPrev = "SELECT TOP 1 TotalFinalFisicoLitros FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha < @fecha ORDER BY Fecha DESC";
+            int litrosArranque = await connection.ExecuteScalarAsync<int?>(sqlPrev, new { fecha = fecha.Date }) ?? 0;
+
+            return new ControlTanquesDiarioDto
+            {
+                Fecha = fecha.Date,
+                TotalInicialLitros = litrosArranque,
+                PuedeModificar = true,
+                Estado = "BORRADOR"
+            };
+        }
+
+        public async Task<int> GuardarControlTanquesDiarioAsync(ControlTanquesDiarioDto dto, int userId, string userName, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            bool esAdmin = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase);
+
+            // Verificar si ya existe
+            var existente = await connection.QueryFirstOrDefaultAsync<ControlTanquesDiarioDto>(
+                "SELECT * FROM TB_CONTROL_TANQUES_DIARIO WHERE Fecha = @fecha", new { fecha = dto.Fecha.Date });
+
+            if (existente != null && (existente.CierreConfirmado || existente.Fecha.Date < DateTime.UtcNow.Date))
+            {
+                if (!esAdmin)
+                {
+                    throw new UnauthorizedAccessException("Este control diario ya está confirmado y cerrado. De allí para atrás solo el Administrador puede modificar datos.");
+                }
+            }
+
+            dto.TotalInicialLitros = dto.Tanque1Inicial + dto.Tanque2Inicial + dto.Tanque3Inicial + dto.Tanque4Inicial + dto.Tanque5Inicial;
+            dto.TotalFinalFisicoLitros = dto.Tanque1Final + dto.Tanque2Final + dto.Tanque3Final + dto.Tanque4Final + dto.Tanque5Final;
+            dto.TotalTeoricoLitros = dto.TotalInicialLitros + dto.TotalEntradasRutasLitros - dto.TotalSalidasPlantasLitros;
+            dto.DiferenciaMermaLitros = dto.TotalFinalFisicoLitros - dto.TotalTeoricoLitros;
+
+            if (existente == null)
+            {
+                var sqlInsert = @"
+                    INSERT INTO TB_CONTROL_TANQUES_DIARIO (
+                        Fecha, Tanque1Inicial, Tanque2Inicial, Tanque3Inicial, Tanque4Inicial, Tanque5Inicial, TotalInicialLitros,
+                        AperturaConfirmada, AperturaConfirmadaPorId, AperturaConfirmadaPorNombre, AperturaConfirmadaAt,
+                        TotalEntradasRutasLitros, TotalSalidasPlantasLitros,
+                        Tanque1Final, Tanque2Final, Tanque3Final, Tanque4Final, Tanque5Final, TotalFinalFisicoLitros,
+                        TotalTeoricoLitros, DiferenciaMermaLitros, CierreConfirmado, Estado, FilasRecepcionJson, Observaciones,
+                        CreatedBy, CreatedAt
+                    )
+                    VALUES (
+                        @Fecha, @Tanque1Inicial, @Tanque2Inicial, @Tanque3Inicial, @Tanque4Inicial, @Tanque5Inicial, @TotalInicialLitros,
+                        @AperturaConfirmada, @AperturaConfirmadaPorId, @AperturaConfirmadaPorNombre, @AperturaConfirmadaAt,
+                        @TotalEntradasRutasLitros, @TotalSalidasPlantasLitros,
+                        @Tanque1Final, @Tanque2Final, @Tanque3Final, @Tanque4Final, @Tanque5Final, @TotalFinalFisicoLitros,
+                        @TotalTeoricoLitros, @DiferenciaMermaLitros, @CierreConfirmado, @Estado, @FilasRecepcionJson, @Observaciones,
+                        @CreatedBy, GETDATE()
+                    );
+                    SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+                return await connection.ExecuteScalarAsync<int>(sqlInsert, new
+                {
+                    dto.Fecha,
+                    dto.Tanque1Inicial,
+                    dto.Tanque2Inicial,
+                    dto.Tanque3Inicial,
+                    dto.Tanque4Inicial,
+                    dto.Tanque5Inicial,
+                    dto.TotalInicialLitros,
+                    dto.AperturaConfirmada,
+                    dto.AperturaConfirmadaPorId,
+                    dto.AperturaConfirmadaPorNombre,
+                    dto.AperturaConfirmadaAt,
+                    dto.TotalEntradasRutasLitros,
+                    dto.TotalSalidasPlantasLitros,
+                    dto.Tanque1Final,
+                    dto.Tanque2Final,
+                    dto.Tanque3Final,
+                    dto.Tanque4Final,
+                    dto.Tanque5Final,
+                    dto.TotalFinalFisicoLitros,
+                    dto.TotalTeoricoLitros,
+                    dto.DiferenciaMermaLitros,
+                    dto.CierreConfirmado,
+                    dto.Estado,
+                    dto.FilasRecepcionJson,
+                    dto.Observaciones,
+                    CreatedBy = userId
+                });
+            }
+            else
+            {
+                var sqlUpdate = @"
+                    UPDATE TB_CONTROL_TANQUES_DIARIO
+                    SET Tanque1Inicial = @Tanque1Inicial,
+                        Tanque2Inicial = @Tanque2Inicial,
+                        Tanque3Inicial = @Tanque3Inicial,
+                        Tanque4Inicial = @Tanque4Inicial,
+                        Tanque5Inicial = @Tanque5Inicial,
+                        TotalInicialLitros = @TotalInicialLitros,
+                        TotalEntradasRutasLitros = @TotalEntradasRutasLitros,
+                        TotalSalidasPlantasLitros = @TotalSalidasPlantasLitros,
+                        Tanque1Final = @Tanque1Final,
+                        Tanque2Final = @Tanque2Final,
+                        Tanque3Final = @Tanque3Final,
+                        Tanque4Final = @Tanque4Final,
+                        Tanque5Final = @Tanque5Final,
+                        TotalFinalFisicoLitros = @TotalFinalFisicoLitros,
+                        TotalTeoricoLitros = @TotalTeoricoLitros,
+                        DiferenciaMermaLitros = @DiferenciaMermaLitros,
+                        FilasRecepcionJson = @FilasRecepcionJson,
+                        Observaciones = @Observaciones,
+                        ModifiedBy = @ModifiedBy,
+                        ModifiedAt = GETDATE()
+                    WHERE Fecha = @Fecha";
+
+                await connection.ExecuteAsync(sqlUpdate, new
+                {
+                    dto.Fecha,
+                    dto.Tanque1Inicial,
+                    dto.Tanque2Inicial,
+                    dto.Tanque3Inicial,
+                    dto.Tanque4Inicial,
+                    dto.Tanque5Inicial,
+                    dto.TotalInicialLitros,
+                    dto.TotalEntradasRutasLitros,
+                    dto.TotalSalidasPlantasLitros,
+                    dto.Tanque1Final,
+                    dto.Tanque2Final,
+                    dto.Tanque3Final,
+                    dto.Tanque4Final,
+                    dto.Tanque5Final,
+                    dto.TotalFinalFisicoLitros,
+                    dto.TotalTeoricoLitros,
+                    dto.DiferenciaMermaLitros,
+                    dto.FilasRecepcionJson,
+                    dto.Observaciones,
+                    ModifiedBy = userId
+                });
+
+                return existente.Id;
+            }
+        }
+
+        public async Task<bool> ConfirmarAperturaTanquesAsync(DateTime fecha, int userId, string userName, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            bool esAdminOSup = rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Contains("SUPERVISOR", StringComparison.OrdinalIgnoreCase);
+            if (!esAdminOSup) throw new UnauthorizedAccessException("Solo un Supervisor o Administrador puede confirmar la apertura del día.");
+
+            var sql = @"
+                UPDATE TB_CONTROL_TANQUES_DIARIO
+                SET AperturaConfirmada = 1,
+                    AperturaConfirmadaPorId = @userId,
+                    AperturaConfirmadaPorNombre = @userName,
+                    AperturaConfirmadaAt = GETDATE(),
+                    ModifiedBy = @userId,
+                    ModifiedAt = GETDATE()
+                WHERE Fecha = @fecha";
+
+            var rows = await connection.ExecuteAsync(sql, new { fecha = fecha.Date, userId, userName });
+            return rows > 0;
+        }
+
+        public async Task<bool> ConfirmarCierreTanquesAsync(DateTime fecha, int userId, string userName, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            bool esAdminOSup = rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Contains("SUPERVISOR", StringComparison.OrdinalIgnoreCase);
+            if (!esAdminOSup) throw new UnauthorizedAccessException("Solo un Supervisor o Administrador puede confirmar el cierre del día.");
+
+            var sql = @"
+                UPDATE TB_CONTROL_TANQUES_DIARIO
+                SET CierreConfirmado = 1,
+                    Estado = 'CONFIRMADO',
+                    CierreConfirmadoPorId = @userId,
+                    CierreConfirmadoPorNombre = @userName,
+                    CierreConfirmadoAt = GETDATE(),
+                    ModifiedBy = @userId,
+                    ModifiedAt = GETDATE()
+                WHERE Fecha = @fecha";
+
+            var rows = await connection.ExecuteAsync(sql, new { fecha = fecha.Date, userId, userName });
+            return rows > 0;
         }
 
         public async Task<bool> EditarFincaDeViajeAuditadoAsync(long controlRutaId, long rutaId, EditarFincaViajeAuditadoDto dto, int usuarioId, string rol)

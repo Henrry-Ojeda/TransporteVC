@@ -1920,6 +1920,40 @@ namespace Transporte.Core.DTOs
         public DateTime CreatedAt { get; set; }
     }
 
+    public class ControlTanquesDiarioDto
+    {
+        public int Id { get; set; }
+        public DateTime Fecha { get; set; }
+        public int Tanque1Inicial { get; set; }
+        public int Tanque2Inicial { get; set; }
+        public int Tanque3Inicial { get; set; }
+        public int Tanque4Inicial { get; set; }
+        public int Tanque5Inicial { get; set; }
+        public int TotalInicialLitros { get; set; }
+        public bool AperturaConfirmada { get; set; }
+        public int? AperturaConfirmadaPorId { get; set; }
+        public string? AperturaConfirmadaPorNombre { get; set; }
+        public DateTime? AperturaConfirmadaAt { get; set; }
+        public int TotalEntradasRutasLitros { get; set; }
+        public int TotalSalidasPlantasLitros { get; set; }
+        public int Tanque1Final { get; set; }
+        public int Tanque2Final { get; set; }
+        public int Tanque3Final { get; set; }
+        public int Tanque4Final { get; set; }
+        public int Tanque5Final { get; set; }
+        public int TotalFinalFisicoLitros { get; set; }
+        public int TotalTeoricoLitros { get; set; }
+        public int DiferenciaMermaLitros { get; set; }
+        public bool CierreConfirmado { get; set; }
+        public int? CierreConfirmadoPorId { get; set; }
+        public string? CierreConfirmadoPorNombre { get; set; }
+        public DateTime? CierreConfirmadoAt { get; set; }
+        public string Estado { get; set; } = "BORRADOR";
+        public string? FilasRecepcionJson { get; set; }
+        public string? Observaciones { get; set; }
+        public bool PuedeModificar { get; set; } = true;
+    }
+
     public class GuardarAbonoCompaniaDto
     {
         public int CompaniaId { get; set; }

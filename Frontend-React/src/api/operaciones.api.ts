@@ -6,6 +6,7 @@ import type {
   RutaLogisticaDto,
   DespachoCompaniaDto,
   BalanceVolumetricoResumenDto,
+  ControlTanquesDiarioDto,
 } from '@/types';
 
 export const operacionesApi = {
@@ -224,6 +225,29 @@ export const operacionesApi = {
     if (fechaFin) params.fechaFin = fechaFin;
     if (choferId) params.choferId = choferId;
     const res = await apiClient.get<BalanceVolumetricoResumenDto>('/catalogos/mermas', { params });
+    return res.data;
+  },
+
+  // CONTROL DIARIO DE TANQUES / SILOS
+  getControlTanquesDiario: async (fecha?: string): Promise<ControlTanquesDiarioDto | null> => {
+    const params: Record<string, any> = {};
+    if (fecha) params.fecha = fecha;
+    const res = await apiClient.get<ControlTanquesDiarioDto>('/receptoria/control-tanques-diario', { params });
+    return res.data;
+  },
+
+  guardarControlTanquesDiario: async (dto: ControlTanquesDiarioDto): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/receptoria/control-tanques-diario', dto);
+    return res.data;
+  },
+
+  confirmarAperturaTanques: async (fecha: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post('/receptoria/control-tanques-diario/confirmar-apertura', { fecha });
+    return res.data;
+  },
+
+  confirmarCierreTanques: async (fecha: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post('/receptoria/control-tanques-diario/confirmar-cierre', { fecha });
     return res.data;
   },
 };
