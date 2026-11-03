@@ -19,7 +19,9 @@ export const LoginPage: React.FC = () => {
   const hostname = window.location.hostname.toLowerCase();
   const empresaNombre = hostname.includes('campoverde') 
     ? 'Productos Lácteos Campo Verde' 
-    : 'Transporte & Lácteos Base';
+    : (hostname.includes('vergel') || hostname.includes('carrillo'))
+      ? 'Transporte Vergel & Carrillo'
+      : 'Transporte & Lácteos Base';
 
   // Si ya está autenticado, redirigir al inicio
   useEffect(() => {
