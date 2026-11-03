@@ -97,25 +97,46 @@ export const useAuthStore = create<AuthState>()(
       canAccessTab: (tabId: string) => {
         const { hasPermission, isAdmin, hasTenantModule } = get();
 
-        // 1. Validar si la empresa cliente tiene contratado el módulo (Feature Flags SaaS)
+        // =========================================================================
+        // NIVEL 1: LICENCIA SAAS / EMPRESA (TENANT FEATURE FLAGS)
+        // Si la empresa NO tiene contratado el módulo en el SaaS Master,
+        // NINGÚN usuario de esa empresa (ni el administrador) puede verlo ni usarlo.
+        // =========================================================================
         const tabToSaaSModule: Record<string, string> = {
           'bufala': 'MOD_LECHE_BUFALA',
           'combustible': 'MOD_COMBUSTIBLE',
           'mantenimiento': 'MOD_MANTENIMIENTO',
           'historial-camiones': 'MOD_MANTENIMIENTO',
           'repuestos': 'MOD_REPUESTOS',
+          'semanas': 'MOD_LIQUIDACIONES',
+          'liquidaciones': 'MOD_LIQUIDACIONES',
+          'liquidacion': 'MOD_LIQUIDACIONES',
+          'pagos-personal': 'MOD_PAGOS_PERSONAL',
+          'pagos-usuarios': 'MOD_PAGOS_PERSONAL',
+          'adelantos': 'MOD_LIQUIDACIONES',
+          'adelantos-fincas': 'MOD_LIQUIDACIONES',
+          'adelantos-personal': 'MOD_PAGOS_PERSONAL',
+          'adelantos-usuarios': 'MOD_PAGOS_PERSONAL',
+          'abonos-companias': 'MOD_LIQUIDACIONES',
+          'reportes': 'MOD_REPORTES',
         };
 
         const saasReq = tabToSaaSModule[tabId.toLowerCase()];
         if (saasReq && !hasTenantModule(saasReq)) {
-          return false; // Módulo no contratado por esta empresa en el SaaS Manager
+          return false; // Módulo bloqueado a nivel de licencia SaaS para esta empresa
         }
 
-        // 2. Módulos & Permisos solo es para SuperAdmin en SaaS Manager, no para empresas cliente
+        // Módulos del Sistema SaaS solo son administrados en el SaaS Manager
         if (tabId.toLowerCase() === 'permisos') {
           return false;
         }
 
+        // =========================================================================
+        // NIVEL 2: PERMISOS RBAC DEL USUARIO EN LA BASE DE DATOS DE LA EMPRESA (HIJO)
+        // El administrador local tiene acceso a todo lo contratado por su empresa.
+        // Los demás roles (Chofer, Operador, Finanzas, Supervisor) se rigen
+        // estrictamente por los permisos asignados a su ROL en la base de datos local.
+        // =========================================================================
         if (isAdmin()) return true;
 
         const tabPermissionMap: Record<string, string[]> = {
