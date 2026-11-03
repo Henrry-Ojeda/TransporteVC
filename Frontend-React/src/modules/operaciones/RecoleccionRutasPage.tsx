@@ -6,6 +6,7 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { useAuthStore } from '@/stores/authStore';
 import type { ControlRutaDto, FincaDto, CamionDto } from '@/types';
 
 interface RutaDetalleFinca {
@@ -25,6 +26,7 @@ interface RutaDetalleFinca {
 
 export const RecoleccionRutasPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const hoyStr = new Date().toISOString().split('T')[0];
 
   const [modoVista, setModoVista] = useState<'viajes' | 'fincas'>('viajes');
@@ -73,6 +75,11 @@ export const RecoleccionRutasPage: React.FC = () => {
   const { data: fincas = [] } = useQuery<FincaDto[]>({
     queryKey: ['fincas'],
     queryFn: () => catalogosApi.getFincas(true),
+  });
+
+  const { data: rutasLogistica = [] } = useQuery<any[]>({
+    queryKey: ['rutas-logistica'],
+    queryFn: () => operacionesApi.getRutasLogistica(),
   });
 
   // Mutación iniciar viaje
@@ -163,26 +170,30 @@ export const RecoleccionRutasPage: React.FC = () => {
         </span>
       ),
     },
-    {
-      header: 'TIPO DE LECHE',
-      accessorKey: 'tipoLeche',
-      cell: (row) => {
-        const esBufala = row.tipoLeche === 'BUFALA';
-        return (
-          <span
-            className="badge"
-            style={{
-              background: esBufala ? '#f3e8ff' : '#e0f2fe',
-              color: esBufala ? '#7e22ce' : '#0284c7',
-              border: `1px solid ${esBufala ? '#d8b4fe' : '#bae6fd'}`,
-              fontWeight: 700,
-            }}
-          >
-            {esBufala ? 'BÚFALA' : 'VACA'}
-          </span>
-        );
-      },
-    },
+    ...(hasBufala
+      ? [
+          {
+            header: 'TIPO DE LECHE',
+            accessorKey: 'tipoLeche',
+            cell: (row: RutaDetalleFinca) => {
+              const esBufala = row.tipoLeche === 'BUFALA';
+              return (
+                <span
+                  className="badge"
+                  style={{
+                    background: esBufala ? '#f3e8ff' : '#e0f2fe',
+                    color: esBufala ? '#7e22ce' : '#0284c7',
+                    border: `1px solid ${esBufala ? '#d8b4fe' : '#bae6fd'}`,
+                    fontWeight: 700,
+                  }}
+                >
+                  {esBufala ? '🐃 BÚFALA' : '🥛 VACA'}
+                </span>
+              );
+            },
+          } as ColumnDef<RutaDetalleFinca>,
+        ]
+      : []),
     {
       header: 'CALIDAD',
       accessorKey: 'esAcida',
@@ -566,13 +577,20 @@ export const RecoleccionRutasPage: React.FC = () => {
                       subLabel: f.propietarioNombre ? `Ganadero: ${f.propietarioNombre}` : 'Sin propietario',
                     }))}
                     value={formFinca.fincaId || undefined}
-                    onChange={(val) => setFormFinca({ ...formFinca, fincaId: Number(val || 0) })}
+                    onChange={(val) => {
+                      const fId = Number(val || 0);
+                      const matched = fincas.find((f) => f.id === fId);
+                      const tipo = hasBufala && (matched?.tipoLeche === 'BUFALA' || matched?.tieneDosTiposLeche)
+                        ? (matched.tipoLeche === 'BUFALA' ? 'BUFALA' : 'VACA')
+                        : 'VACA';
+                      setFormFinca({ ...formFinca, fincaId: fId, tipoLeche: tipo });
+                    }}
                     placeholder="-- Seleccionar o buscar finca --"
                     searchPlaceholder="Buscar finca por nombre o propietario..."
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: hasBufala ? '1fr 1fr' : '1fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Litros Recolectados *
@@ -587,20 +605,23 @@ export const RecoleccionRutasPage: React.FC = () => {
                       required
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Tipo de Leche
-                    </label>
-                    <select
-                      value={formFinca.tipoLeche}
-                      onChange={(e) => setFormFinca({ ...formFinca, tipoLeche: e.target.value })}
-                      className="form-input"
-                      style={{ width: '100%', height: '38px' }}
-                    >
-                      <option value="VACA">🥛 Vaca</option>
-                      <option value="BUFALA">🐃 Búfala</option>
-                    </select>
-                  </div>
+
+                  {hasBufala && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                        Tipo de Leche
+                      </label>
+                      <select
+                        value={formFinca.tipoLeche}
+                        onChange={(e) => setFormFinca({ ...formFinca, tipoLeche: e.target.value })}
+                        className="form-input"
+                        style={{ width: '100%', height: '38px' }}
+                      >
+                        <option value="VACA">🥛 Vaca</option>
+                        <option value="BUFALA">🐃 Búfala</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
@@ -726,6 +747,23 @@ export const RecoleccionRutasPage: React.FC = () => {
                     onChange={(val) => setFormIniciar({ ...formIniciar, camionId: Number(val || 0) })}
                     placeholder="-- Seleccionar o buscar camión cisterna --"
                     searchPlaceholder="Buscar por placa o marca..."
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    Ruta Logística * <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Ej: Zona Sur, Ruta Norte)</span>
+                  </label>
+                  <SearchableSelect
+                    options={rutasLogistica.map((r) => ({
+                      value: r.id,
+                      label: r.nombre,
+                      subLabel: r.codigo ? `Código: ${r.codigo}` : (r.descripcion || 'Ruta operativa'),
+                    }))}
+                    value={formIniciar.rutaLogisticaId || undefined}
+                    onChange={(val) => setFormIniciar({ ...formIniciar, rutaLogisticaId: Number(val || 0) })}
+                    placeholder="-- Seleccionar o buscar ruta logística --"
+                    searchPlaceholder="Buscar ruta logística por nombre..."
                   />
                 </div>
 

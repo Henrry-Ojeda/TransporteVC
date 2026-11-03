@@ -5,11 +5,13 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { sistemaApi } from '@/api/sistema.api';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/stores/authStore';
 import type { CompaniaDto, CamionDto, UsuarioDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
 
 export const ReceptoriaPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const hoyStr = new Date().toISOString().split('T')[0];
 
   // Filtros globales de la vista
@@ -1574,7 +1576,7 @@ export const ReceptoriaPage: React.FC = () => {
                     style={{ height: '38px', fontWeight: 600 }}
                   >
                     <option value="VACA">🐄 Leche de Vaca</option>
-                    <option value="BUFALA">🐃 Leche de Búfala</option>
+                    {hasBufala && <option value="BUFALA">🐃 Leche de Búfala</option>}
                   </select>
                 </div>
               </div>
