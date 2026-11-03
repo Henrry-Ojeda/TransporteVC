@@ -56,6 +56,7 @@ export const RecoleccionRutasPage: React.FC = () => {
 
   // Formulario Iniciar Viaje
   const [formIniciar, setFormIniciar] = useState({
+    fecha: new Date().toISOString().split('T')[0],
     camionId: 0,
     choferId: 0,
     rutaLogisticaId: 0,
@@ -464,6 +465,7 @@ export const RecoleccionRutasPage: React.FC = () => {
             className="btn btn-primary"
             onClick={() => {
               setFormIniciar({
+                fecha: new Date().toISOString().split('T')[0],
                 camionId: 0,
                 choferId: user?.id || 0,
                 rutaLogisticaId: 0,
@@ -1546,6 +1548,21 @@ export const RecoleccionRutasPage: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    <i className="fa-solid fa-calendar-day" style={{ color: '#10b981', marginRight: '6px' }}></i>
+                    Fecha del Viaje / Ticket *
+                  </label>
+                  <input
+                    type="date"
+                    value={formIniciar.fecha}
+                    onChange={(e) => setFormIniciar({ ...formIniciar, fecha: e.target.value })}
+                    className="form-input"
+                    style={{ width: '100%', height: '38px', fontWeight: 700, color: '#0f172a' }}
+                    required
+                  />
+                </div>
+
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Unidad Cisterna * <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>

@@ -35,23 +35,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [dropUp, setDropUp] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Auto-detectar si debe abrir hacia arriba para no salirse ni cortarse en modales
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      if (spaceBelow < 250 && rect.top > 250) {
-        setDropUp(true);
-      } else {
-        setDropUp(false);
-      }
-    }
-  }, [isOpen]);
 
   // Cerrar al hacer clic fuera
   useEffect(() => {
@@ -174,23 +159,20 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         </div>
       </div>
 
-      {/* Menú desplegable con filtro interactivo y posicionamiento inteligente */}
+      {/* Menú desplegable con filtro */}
       {isOpen && (
         <div
-          ref={dropdownRef}
           style={{
             position: 'absolute',
-            top: dropUp ? 'auto' : '100%',
-            bottom: dropUp ? '100%' : 'auto',
+            top: '100%',
             left: 0,
             right: 0,
-            marginTop: dropUp ? 0 : '4px',
-            marginBottom: dropUp ? '4px' : 0,
+            marginTop: '4px',
             backgroundColor: '#ffffff',
             border: '1px solid #cbd5e1',
             borderRadius: '8px',
             boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1)',
-            zIndex: 99999,
+            zIndex: 9999,
             overflow: 'hidden',
           }}
         >

@@ -1794,7 +1794,7 @@ namespace Transporte.Core.DTOs
     {
         public int Id { get; set; } = 1;
         public string Nombre { get; set; } = "TRANSPORTE VERGEL & CARRILLO";
-        public string? NombreEmpresa { get => Nombre; set { if (!string.IsNullOrWhiteSpace(value)) Nombre = value; } }
+        public string? NombreEmpresa { get; set; }
         public string? Rif { get; set; } = "J-50000000-0";
         public string? Direccion { get; set; } = "Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela";
         public string? Telefono { get; set; } = "+58 414-0000000";

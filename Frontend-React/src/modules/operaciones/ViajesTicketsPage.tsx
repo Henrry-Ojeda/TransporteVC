@@ -22,6 +22,7 @@ export const ViajesTicketsPage: React.FC = () => {
   const [modalCerrar, setModalCerrar] = useState(false);
 
   const [formIniciar, setFormIniciar] = useState({
+    fecha: new Date().toISOString().split('T')[0],
     camionId: 0,
     choferId: 0,
     rutaLogisticaId: 0,
@@ -594,6 +595,21 @@ export const ViajesTicketsPage: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    <i className="fa-solid fa-calendar-day" style={{ color: '#4f46e5', marginRight: '6px' }}></i>
+                    Fecha del Viaje / Ticket *
+                  </label>
+                  <input
+                    type="date"
+                    value={formIniciar.fecha}
+                    onChange={(e) => setFormIniciar({ ...formIniciar, fecha: e.target.value })}
+                    className="form-input"
+                    style={{ width: '100%', height: '38px', fontWeight: 700, color: '#0f172a' }}
+                    required
+                  />
+                </div>
+
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Unidad Cisterna *

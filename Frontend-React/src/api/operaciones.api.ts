@@ -24,8 +24,9 @@ export const operacionesApi = {
     return res.data;
   },
 
-  iniciarViaje: async (dto: { camionId?: number; choferId?: number; conductorId?: number; rutaLogisticaId?: number; odometroInicialKm?: number; observaciones?: string; observacion?: string }): Promise<{ id: number; message: string }> => {
+  iniciarViaje: async (dto: { fecha?: string; camionId?: number; choferId?: number; conductorId?: number; rutaLogisticaId?: number; odometroInicialKm?: number; observaciones?: string; observacion?: string }): Promise<{ id: number; message: string }> => {
     const payload = {
+      fecha: dto.fecha || undefined,
       camionId: dto.camionId || undefined,
       conductorId: dto.conductorId || dto.choferId || undefined,
       choferId: dto.choferId || dto.conductorId || undefined,
