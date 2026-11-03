@@ -64,7 +64,7 @@ export const SemanasPage: React.FC = () => {
       cell: (row) => (
         <div>
           <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
-            Semana #{row.numeroSemana} ({row.año})
+            {row.codigo ? row.codigo.split('(')[0].trim() : `Semana #${row.numeroSemana || (row as any).id}`} ({row.año || (row as any).anio || (row.fechaInicio ? new Date(row.fechaInicio).getFullYear() : '')})
           </div>
           <div style={{ fontSize: '11px', color: '#64748b' }}>
             {new Date(row.fechaInicio).toLocaleDateString('es-VE')} al {new Date(row.fechaFin).toLocaleDateString('es-VE')}
@@ -277,7 +277,7 @@ export const SemanasPage: React.FC = () => {
                 CÓDIGO / SEMANA
               </span>
               <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                Semana #{semanaActiva.numeroSemana} ({semanaActiva.año})
+                {semanaActiva.codigo ? semanaActiva.codigo.split('(')[0].trim() : `Semana #${semanaActiva.numeroSemana || (semanaActiva as any).id}`} ({semanaActiva.año || (semanaActiva as any).anio || (semanaActiva.fechaInicio ? new Date(semanaActiva.fechaInicio).getFullYear() : '')})
               </div>
             </div>
 

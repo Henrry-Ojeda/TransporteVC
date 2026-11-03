@@ -1,7 +1,9 @@
 export interface CicloSemanalDto {
   id: number;
+  codigo?: string;
   numeroSemana: number;
   año: number;
+  anio?: number;
   fechaInicio: string;
   fechaFin: string;
   estado: string; // ABIERTO, CERRADO, LIQUIDADO

@@ -370,6 +370,9 @@ namespace Transporte.Core.DTOs
     {
         public int Id { get; set; }
         public string Codigo { get; set; } = string.Empty;
+        public int NumeroSemana { get; set; }
+        public int Anio { get; set; }
+        public int Año => Anio;
         public DateTime FechaInicio { get; set; }
         public DateTime FechaFin { get; set; }
         public string Estado { get; set; } = string.Empty;

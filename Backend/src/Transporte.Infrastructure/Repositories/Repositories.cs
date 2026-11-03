@@ -3208,9 +3208,11 @@ namespace Transporte.Infrastructure.Repositories
                     c.FechaInicio,
                     c.FechaFin,
                     c.Estado,
+                    DATEPART(isowk, c.FechaInicio) AS NumeroSemana,
+                    YEAR(c.FechaInicio) AS Anio,
                     ISNULL(SUM(r.Litros), 0) AS TotalLitros,
-                    0 AS TotalMontoUSD,
-                    0 AS TotalBrutoBs,
+                    ISNULL(SUM(r.Litros * ISNULL(r.PrecioLitroUSDAplicado, 0)), 0) AS TotalMontoUSD,
+                    ISNULL(SUM(r.Litros * ISNULL(r.PrecioLitroUSDAplicado, 0) * ISNULL(r.TasaDolarBsAplicada, 0)), 0) AS TotalBrutoBs,
                     COUNT(DISTINCT r.FincaId) AS TotalFincasParticipantes,
                     0 AS TotalCompaniasParticipantes,
                     c.Observaciones AS Observaciones,
@@ -3235,9 +3237,11 @@ namespace Transporte.Infrastructure.Repositories
                     c.FechaInicio,
                     c.FechaFin,
                     c.Estado,
+                    DATEPART(isowk, c.FechaInicio) AS NumeroSemana,
+                    YEAR(c.FechaInicio) AS Anio,
                     ISNULL(SUM(r.Litros), 0) AS TotalLitros,
-                    0 AS TotalMontoUSD,
-                    0 AS TotalBrutoBs,
+                    ISNULL(SUM(r.Litros * ISNULL(r.PrecioLitroUSDAplicado, 0)), 0) AS TotalMontoUSD,
+                    ISNULL(SUM(r.Litros * ISNULL(r.PrecioLitroUSDAplicado, 0) * ISNULL(r.TasaDolarBsAplicada, 0)), 0) AS TotalBrutoBs,
                     COUNT(DISTINCT r.FincaId) AS TotalFincasParticipantes,
                     (SELECT COUNT(DISTINCT e.CompaniaId) FROM TB_ENTREGAS_COMPANIA e WHERE e.Fecha BETWEEN c.FechaInicio AND c.FechaFin) AS TotalCompaniasParticipantes,
                     c.Observaciones AS Observaciones,
@@ -3246,7 +3250,7 @@ namespace Transporte.Infrastructure.Repositories
                 FROM TB_CICLOS_OPERATIVOS c
                 LEFT JOIN TB_RUTAS_RECOLECCION r ON c.Id = r.CicloId
                 GROUP BY c.Id, c.Codigo, c.FechaInicio, c.FechaFin, c.Estado, c.Observaciones, c.StockInicialTanques, c.StockFinalTanques
-                ORDER BY CASE WHEN c.Estado = 'ABIERTO' THEN 0 WHEN c.Estado = 'PROGRAMADO' THEN 1 ELSE 2 END, c.FechaInicio ASC";
+                ORDER BY CASE WHEN c.Estado = 'ABIERTO' THEN 0 ELSE 1 END, c.FechaInicio DESC";
 
             return await connection.QueryAsync<SemanaDetalleDto>(sql);
         }

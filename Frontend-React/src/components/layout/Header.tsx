@@ -16,6 +16,7 @@ interface BcvResponse {
 
 interface CicloActivoResponse {
   id?: number;
+  codigo?: string;
   numeroSemana?: number;
   semana?: number;
   año?: number;
@@ -53,11 +54,12 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   });
 
   const tasa = bcvData?.tasaDolarBs ?? 0;
-  const numSemana = cicloData?.numeroSemana || cicloData?.semana || 0;
+  const match = cicloData?.codigo?.match(/Semana\s*(\d+)/i);
+  const numSemana = cicloData?.numeroSemana || cicloData?.semana || (match ? parseInt(match[1]) : (cicloData?.id || 0));
   const fechaIniStr = cicloData?.fechaInicio ? new Date(cicloData.fechaInicio).toLocaleDateString('es-VE') : '';
   const fechaFinStr = cicloData?.fechaFin ? new Date(cicloData.fechaFin).toLocaleDateString('es-VE') : '';
-  const textoCiclo = numSemana > 0 
-    ? `Semana #${numSemana} ${fechaIniStr ? `(${fechaIniStr} - ${fechaFinStr})` : ''}`
+  const textoCiclo = (cicloData?.id || numSemana > 0)
+    ? (cicloData?.codigo ? cicloData.codigo.split('(')[0].trim() + (fechaIniStr ? ` (${fechaIniStr} al ${fechaFinStr})` : '') : `Semana #${numSemana} (${fechaIniStr} al ${fechaFinStr})`)
     : 'No hay semana activa';
 
   const userInitials = (user?.nombreCompleto || user?.username || 'AD')
