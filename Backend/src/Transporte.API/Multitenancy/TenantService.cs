@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
@@ -34,6 +35,20 @@ namespace Transporte.API.Multitenancy
 
         private TenantInfo? _currentTenant;
 
+        public static bool IsRunningInDocker => 
+            File.Exists("/.dockerenv") || 
+            string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
+
+        public static string AdjustConnectionStringForEnvironment(string connStr)
+        {
+            if (string.IsNullOrWhiteSpace(connStr)) return connStr;
+            if (IsRunningInDocker && connStr.Contains("84.247.178.194"))
+            {
+                return connStr.Replace("84.247.178.194", "sql_instancia");
+            }
+            return connStr;
+        }
+
         public TenantService(
             IHttpContextAccessor httpContextAccessor,
             IConfiguration configuration,
@@ -52,13 +67,21 @@ namespace Transporte.API.Multitenancy
 
             if (context != null)
             {
-                if (context.Request.Headers.TryGetValue("X-Tenant-Domain", out var headerDomain))
+                if (context.Request.Headers.TryGetValue("X-Tenant-Domain", out var headerDomain) && !string.IsNullOrWhiteSpace(headerDomain))
                 {
                     host = headerDomain.ToString();
                 }
-                else if (context.Request.Headers.TryGetValue("X-Tenant-Code", out var headerCode))
+                else if (context.Request.Headers.TryGetValue("X-Tenant-Code", out var headerCode) && !string.IsNullOrWhiteSpace(headerCode))
                 {
                     host = headerCode.ToString();
+                }
+                else if (context.Request.Headers.TryGetValue("X-Forwarded-Host", out var fwdHost) && !string.IsNullOrWhiteSpace(fwdHost))
+                {
+                    host = fwdHost.ToString();
+                }
+                else if (context.Request.Query.TryGetValue("tenant", out var qTenant) && !string.IsNullOrWhiteSpace(qTenant))
+                {
+                    host = qTenant.ToString();
                 }
                 else
                 {
@@ -76,7 +99,8 @@ namespace Transporte.API.Multitenancy
 
             try
             {
-                string masterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;";
+                string sqlHost = IsRunningInDocker ? "sql_instancia" : "84.247.178.194";
+                string masterConn = $"Server={sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Connect Timeout=5;";
                 using var db = new SqlConnection(masterConn);
                 
                 var emp = db.QueryFirstOrDefault<dynamic>(
@@ -98,12 +122,14 @@ namespace Transporte.API.Multitenancy
                         "SELECT ModuloCodigo FROM TB_EMPRESA_MODULOS WHERE EmpresaId = @empId AND Habilitado = 1",
                         new { empId }).AsList();
 
+                    string effectiveConnStr = AdjustConnectionStringForEnvironment((string)emp.CadenaConexion);
+
                     var tInfo = new TenantInfo
                     {
                         EmpresaId = empId,
                         Codigo = emp.Codigo,
                         Nombre = emp.NombreComercial,
-                        ConnectionString = emp.CadenaConexion,
+                        ConnectionString = effectiveConnStr,
                         Estado = emp.Estado,
                         FechaVencimiento = emp.FechaVencimientoLicencia,
                         DiasGracia = emp.DiasGraciaMora,
@@ -120,12 +146,14 @@ namespace Transporte.API.Multitenancy
                 _logger.LogWarning("Fallback a conexión local: {Msg}", ex.Message);
             }
 
+            string fallbackConn = _configuration.GetConnectionString("DefaultConnection") 
+                ?? "Server=84.247.178.194,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
+            
             _currentTenant = new TenantInfo
             {
                 Codigo = "CAMPO_VERDE",
                 Nombre = "Lácteos Campo Verde, C.A.",
-                ConnectionString = _configuration.GetConnectionString("DefaultConnection") 
-                    ?? "Server=84.247.178.194,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;",
+                ConnectionString = AdjustConnectionStringForEnvironment(fallbackConn),
                 Estado = "ACTIVA",
                 FechaVencimiento = DateTime.UtcNow.AddYears(1),
                 Modulos = new List<string> { "MOD_DASHBOARD", "MOD_LECHE_VACA", "MOD_LECHE_BUFALA", "MOD_LOGISTICA_RUTAS", "MOD_RECEPTORIA", "MOD_COMBUSTIBLE", "MOD_MANTENIMIENTO", "MOD_REPUESTOS", "MOD_LIQUIDACIONES", "MOD_HISTORIAL_BCV" }
@@ -135,12 +163,13 @@ namespace Transporte.API.Multitenancy
         private static void cleanHost(ref string host)
         {
             if (string.IsNullOrWhiteSpace(host)) { host = "localhost"; return; }
+            if (host.Contains(',')) host = host.Split(',')[0].Trim();
             host = host.Split(':')[0].Trim().ToLower();
         }
 
         public string GetConnectionString() => _currentTenant?.ConnectionString 
-            ?? _configuration.GetConnectionString("DefaultConnection") 
-            ?? "Server=84.247.178.194,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
+            ?? AdjustConnectionStringForEnvironment(_configuration.GetConnectionString("DefaultConnection") 
+            ?? "Server=84.247.178.194,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;");
 
         public string GetTenantCode() => _currentTenant?.Codigo ?? "CAMPO_VERDE";
         public string GetTenantName() => _currentTenant?.Nombre ?? "Lácteos Campo Verde, C.A.";
@@ -148,4 +177,3 @@ namespace Transporte.API.Multitenancy
         public bool TieneModulo(string moduloCodigo) => _currentTenant?.Modulos.Contains(moduloCodigo) ?? true;
     }
 }
-
