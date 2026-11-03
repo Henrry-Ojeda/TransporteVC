@@ -80,55 +80,11 @@ export const useAuthStore = create<AuthState>()(
           return user.modulosHabilitados.includes(code);
         }
 
-        // Búfala por defecto no se muestra si no está explícitamente habilitado
-        if (code === 'MOD_LECHE_BUFALA') return false;
-
         return true;
       },
 
       canAccessTab: (tabId: string) => {
-        const { hasPermission, isAdmin, hasTenantModule } = get();
-
-        // =========================================================================
-        // NIVEL 1: LICENCIA SAAS / EMPRESA (TENANT FEATURE FLAGS)
-        // Si la empresa NO tiene contratado el módulo en el SaaS Master,
-        // NINGÚN usuario de esa empresa (ni el administrador) puede verlo ni usarlo.
-        // =========================================================================
-        const tabToSaaSModule: Record<string, string> = {
-          'bufala': 'MOD_LECHE_BUFALA',
-          'combustible': 'MOD_COMBUSTIBLE',
-          'mantenimiento': 'MOD_MANTENIMIENTO',
-          'historial-camiones': 'MOD_MANTENIMIENTO',
-          'repuestos': 'MOD_REPUESTOS',
-          'semanas': 'MOD_LIQUIDACIONES',
-          'liquidaciones': 'MOD_LIQUIDACIONES',
-          'liquidacion': 'MOD_LIQUIDACIONES',
-          'pagos-personal': 'MOD_PAGOS_PERSONAL',
-          'pagos-usuarios': 'MOD_PAGOS_PERSONAL',
-          'adelantos': 'MOD_LIQUIDACIONES',
-          'adelantos-fincas': 'MOD_LIQUIDACIONES',
-          'adelantos-personal': 'MOD_PAGOS_PERSONAL',
-          'adelantos-usuarios': 'MOD_PAGOS_PERSONAL',
-          'abonos-companias': 'MOD_LIQUIDACIONES',
-          'reportes': 'MOD_REPORTES',
-        };
-
-        const saasReq = tabToSaaSModule[tabId.toLowerCase()];
-        if (saasReq && !hasTenantModule(saasReq)) {
-          return false; // Módulo bloqueado a nivel de licencia SaaS para esta empresa
-        }
-
-        // Módulos del Sistema SaaS solo son administrados en el SaaS Manager
-        if (tabId.toLowerCase() === 'permisos') {
-          return false;
-        }
-
-        // =========================================================================
-        // NIVEL 2: PERMISOS RBAC DEL USUARIO EN LA BASE DE DATOS DE LA EMPRESA (HIJO)
-        // El administrador local tiene acceso a todo lo contratado por su empresa.
-        // Los demás roles (Chofer, Operador, Finanzas, Supervisor) se rigen
-        // estrictamente por los permisos asignados a su ROL en la base de datos local.
-        // =========================================================================
+        const { isAdmin, hasPermission } = get();
         if (isAdmin()) return true;
 
         const tabPermissionMap: Record<string, string[]> = {
@@ -138,8 +94,10 @@ export const useAuthStore = create<AuthState>()(
           'entregas': ['ENTREGAS_VER'],
           'receptoria': ['ENTREGAS_VER'],
           'balance': ['BALANCE_LECHE_VER'],
+          'control-tanques': ['BALANCE_LECHE_VER', 'ENTREGAS_VER'],
           'bufala': ['TRAZABILIDAD_BUFALA_VER'],
           'planificacion-rutas': ['RUTAS_PLANIFICACION_VER', 'RUTAS_VER'],
+          'evolucion-fincas': ['RUTAS_PLANIFICACION_VER', 'RUTAS_VER'],
 
           // Catálogos
           'fincas': ['FINCAS_VER'],
@@ -159,12 +117,17 @@ export const useAuthStore = create<AuthState>()(
           'semanas': ['CICLOS_VER'],
           'liquidaciones': ['LIQUIDACIONES_VER'],
           'pagos-personal': ['PAGOS_PERSONAL_VER', 'LIQUIDACIONES_VER'],
+          'historial-pagos': ['LIQUIDACIONES_VER', 'PAGOS_PERSONAL_VER'],
+          'administracion': ['LIQUIDACIONES_VER', 'EMPRESA_VER'],
 
           // Adelantos
           'adelantos': ['ADELANTOS_VER', 'ADELANTOS_FINCAS_VER'],
           'adelantos-fincas': ['ADELANTOS_FINCAS_VER', 'ADELANTOS_VER'],
           'adelantos-personal': ['ADELANTOS_PERSONAL_VER', 'ADELANTOS_VER'],
           'abonos-companias': ['ABONOS_COMPANIAS_VER', 'ADELANTOS_VER'],
+          'adelantos-receptoria': ['ADELANTOS_VER', 'ENTREGAS_VER'],
+          'abonos': ['ADELANTOS_VER'],
+          'historial-adelantos': ['ADELANTOS_VER'],
 
           // Gestión de Data
           'data': ['EMPRESA_VER', 'FINCAS_VER', 'PROPIETARIOS_VER'],
@@ -177,10 +140,16 @@ export const useAuthStore = create<AuthState>()(
           'usuarios': ['USUARIOS_VER', 'USUARIOS_SEGURIDAD_VER'],
           'permisos': ['PERMISOS_VER'],
           'configuracion': ['CONFIGURACION_VER'],
+          'configuracion-sistema': ['CONFIGURACION_VER'],
+          'configuracion-sesion': ['CONFIGURACION_VER'],
         };
 
         const requiredPerms = tabPermissionMap[tabId.toLowerCase()];
         if (!requiredPerms || requiredPerms.length === 0) return true;
+        // Si el usuario tiene al menos un permiso o rol supervisor/admin, mostrar
+        const user = get().user;
+        const rol = (user?.rol || '').toUpperCase();
+        if (rol === 'SUPERVISOR' || rol.includes('ADMIN')) return true;
         return requiredPerms.some((perm) => hasPermission(perm));
       },
     }),

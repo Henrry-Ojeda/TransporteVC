@@ -39,9 +39,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { name: 'Entregas Receptoría', href: '/receptoria', tabId: 'receptoria', icon: 'fa-solid fa-truck-ramp-box' },
         { name: 'Análisis & Balance Leche', href: '/balance', tabId: 'balance', icon: 'fa-solid fa-chart-line' },
         { name: 'Control de Viajes / Tickets', href: '/viajes', tabId: 'control-rutas', icon: 'fa-solid fa-clipboard-check' },
+        { name: 'Formulario Control Tanques', href: '/control-tanques', tabId: 'control-tanques', icon: 'fa-solid fa-clipboard-list', color: '#6366f1' },
         { name: 'Trazabilidad Búfala', href: '/bufala', tabId: 'bufala', icon: 'fa-solid fa-gem', color: '#0d9488' },
         { name: 'Evolución Fincas & Flota', href: '/evolucion-fincas', tabId: 'evolucion-fincas', icon: 'fa-solid fa-arrow-trend-up', color: '#10b981' },
-        { name: 'Control Diario de Tanques', href: '/control-tanques', tabId: 'control-tanques', icon: 'fa-solid fa-warehouse', color: '#6366f1' },
         { name: 'Planificación de Rutas', href: '/planificacion-rutas', tabId: 'rutas-planificacion', icon: 'fa-solid fa-map-location-dot', color: '#3b82f6' },
       ],
     },
@@ -80,6 +80,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { name: 'Semanas Operativas', href: '/semanas', tabId: 'semanas', icon: 'fa-regular fa-calendar-check' },
         { name: 'Liquidación Fincas', href: '/liquidaciones', tabId: 'liquidacion', icon: 'fa-solid fa-file-invoice-dollar' },
         { name: 'Pagos Choferes & Personal', href: '/pagos-personal', tabId: 'pagos-usuarios', icon: 'fa-solid fa-money-check-dollar', color: '#38bdf8' },
+        { name: 'Historial de Pagos', href: '/historial-pagos', tabId: 'historial-pagos', icon: 'fa-solid fa-receipt', color: '#6366f1' },
+        { name: 'Administración General', href: '/administracion', tabId: 'administracion', icon: 'fa-solid fa-scale-balanced', color: '#10b981' },
       ],
     },
     {
@@ -91,6 +93,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { name: 'Adelantos a Fincas', href: '/adelantos-fincas', tabId: 'adelantos-fincas', icon: 'fa-solid fa-leaf' },
         { name: 'Adelantos Personal & Chofer', href: '/adelantos-personal', tabId: 'adelantos-usuarios', icon: 'fa-solid fa-hand-holding-dollar', color: '#fbbf24' },
         { name: 'Abonos a Compañías', href: '/abonos-companias', tabId: 'abonos-companias', icon: 'fa-solid fa-building' },
+        { name: 'Adelantos Receptoría', href: '/adelantos-receptoria', tabId: 'adelantos-receptoria', icon: 'fa-solid fa-truck-droplet', color: '#2563eb' },
+        { name: 'Abonos & Amortizaciones', href: '/abonos-amortizaciones', tabId: 'abonos', icon: 'fa-solid fa-coins', color: '#f59e0b' },
+        { name: 'Historial de Adelantos', href: '/historial-adelantos', tabId: 'historial-adelantos', icon: 'fa-solid fa-clock-rotate-left', color: '#0d9488' },
       ],
     },
     {
@@ -113,6 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { name: 'Módulos & Permisos', href: '/permisos', tabId: 'permisos', icon: 'fa-solid fa-shield-halved', color: '#38bdf8' },
         { name: 'Parametrización Global', href: '/configuracion', tabId: 'configuracion-sistema', icon: 'fa-solid fa-sliders', color: '#a855f7' },
         { name: 'Gestión de Data (Excel)', href: '/gestion-data', tabId: 'gestion-data', icon: 'fa-solid fa-file-excel', color: '#10b981' },
+        { name: 'Tiempo de Sesión', href: '/tiempo-sesion', tabId: 'configuracion-sesion', icon: 'fa-solid fa-stopwatch', color: '#f43f5e' },
       ],
     },
   ];

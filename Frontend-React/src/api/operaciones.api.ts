@@ -13,6 +13,7 @@ export const operacionesApi = {
   // CONTROL DE RUTAS / VIAJES / TICKETS
   getControles: async (fecha?: string, choferId?: number, estado?: string): Promise<ControlRutaDto[]> => {
     const params: Record<string, any> = {};
+
     if (fecha) params.fecha = fecha;
     if (choferId) params.choferId = choferId;
     if (estado) params.estado = estado;
@@ -36,6 +37,7 @@ export const operacionesApi = {
       observacion: dto.observacion || dto.observaciones || undefined,
       observaciones: dto.observaciones || dto.observacion || undefined,
     };
+
     const res = await apiClient.post('/controlrutas/iniciar-viaje', payload);
     return res.data;
   },
@@ -129,6 +131,7 @@ export const operacionesApi = {
   // CONTROL COMPAÑÍAS / RECEPTORÍA
   getDespachosCompanias: async (fecha?: string, companiaId?: number): Promise<DespachoCompaniaDto[]> => {
     const params: Record<string, any> = {};
+
     if (fecha) params.fecha = fecha;
     if (companiaId) params.companiaId = companiaId;
     const res = await apiClient.get<DespachoCompaniaDto[]>('/controlcompanias', { params });
@@ -149,6 +152,7 @@ export const operacionesApi = {
       ...dto,
       observacion: dto.observacion || dto.observaciones || '',
     };
+
     const res = await apiClient.post('/controlcompanias', payload);
     return res.data;
   },
@@ -161,6 +165,7 @@ export const operacionesApi = {
   // TRAZABILIDAD BÚFALA
   getTrazabilidadBufala: async (fechaInicio?: string, fechaFin?: string): Promise<any[]> => {
     const params: Record<string, any> = {};
+
     if (fechaInicio) params.fechaInicio = fechaInicio;
     if (fechaFin) params.fechaFin = fechaFin;
     const res = await apiClient.get<any[]>('/controlcompanias/trazabilidad-bufala', { params });
@@ -170,6 +175,7 @@ export const operacionesApi = {
   // RECEPTORIA HOY / ENTREGAS
   getEntregasHoy: async (fecha?: string): Promise<any[]> => {
     const params: Record<string, any> = {};
+
     if (fecha) params.fecha = fecha;
     const res = await apiClient.get<any[]>('/receptoria/hoy', { params });
     return Array.isArray(res.data) ? res.data : [];
@@ -177,6 +183,7 @@ export const operacionesApi = {
 
   getRutasHoy: async (fecha?: string): Promise<any[]> => {
     const params: Record<string, any> = {};
+
     if (fecha) params.fecha = fecha;
     const res = await apiClient.get<any[]>('/rutas/hoy', { params });
     return Array.isArray(res.data) ? res.data : [];
@@ -221,6 +228,7 @@ export const operacionesApi = {
   // BALANCE LECHE / MERMAS
   getMermasHoy: async (fechaInicio?: string, fechaFin?: string, choferId?: number): Promise<BalanceVolumetricoResumenDto> => {
     const params: Record<string, any> = {};
+
     if (fechaInicio) params.fechaInicio = fechaInicio;
     if (fechaFin) params.fechaFin = fechaFin;
     if (choferId) params.choferId = choferId;
@@ -251,4 +259,5 @@ export const operacionesApi = {
     return res.data;
   },
 };
+
 

@@ -39,11 +39,16 @@ import { RepuestosPage } from '@/modules/repuestos/RepuestosPage';
 import { SemanasPage } from '@/modules/finanzas/SemanasPage';
 import { LiquidacionesPage } from '@/modules/finanzas/LiquidacionesPage';
 import { PagosPersonalPage } from '@/modules/finanzas/PagosPersonalPage';
+import { HistorialPagosPage } from '@/modules/finanzas/HistorialPagosPage';
+import { AdministracionGeneralPage } from '@/modules/finanzas/AdministracionGeneralPage';
 
 // Adelantos
 import { AdelantosFincasPage } from '@/modules/finanzas/AdelantosFincasPage';
 import { AdelantosPersonalPage } from '@/modules/finanzas/AdelantosPersonalPage';
 import { AbonosCompaniasPage } from '@/modules/finanzas/AbonosCompaniasPage';
+import { AdelantosReceptoriaPage } from '@/modules/finanzas/AdelantosReceptoriaPage';
+import { AbonosAmortizacionesPage } from '@/modules/finanzas/AbonosAmortizacionesPage';
+import { HistorialAdelantosPage } from '@/modules/finanzas/HistorialAdelantosPage';
 
 // Sistema & Reportes
 import { ReportesPage } from '@/modules/sistema/ReportesPage';
@@ -52,6 +57,7 @@ import { GestionDataPage } from '@/modules/data/GestionDataPage';
 import { UsuariosPage } from '@/modules/sistema/UsuariosPage';
 import { PermisosPage } from '@/modules/sistema/PermisosPage';
 import { ConfiguracionPage } from '@/modules/sistema/ConfiguracionPage';
+import { TiempoSesionPage } from '@/modules/sistema/TiempoSesionPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,11 +117,16 @@ export const App: React.FC = () => {
             <Route path="/semanas" element={<SemanasPage />} />
             <Route path="/liquidaciones" element={<LiquidacionesPage />} />
             <Route path="/pagos-personal" element={<PagosPersonalPage />} />
+            <Route path="/historial-pagos" element={<HistorialPagosPage />} />
+            <Route path="/administracion" element={<AdministracionGeneralPage />} />
 
             {/* Adelantos */}
             <Route path="/adelantos-fincas" element={<AdelantosFincasPage />} />
             <Route path="/adelantos-personal" element={<AdelantosPersonalPage />} />
             <Route path="/abonos-companias" element={<AbonosCompaniasPage />} />
+            <Route path="/adelantos-receptoria" element={<AdelantosReceptoriaPage />} />
+            <Route path="/abonos-amortizaciones" element={<AbonosAmortizacionesPage />} />
+            <Route path="/historial-adelantos" element={<HistorialAdelantosPage />} />
 
             {/* Reportes */}
             <Route path="/reportes" element={<ReportesPage />} />
@@ -123,9 +134,11 @@ export const App: React.FC = () => {
 
             {/* Sistema */}
             <Route path="/data" element={<GestionDataPage />} />
+            <Route path="/gestion-data" element={<GestionDataPage />} />
             <Route path="/usuarios" element={<UsuariosPage />} />
             <Route path="/permisos" element={<PermisosPage />} />
             <Route path="/configuracion" element={<ConfiguracionPage />} />
+            <Route path="/tiempo-sesion" element={<TiempoSesionPage />} />
           </Route>
 
           {/* Ruta no encontrada */}

@@ -38,22 +38,28 @@ export interface PreliquidacionFincaDto {
 
 export interface AdelantoDto {
   id: number;
-  tipoEntidad: 'FINCA' | 'PERSONAL';
+  tipoEntidad: string;
   fincaId?: number;
   fincaNombre?: string;
   usuarioId?: number;
   usuarioNombre?: string;
+  companiaId?: number;
+  companiaNombre?: string;
   fecha: string;
   montoUSD: number;
   montoBs?: number;
   tasaBCV?: number;
   motivo?: string;
-  amortizado: boolean;
-  montoAmortizadoUSD: number;
-  saldoPendienteUSD: number;
+  amortizado?: boolean;
+  montoAmortizadoUSD?: number;
+  saldoPendienteUSD?: number;
+  montoPagadoUSD?: number;
+  montoPendienteUSD?: number;
+  estado?: string;
+  cuotas?: any[];
   cicloId?: number;
   comprobanteRef?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface AbonoCompaniaDto {
