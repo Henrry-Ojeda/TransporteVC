@@ -69,3 +69,4 @@ Este documento establece las directrices maestras que **SIEMPRE Y SIN EXCEPCIÓN
        npx vercel alias set <deployment-url> transporte-base.vercel.app
        ```
   5. Asegurar que las bases de datos de los inquilinos (`DB_PROD_TRANSPORTE_VERGEL_CARRILLO`, `DB_PROD_CAMPO_VERDE`, `DB_PRODUCTO_BASE`) cuenten con sus esquemas y tablas sincronizados.
+
