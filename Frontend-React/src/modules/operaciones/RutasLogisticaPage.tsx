@@ -61,6 +61,22 @@ export const RutasLogisticaPage: React.FC = () => {
     queryFn: () => catalogosApi.getFincas(true),
   });
 
+  // Cálculo de Capacidad, Litros y Rendimiento en tiempo real
+  const camionSeleccionado = useMemo(() => {
+    return camiones.find((c) => c.id === form.camionPredeterminadoId);
+  }, [camiones, form.camionPredeterminadoId]);
+
+  const totalLitrosRutaEstimados = useMemo(() => {
+    return fincasSeleccionadas.reduce((acc, fId) => {
+      const f = fincas.find((item) => item.id === fId);
+      const lts = f?.promedioLitrosDiarios || f?.ultimoLitros || 250;
+      return acc + lts;
+    }, 0);
+  }, [fincasSeleccionadas, fincas]);
+
+  const capacidadCisterna = camionSeleccionado?.capacidadLitros || 0;
+  const porcentajeUtilizacion = capacidadCisterna > 0 ? Math.round((totalLitrosRutaEstimados / capacidadCisterna) * 100) : 0;
+
   // Mutaciones
   const guardarMutation = useMutation({
     mutationFn: async (dto: typeof initialForm) => {
@@ -225,6 +241,39 @@ export const RutasLogisticaPage: React.FC = () => {
       },
     },
     {
+      header: 'Litros Estimados / Capacidad',
+      cell: (row) => {
+        const fincasDeRuta = fincas.filter((f) => f.rutaId === row.id);
+        const ltsTot = fincasDeRuta.reduce((acc, f) => acc + (f.promedioLitrosDiarios || f.ultimoLitros || 250), 0);
+        const cam = camiones.find((c) => c.id === row.camionPredeterminadoId);
+        const cap = cam?.capacidadLitros || row.capacidadCamionLitros || 0;
+        const pct = cap > 0 ? Math.round((ltsTot / cap) * 100) : 0;
+        const color = pct > 100 ? '#ef4444' : pct >= 75 ? '#10b981' : pct >= 60 ? '#3b82f6' : '#f59e0b';
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '12.5px' }}>
+                {ltsTot.toLocaleString()} Lts
+              </span>
+              {cap > 0 && (
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  / {cap.toLocaleString()} Lts
+                </span>
+              )}
+            </div>
+            {cap > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                <div style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', minWidth: '60px' }}>
+                  <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: color, borderRadius: '3px' }} />
+                </div>
+                <span style={{ fontSize: '10.5px', fontWeight: 800, color }}>{pct}%</span>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       header: 'Acciones',
       className: 'text-right',
       cell: (row) => (
@@ -361,6 +410,14 @@ export const RutasLogisticaPage: React.FC = () => {
                   Swal.fire({ icon: 'warning', title: 'Campo Requerido', text: 'El nombre de la ruta es obligatorio', confirmButtonColor: '#2563eb' });
                   return;
                 }
+                if (!form.camionPredeterminadoId) {
+                  Swal.fire({ icon: 'warning', title: 'Camión Requerido', text: 'No es opcional: debes asignar un camión cisterna a la ruta.', confirmButtonColor: '#2563eb' });
+                  return;
+                }
+                if (!form.choferPredeterminadoId) {
+                  Swal.fire({ icon: 'warning', title: 'Chofer Requerido', text: 'No es opcional: debes asignar el chofer habitual de la ruta.', confirmButtonColor: '#2563eb' });
+                  return;
+                }
                 guardarMutation.mutate(form);
               }}
               style={{ padding: '24px' }}
@@ -399,7 +456,7 @@ export const RutasLogisticaPage: React.FC = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Camión Cisterna Asignado
+                      Camión Cisterna Asignado <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <CamionSelect
                       value={form.camionPredeterminadoId}
@@ -410,14 +467,13 @@ export const RutasLogisticaPage: React.FC = () => {
                           choferPredeterminadoId: camion?.usuarioId || form.choferPredeterminadoId,
                         });
                       }}
-                      placeholder="-- Seleccionar camión cisterna --"
-                      allowClear
+                      placeholder="-- Seleccionar camión cisterna obligatorio --"
                     />
                   </div>
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Chofer Habitual de Ruta
+                      Chofer Habitual de Ruta <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <ChoferSelect
                       value={form.choferPredeterminadoId}
@@ -429,9 +485,95 @@ export const RutasLogisticaPage: React.FC = () => {
                           camionPredeterminadoId: form.camionPredeterminadoId || camMatch?.id,
                         });
                       }}
-                      placeholder="-- Seleccionar o buscar chofer --"
-                      allowClear
+                      placeholder="-- Seleccionar chofer obligatorio --"
                     />
+                  </div>
+
+                  {/* Panel de Capacidad y Rendimiento en Tiempo Real */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#334155', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Truck className="w-3.5 h-3.5 text-blue-600" />
+                        Aprovechamiento de Cisterna
+                      </span>
+                      {capacidadCisterna > 0 ? (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            background: porcentajeUtilizacion > 100 ? '#fef2f2' : porcentajeUtilizacion >= 75 ? '#ecfdf5' : porcentajeUtilizacion >= 60 ? '#eff6ff' : '#fffbeb',
+                            color: porcentajeUtilizacion > 100 ? '#dc2626' : porcentajeUtilizacion >= 75 ? '#059669' : porcentajeUtilizacion >= 60 ? '#2563eb' : '#d97706',
+                            border: `1px solid ${porcentajeUtilizacion > 100 ? '#fecaca' : porcentajeUtilizacion >= 75 ? '#a7f3d0' : porcentajeUtilizacion >= 60 ? '#bfdbfe' : '#fde68a'}`,
+                          }}
+                        >
+                          {porcentajeUtilizacion}% Capacidad
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin camión</span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px', fontSize: '11.5px' }}>
+                      <div style={{ background: '#ffffff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b', fontSize: '10.5px', display: 'block' }}>Litros Estimados:</span>
+                        <strong style={{ color: '#0f172a', fontSize: '13px' }}>{totalLitrosRutaEstimados.toLocaleString()} Lts</strong>
+                      </div>
+                      <div style={{ background: '#ffffff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b', fontSize: '10.5px', display: 'block' }}>Capacidad Cisterna:</span>
+                        <strong style={{ color: '#0f172a', fontSize: '13px' }}>
+                          {capacidadCisterna > 0 ? `${capacidadCisterna.toLocaleString()} Lts` : 'No asignado'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    {capacidadCisterna > 0 && (
+                      <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
+                        <div
+                          style={{
+                            width: `${Math.min(porcentajeUtilizacion, 100)}%`,
+                            height: '100%',
+                            background: porcentajeUtilizacion > 100 ? '#ef4444' : porcentajeUtilizacion >= 75 ? '#10b981' : porcentajeUtilizacion >= 60 ? '#3b82f6' : '#f59e0b',
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Mensaje Semáforo */}
+                    {capacidadCisterna > 0 ? (
+                      porcentajeUtilizacion > 100 ? (
+                        <div style={{ fontSize: '11px', color: '#b91c1c', background: '#fef2f2', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fecaca', fontWeight: 600 }}>
+                          ⚠️ <strong>¡ALERTA DE SOBRECARGA!</strong> La ruta excede la capacidad por {(totalLitrosRutaEstimados - capacidadCisterna).toLocaleString()} Lts. Riesgo de derrame o requerirá viaje complementario.
+                        </div>
+                      ) : porcentajeUtilizacion >= 75 ? (
+                        <div style={{ fontSize: '11px', color: '#15803d', background: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #bbf7d0', fontWeight: 600 }}>
+                          🟢 <strong>RENDIMIENTO ÓPTIMO:</strong> Ocupación entre 75% y 100%. Máxima eficiencia de transporte y combustible.
+                        </div>
+                      ) : porcentajeUtilizacion >= 60 ? (
+                        <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #bfdbfe', fontWeight: 600 }}>
+                          🔵 <strong>RENDIMIENTO ACEPTABLE:</strong> Ocupación adecuada ({porcentajeUtilizacion}%).
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fde68a', fontWeight: 600 }}>
+                          🟡 <strong>SUBUTILIZADO (&lt;60%):</strong> Cisterna semivacía. Mayor costo de combustible por litro. Considera incorporar más fincas.
+                        </div>
+                      )
+                    ) : (
+                      <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+                        Selecciona un camión para analizar ocupación vs litros proyectados.
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -516,6 +658,19 @@ export const RutasLogisticaPage: React.FC = () => {
                                 {f.propietarioNombre || 'Sin propietario'}
                               </div>
                             </div>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                color: check ? '#1d4ed8' : '#475569',
+                                background: check ? '#dbeafe' : '#f1f5f9',
+                                padding: '2px 7px',
+                                borderRadius: '5px',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              ~{(f.promedioLitrosDiarios || f.ultimoLitros || 250).toLocaleString()} Lts/d
+                            </span>
                           </label>
                         );
                       })}

@@ -915,6 +915,9 @@ namespace Transporte.Infrastructure.Repositories
         Task<bool> ActualizarCompaniaAsync(int id, EditarCompaniaDto dto, int? usuarioId = null, string? usuarioNombre = null);
         Task<bool> ActualizarPrecioCompaniaAsync(int id, decimal nuevoPrecioUSD, decimal? nuevoPrecioBufalaUSD, decimal? nuevoPrecioAcidaUSD, string? observacion, int usuarioId, string usuarioNombre);
         Task<bool> EliminarCompaniaAsync(int id);
+        Task<IEnumerable<dynamic>> ObtenerAbonosCompaniasAsync(int? companiaId = null);
+        Task<int> CrearAbonoCompaniaAsync(GuardarAbonoCompaniaDto dto, int? usuarioId = null);
+        Task<IEnumerable<dynamic>> ObtenerResumenCobranzasCompaniasAsync();
 
         // Bancos
         Task<IEnumerable<BancoDto>> ObtenerBancosAsync();
@@ -976,6 +979,8 @@ namespace Transporte.Infrastructure.Repositories
                     f.PrecioLitroUSD, f.PrecioLitroAcidaUSD, 
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(f.PrecioBufalaLitroUSD, 0) AS PrecioBufalaLitroUSD,
+                    ISNULL((SELECT CAST(ROUND(AVG(CAST(r.Litros AS FLOAT)), 0) AS INT) FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id AND r.Fecha >= DATEADD(day, -30, GETDATE())), 0) AS PromedioLitrosDiarios,
+                    ISNULL((SELECT TOP 1 r.Litros FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id ORDER BY r.Fecha DESC), 0) AS UltimoLitros,
                     f.Activo, f.IsDeleted, f.CreatedAt
                 FROM TB_FINCAS f
                 LEFT JOIN TB_PROPIETARIOS p ON f.PropietarioId = p.Id
@@ -1025,6 +1030,8 @@ namespace Transporte.Infrastructure.Repositories
                     f.PrecioLitroUSD, f.PrecioLitroAcidaUSD, 
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(f.PrecioBufalaLitroUSD, 0) AS PrecioBufalaLitroUSD,
+                    ISNULL((SELECT CAST(ROUND(AVG(CAST(r.Litros AS FLOAT)), 0) AS INT) FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id AND r.Fecha >= DATEADD(day, -30, GETDATE())), 0) AS PromedioLitrosDiarios,
+                    ISNULL((SELECT TOP 1 r.Litros FROM TB_RUTAS_RECOLECCION r WHERE r.FincaId = f.Id ORDER BY r.Fecha DESC), 0) AS UltimoLitros,
                     f.Activo, f.IsDeleted, f.CreatedAt
                 FROM TB_FINCAS f
                 LEFT JOIN TB_BANCOS b ON f.BancoId = b.Id
@@ -1544,6 +1551,108 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var rows = await connection.ExecuteAsync("UPDATE TB_COMPANIAS SET IsDeleted = 1 WHERE Id = @id", new { id });
             return rows > 0;
+        }
+
+        public async Task<IEnumerable<dynamic>> ObtenerAbonosCompaniasAsync(int? companiaId = null)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT 
+                    a.Id,
+                    a.CompaniaId,
+                    c.Nombre AS CompaniaNombre,
+                    a.Fecha,
+                    a.MontoUSD,
+                    a.MontoBs,
+                    a.TasaBcv,
+                    a.ReferenciaBancaria,
+                    a.BancoId,
+                    b.Nombre AS BancoNombre,
+                    a.ControlCompaniaId,
+                    a.FechaLecheAbonada,
+                    a.LitrosAbonados,
+                    a.Observaciones,
+                    a.TipoPago,
+                    a.CreatedAt
+                FROM TB_ABONOS_COMPANIAS a
+                INNER JOIN TB_COMPANIAS c ON a.CompaniaId = c.Id
+                LEFT JOIN TB_BANCOS b ON a.BancoId = b.Id
+                WHERE (@companiaId IS NULL OR a.CompaniaId = @companiaId)
+                ORDER BY a.Fecha DESC, a.Id DESC";
+            return await connection.QueryAsync(sql, new { companiaId });
+        }
+
+        public async Task<int> CrearAbonoCompaniaAsync(GuardarAbonoCompaniaDto dto, int? usuarioId = null)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                INSERT INTO TB_ABONOS_COMPANIAS (
+                    CompaniaId, Fecha, MontoUSD, MontoBs, TasaBcv, 
+                    ReferenciaBancaria, BancoId, ControlCompaniaId, 
+                    FechaLecheAbonada, LitrosAbonados, Observaciones, 
+                    TipoPago, CreatedBy, CreatedAt
+                )
+                VALUES (
+                    @CompaniaId, @Fecha, @MontoUSD, @MontoBs, @TasaBcv,
+                    @ReferenciaBancaria, @BancoId, @ControlCompaniaId,
+                    @FechaLecheAbonada, @LitrosAbonados, @Observaciones,
+                    @TipoPago, @CreatedBy, GETDATE()
+                );
+                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            return await connection.ExecuteScalarAsync<int>(sql, new
+            {
+                CompaniaId = dto.CompaniaId,
+                Fecha = dto.Fecha ?? DateTime.UtcNow,
+                MontoUSD = dto.MontoUSD,
+                MontoBs = dto.MontoBs ?? 0m,
+                TasaBcv = dto.TasaBcv ?? 1m,
+                ReferenciaBancaria = dto.ReferenciaBancaria,
+                BancoId = dto.BancoId,
+                ControlCompaniaId = dto.ControlCompaniaId,
+                FechaLecheAbonada = dto.FechaLecheAbonada,
+                LitrosAbonados = dto.LitrosAbonados ?? 0,
+                Observaciones = dto.Observaciones,
+                TipoPago = dto.TipoPago ?? "TRANSFERENCIA",
+                CreatedBy = usuarioId
+            });
+        }
+
+        public async Task<IEnumerable<dynamic>> ObtenerResumenCobranzasCompaniasAsync()
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT 
+                    c.Id AS CompaniaId,
+                    c.Nombre AS CompaniaNombre,
+                    c.PrecioLitroUSD,
+                    ISNULL(desp.TotalLitrosDespachados, 0) AS TotalLitrosDespachados,
+                    ISNULL(desp.TotalFacturadoUSD, 0) AS TotalFacturadoUSD,
+                    ISNULL(abo.TotalAbonadoUSD, 0) AS TotalAbonadoUSD,
+                    (ISNULL(desp.TotalFacturadoUSD, 0) - ISNULL(abo.TotalAbonadoUSD, 0)) AS SaldoPendienteUSD,
+                    abo.UltimoAbonoFecha,
+                    desp.UltimoDespachoFecha
+                FROM TB_COMPANIAS c
+                LEFT JOIN (
+                    SELECT 
+                        CompaniaId,
+                        SUM(ISNULL(LitrosRecibidosCompania, LitrosDespachados)) AS TotalLitrosDespachados,
+                        SUM(ISNULL(LitrosRecibidosCompania, LitrosDespachados) * ISNULL(PrecioLitroUSD, 0)) AS TotalFacturadoUSD,
+                        MAX(Fecha) AS UltimoDespachoFecha
+                    FROM TB_CONTROL_COMPANIAS
+                    GROUP BY CompaniaId
+                ) desp ON c.Id = desp.CompaniaId
+                LEFT JOIN (
+                    SELECT 
+                        CompaniaId,
+                        SUM(MontoUSD) AS TotalAbonadoUSD,
+                        MAX(Fecha) AS UltimoAbonoFecha
+                    FROM TB_ABONOS_COMPANIAS
+                    GROUP BY CompaniaId
+                ) abo ON c.Id = abo.CompaniaId
+                WHERE c.IsDeleted = 0
+                ORDER BY c.Nombre ASC";
+            return await connection.QueryAsync(sql);
         }
 
         // --- BANCOS ---
@@ -4794,14 +4903,19 @@ namespace Transporte.Infrastructure.Repositories
                 FROM TB_PAGOS_LIQUIDACION
                 WHERE EstadoPago = 'PAGADO' AND (@targetCicloId = 0 OR CicloId = @targetCicloId)";
 
-            var pagosMap = (await connection.QueryAsync<dynamic>(sqlPagosMap, new { targetCicloId }))
-                .ToDictionary(x => (int)x.FincaId, x => new { 
-                    PagoId = (int)x.PagoId, 
-                    FechaPago = (DateTime?)x.FechaPago,
-                    TasaBcv = (decimal?)x.TasaBcv,
-                    TotalBrutoBs = (decimal?)x.TotalBrutoBs,
-                    TotalAdelantosBs = (decimal?)x.TotalAdelantosBs,
-                    TotalNetoBs = (decimal?)x.TotalNetoBs
+            var pagosRaw = (await connection.QueryAsync<dynamic>(sqlPagosMap, new { targetCicloId })).ToList();
+            var pagosMap = pagosRaw
+                .GroupBy(x => (int)x.FincaId)
+                .ToDictionary(g => g.Key, g => {
+                    var ultimo = g.OrderByDescending(x => (DateTime?)x.FechaPago).First();
+                    return new { 
+                        PagoId = (int)ultimo.PagoId, 
+                        FechaPago = (DateTime?)ultimo.FechaPago,
+                        TasaBcv = (decimal?)ultimo.TasaBcv,
+                        TotalBrutoBs = g.Sum(x => (decimal?)x.TotalBrutoBs ?? 0m),
+                        TotalAdelantosBs = g.Sum(x => (decimal?)x.TotalAdelantosBs ?? 0m),
+                        TotalNetoBs = g.Sum(x => (decimal?)x.TotalNetoBs ?? 0m)
+                    };
                 });
 
             var sqlAdelantosFincas = @"
@@ -4828,18 +4942,21 @@ namespace Transporte.Infrastructure.Repositories
                   )
                 GROUP BY a.EntidadId";
 
-            var adelantosFincasMap = (await connection.QueryAsync<dynamic>(sqlAdelantosFincas, new { 
+            var adelantosRaw = (await connection.QueryAsync<dynamic>(sqlAdelantosFincas, new { 
                 targetCicloId, 
                 fechaInicio = fechaInicio.Date, 
                 fechaFin = fechaFin.Date, 
                 tasaActual 
-            })).ToDictionary(
-                x => (int)x.FincaId, 
-                x => new { 
-                    TotalAdelantosBs = (decimal)x.TotalAdelantosBs, 
-                    TotalAdelantosUSD = (decimal)x.TotalAdelantosUSD, 
-                    CuotasDetalle = (string?)x.CuotasDetalle 
-                });
+            })).ToList();
+            var adelantosFincasMap = adelantosRaw
+                .GroupBy(x => (int)x.FincaId)
+                .ToDictionary(
+                    g => g.Key, 
+                    g => new { 
+                        TotalAdelantosBs = g.Sum(x => (decimal)x.TotalAdelantosBs), 
+                        TotalAdelantosUSD = g.Sum(x => (decimal)x.TotalAdelantosUSD), 
+                        CuotasDetalle = g.FirstOrDefault()?.CuotasDetalle != null ? (string?)g.FirstOrDefault()?.CuotasDetalle : null 
+                    });
 
             foreach (var finca in fincas)
             {
@@ -4862,8 +4979,8 @@ namespace Transporte.Infrastructure.Repositories
                     : tasaActual;
 
                 decimal adelantoUSD = adelantosFincasMap.ContainsKey(id) ? adelantosFincasMap[id].TotalAdelantosUSD : 0;
-                decimal adelantoBs = (esPagado && pagosMap[id].TotalAdelantosBs.HasValue)
-                    ? pagosMap[id].TotalAdelantosBs.Value
+                decimal adelantoBs = (esPagado && pagosMap[id].TotalAdelantosBs > 0)
+                    ? pagosMap[id].TotalAdelantosBs
                     : (adelantosFincasMap.ContainsKey(id) ? adelantosFincasMap[id].TotalAdelantosBs : (adelantoUSD * tasaAplicada));
                 string? cuotasDet = adelantosFincasMap.ContainsKey(id) ? adelantosFincasMap[id].CuotasDetalle : null;
 
@@ -4876,8 +4993,8 @@ namespace Transporte.Infrastructure.Repositories
                     {
                         int totalLitrosV = detalleVaca.Sum(d => d.Litros);
                         decimal totalUSDV = detalleVaca.Sum(d => d.Litros * d.PrecioLitroUSDAplicado);
-                        decimal totalBsV = (esPagado && pagosMap[id].TotalBrutoBs.HasValue && !detalleBufala.Any())
-                            ? pagosMap[id].TotalBrutoBs.Value
+                        decimal totalBsV = (esPagado && pagosMap[id].TotalBrutoBs > 0 && !detalleBufala.Any())
+                            ? pagosMap[id].TotalBrutoBs
                             : (totalUSDV * tasaAplicada);
 
                         resultado.Add(new ReporteEntidadResumenDto
@@ -4938,8 +5055,8 @@ namespace Transporte.Infrastructure.Repositories
                 {
                     int totalLitros = detalle.Sum(d => d.Litros);
                     decimal totalUSD = detalle.Sum(d => d.Litros * d.PrecioLitroUSDAplicado);
-                    decimal totalBs = (esPagado && pagosMap[id].TotalBrutoBs.HasValue)
-                        ? pagosMap[id].TotalBrutoBs.Value
+                    decimal totalBs = (esPagado && pagosMap[id].TotalBrutoBs > 0)
+                        ? pagosMap[id].TotalBrutoBs
                         : (totalUSD * tasaAplicada);
 
                     resultado.Add(new ReporteEntidadResumenDto

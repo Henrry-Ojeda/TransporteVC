@@ -181,6 +181,41 @@ namespace Transporte.API.Controllers
         }
 
         // ==========================================
+        // ABONOS Y COBRANZAS DE COMPAÑÍAS
+        // ==========================================
+        [HttpGet("companias/abonos")]
+        [HttpGet("/api/companias/abonos")]
+        public async Task<IActionResult> ObtenerAbonosCompanias([FromQuery] int? companiaId = null)
+        {
+            var abonos = await _catalogosRepository.ObtenerAbonosCompaniasAsync(companiaId);
+            return Ok(abonos);
+        }
+
+        [HttpPost("companias/abonos")]
+        [HttpPost("/api/companias/abonos")]
+        public async Task<IActionResult> CrearAbonoCompania([FromBody] GuardarAbonoCompaniaDto dto)
+        {
+            if (dto.CompaniaId <= 0)
+                return BadRequest(new { message = "Debe especificar la compañía." });
+            if (dto.MontoUSD <= 0)
+                return BadRequest(new { message = "El monto cobrado debe ser mayor a 0." });
+
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var uId) ? uId : null;
+
+            var id = await _catalogosRepository.CrearAbonoCompaniaAsync(dto, userId);
+            return Ok(new { id, message = "Abono de compañía registrado exitosamente." });
+        }
+
+        [HttpGet("companias/resumen-cobranzas")]
+        [HttpGet("/api/companias/resumen-cobranzas")]
+        public async Task<IActionResult> ObtenerResumenCobranzasCompanias()
+        {
+            var resumen = await _catalogosRepository.ObtenerResumenCobranzasCompaniasAsync();
+            return Ok(resumen);
+        }
+
+        // ==========================================
         // 3. BANCOS (CRUD COMPLETO)
         // ==========================================
         [HttpGet("bancos")]

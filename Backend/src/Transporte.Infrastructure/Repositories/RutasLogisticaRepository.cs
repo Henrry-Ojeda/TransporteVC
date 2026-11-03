@@ -46,9 +46,26 @@ namespace Transporte.Infrastructure.Repositories
                     r.Descripcion,
                     r.Color,
                     r.Activo,
+                    r.CamionPredeterminadoId,
+                    c.Placa AS CamionPlaca,
+                    c.CapacidadLitros AS CapacidadCamionLitros,
+                    r.ChoferPredeterminadoId,
+                    u.NombreCompleto AS ChoferNombre,
                     r.CreatedAt,
-                    (SELECT COUNT(*) FROM TB_FINCAS f WHERE f.RutaId = r.Id AND f.Activo = 1) AS TotalFincasAsignadas
+                    (SELECT COUNT(*) FROM TB_FINCAS f WHERE f.RutaId = r.Id AND f.Activo = 1) AS TotalFincasAsignadas,
+                    ISNULL((
+                        SELECT SUM(sub.Prom)
+                        FROM (
+                            SELECT CAST(ROUND(AVG(CAST(rec.Litros AS FLOAT)), 0) AS INT) AS Prom
+                            FROM TB_FINCAS f2
+                            INNER JOIN TB_RUTAS_RECOLECCION rec ON rec.FincaId = f2.Id AND rec.Fecha >= DATEADD(day, -30, GETDATE())
+                            WHERE f2.RutaId = r.Id AND f2.Activo = 1
+                            GROUP BY f2.Id
+                        ) sub
+                    ), 0) AS TotalLitrosEstimados
                 FROM TB_RUTAS_LOGISTICA r
+                LEFT JOIN TB_CAMIONES c ON r.CamionPredeterminadoId = c.Id
+                LEFT JOIN TB_USUARIOS u ON r.ChoferPredeterminadoId = u.Id
                 ORDER BY r.Nombre ASC";
             return await connection.QueryAsync<RutaLogisticaDto>(sql);
         }
@@ -64,9 +81,26 @@ namespace Transporte.Infrastructure.Repositories
                     r.Descripcion,
                     r.Color,
                     r.Activo,
+                    r.CamionPredeterminadoId,
+                    c.Placa AS CamionPlaca,
+                    c.CapacidadLitros AS CapacidadCamionLitros,
+                    r.ChoferPredeterminadoId,
+                    u.NombreCompleto AS ChoferNombre,
                     r.CreatedAt,
-                    (SELECT COUNT(*) FROM TB_FINCAS f WHERE f.RutaId = r.Id AND f.Activo = 1) AS TotalFincasAsignadas
+                    (SELECT COUNT(*) FROM TB_FINCAS f WHERE f.RutaId = r.Id AND f.Activo = 1) AS TotalFincasAsignadas,
+                    ISNULL((
+                        SELECT SUM(sub.Prom)
+                        FROM (
+                            SELECT CAST(ROUND(AVG(CAST(rec.Litros AS FLOAT)), 0) AS INT) AS Prom
+                            FROM TB_FINCAS f2
+                            INNER JOIN TB_RUTAS_RECOLECCION rec ON rec.FincaId = f2.Id AND rec.Fecha >= DATEADD(day, -30, GETDATE())
+                            WHERE f2.RutaId = r.Id AND f2.Activo = 1
+                            GROUP BY f2.Id
+                        ) sub
+                    ), 0) AS TotalLitrosEstimados
                 FROM TB_RUTAS_LOGISTICA r
+                LEFT JOIN TB_CAMIONES c ON r.CamionPredeterminadoId = c.Id
+                LEFT JOIN TB_USUARIOS u ON r.ChoferPredeterminadoId = u.Id
                 WHERE r.Id = @id";
             return await connection.QueryFirstOrDefaultAsync<RutaLogisticaDto>(sql, new { id });
         }
@@ -75,8 +109,8 @@ namespace Transporte.Infrastructure.Repositories
         {
             using var connection = CreateConnection();
             var sql = @"
-                INSERT INTO TB_RUTAS_LOGISTICA (Codigo, Nombre, Descripcion, Color, Activo, CreatedAt)
-                VALUES (@Codigo, @Nombre, @Descripcion, @Color, @Activo, GETDATE());
+                INSERT INTO TB_RUTAS_LOGISTICA (Codigo, Nombre, Descripcion, Color, CamionPredeterminadoId, ChoferPredeterminadoId, Activo, CreatedAt)
+                VALUES (@Codigo, @Nombre, @Descripcion, @Color, @CamionPredeterminadoId, @ChoferPredeterminadoId, @Activo, GETDATE());
                 SELECT CAST(SCOPE_IDENTITY() AS INT);";
             return await connection.ExecuteScalarAsync<int>(sql, dto);
         }
@@ -90,6 +124,8 @@ namespace Transporte.Infrastructure.Repositories
                     Nombre = @Nombre,
                     Descripcion = @Descripcion,
                     Color = @Color,
+                    CamionPredeterminadoId = @CamionPredeterminadoId,
+                    ChoferPredeterminadoId = @ChoferPredeterminadoId,
                     Activo = @Activo
                 WHERE Id = @id";
             var rows = await connection.ExecuteAsync(sql, new
@@ -99,6 +135,8 @@ namespace Transporte.Infrastructure.Repositories
                 dto.Nombre,
                 dto.Descripcion,
                 dto.Color,
+                dto.CamionPredeterminadoId,
+                dto.ChoferPredeterminadoId,
                 dto.Activo
             });
             return rows > 0;

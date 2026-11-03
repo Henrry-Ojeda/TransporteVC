@@ -70,8 +70,10 @@ export interface RutaLogisticaDto {
   activo: boolean;
   camionPredeterminadoId?: number;
   camionPlaca?: string;
+  capacidadCamionLitros?: number;
   choferPredeterminadoId?: number;
   choferNombre?: string;
+  totalLitrosEstimados?: number;
   totalFincas?: number;
   fincas?: { fincaId: number; fincaNombre: string; ordenSecuencia: number }[];
 }

@@ -77,9 +77,26 @@ export const finanzasApi = {
     const res = await apiClient.get<AbonoCompaniaDto[]>('/catalogos/companias/abonos', { params }).catch(() => ({ data: [] }));
     return Array.isArray(res.data) ? res.data : [];
   },
-  crearAbonoCompania: async (dto: { companiaId: number; fecha: string; montoUSD: number; referenciaBancaria: string; observaciones?: string }): Promise<{ id: number; message: string }> => {
+  crearAbonoCompania: async (dto: {
+    companiaId: number;
+    fecha?: string;
+    montoUSD: number;
+    montoBs?: number;
+    tasaBcv?: number;
+    referenciaBancaria?: string;
+    bancoId?: number;
+    controlCompaniaId?: number;
+    fechaLecheAbonada?: string;
+    litrosAbonados?: number;
+    observaciones?: string;
+    tipoPago?: string;
+  }): Promise<{ id: number; message: string }> => {
     const res = await apiClient.post('/catalogos/companias/abonos', dto);
     return res.data;
+  },
+  getResumenCobranzasCompanias: async (): Promise<any[]> => {
+    const res = await apiClient.get<any[]>('/catalogos/companias/resumen-cobranzas').catch(() => ({ data: [] }));
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   // PAGOS PERSONAL & CHOFERES

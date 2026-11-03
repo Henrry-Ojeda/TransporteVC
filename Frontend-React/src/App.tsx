@@ -18,6 +18,8 @@ import { ReceptoriaPage } from '@/modules/operaciones/ReceptoriaPage';
 import { BalanceLechePage } from '@/modules/operaciones/BalanceLechePage';
 import { PlanificacionRutasPage } from '@/modules/operaciones/PlanificacionRutasPage';
 import { BufalaPage } from '@/modules/operaciones/BufalaPage';
+import { EvolucionFincasPage } from '@/modules/operaciones/EvolucionFincasPage';
+import { ControlTanquesPage } from '@/modules/operaciones/ControlTanquesPage';
 
 // Catálogos
 import { FincasPage } from '@/modules/catalogos/FincasPage';
@@ -86,6 +88,8 @@ export const App: React.FC = () => {
             <Route path="/viajes" element={<ViajesTicketsPage />} />
             <Route path="/receptoria" element={<ReceptoriaPage />} />
             <Route path="/balance" element={<BalanceLechePage />} />
+            <Route path="/evolucion-fincas" element={<EvolucionFincasPage />} />
+            <Route path="/control-tanques" element={<ControlTanquesPage />} />
             <Route path="/planificacion-rutas" element={<RutasLogisticaPage />} />
             <Route path="/bufala" element={<BufalaPage />} />
 

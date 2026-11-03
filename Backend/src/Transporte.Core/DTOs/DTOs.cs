@@ -652,6 +652,8 @@ namespace Transporte.Core.DTOs
         public decimal? PrecioBufalaLitroUSD { get; set; } = 0.0000m;
         public bool Activo { get; set; } = true;
         public bool IsDeleted { get; set; } = false;
+        public int PromedioLitrosDiarios { get; set; } = 0;
+        public int UltimoLitros { get; set; } = 0;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public List<FincaCuentaBancariaDto> Cuentas { get; set; } = new();
     }
@@ -1909,7 +1911,29 @@ namespace Transporte.Core.DTOs
         public string Color { get; set; } = "#2563eb";
         public bool Activo { get; set; } = true;
         public int TotalFincasAsignadas { get; set; }
+        public int? CamionPredeterminadoId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public decimal? CapacidadCamionLitros { get; set; }
+        public int? ChoferPredeterminadoId { get; set; }
+        public string? ChoferNombre { get; set; }
+        public int TotalLitrosEstimados { get; set; }
         public DateTime CreatedAt { get; set; }
+    }
+
+    public class GuardarAbonoCompaniaDto
+    {
+        public int CompaniaId { get; set; }
+        public DateTime? Fecha { get; set; }
+        public decimal MontoUSD { get; set; }
+        public decimal? MontoBs { get; set; }
+        public decimal? TasaBcv { get; set; }
+        public string? ReferenciaBancaria { get; set; }
+        public int? BancoId { get; set; }
+        public long? ControlCompaniaId { get; set; }
+        public DateTime? FechaLecheAbonada { get; set; }
+        public int? LitrosAbonados { get; set; }
+        public string? Observaciones { get; set; }
+        public string? TipoPago { get; set; } = "TRANSFERENCIA";
     }
 
     public class GuardarRutaLogisticaDto
@@ -1919,6 +1943,8 @@ namespace Transporte.Core.DTOs
         public string? Descripcion { get; set; }
         public string Color { get; set; } = "#2563eb";
         public bool Activo { get; set; } = true;
+        public int? CamionPredeterminadoId { get; set; }
+        public int? ChoferPredeterminadoId { get; set; }
     }
 
     public class AsignarFincasRutaDto

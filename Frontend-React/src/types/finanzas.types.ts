@@ -67,6 +67,9 @@ export interface AbonoCompaniaDto {
   bancoReceptorId?: number;
   bancoNombre?: string;
   referenciaBancaria: string;
+  controlCompaniaId?: number;
+  fechaLecheAbonada?: string;
+  litrosAbonados?: number;
   observaciones?: string;
   createdAt: string;
 }

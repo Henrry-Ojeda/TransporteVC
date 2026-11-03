@@ -14,6 +14,8 @@ export interface FincaDto {
   telefono?: string;
   ubicacion?: string;
   activo: boolean;
+  promedioLitrosDiarios?: number;
+  ultimoLitros?: number;
   bancoNombre?: string;
   numeroCuenta?: string;
   pagoMovil?: string;

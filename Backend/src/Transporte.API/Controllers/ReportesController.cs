@@ -48,6 +48,12 @@ namespace Transporte.API.Controllers
             return Ok(res);
         }
 
+        private static bool EsAdminOSupervisor(string? rol) =>
+            string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rol, "ADMINISTRADOR", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rol, "SUPERVISOR", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rol, "GERENTE", StringComparison.OrdinalIgnoreCase);
+
         [HttpGet("fincas")]
         public async Task<IActionResult> ObtenerReporteFincas(
             [FromQuery] DateTime? fechaInicio = null,
@@ -55,7 +61,7 @@ namespace Transporte.API.Controllers
             [FromQuery] string? fincaIds = null)
         {
             var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-            if (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase))
+            if (!EsAdminOSupervisor(rol))
             {
                 return Forbid();
             }
@@ -89,7 +95,7 @@ namespace Transporte.API.Controllers
             var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             int userId = int.TryParse(userIdClaim, out var u) ? u : 0;
 
-            if (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase))
+            if (!EsAdminOSupervisor(rol))
             {
                 choferId = userId;
             }
@@ -107,7 +113,7 @@ namespace Transporte.API.Controllers
             [FromQuery] decimal? tasaBcv = null)
         {
             var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-            if (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase))
+            if (!EsAdminOSupervisor(rol))
             {
                 return Forbid();
             }
@@ -149,7 +155,7 @@ namespace Transporte.API.Controllers
             int userId = int.TryParse(userIdClaim, out var u) ? u : 0;
             var username = User.Identity?.Name ?? "";
 
-            if (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase))
+            if (!EsAdminOSupervisor(rol))
             {
                 res = res.Where(r => r.UsuarioId == userId || (r.Chofer != null && r.Chofer.Contains(username, StringComparison.OrdinalIgnoreCase))).ToList();
             }
@@ -163,7 +169,7 @@ namespace Transporte.API.Controllers
             var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
             var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             int? usuarioId = null;
-            if (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase) && int.TryParse(userIdClaim, out var u))
+            if (!EsAdminOSupervisor(rol) && int.TryParse(userIdClaim, out var u))
             {
                 usuarioId = u;
             }

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 import { finanzasApi } from '@/api/finanzas.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import type { PreliquidacionFincaDto, CicloSemanalDto } from '@/types';
@@ -46,6 +47,120 @@ export const LiquidacionesPage: React.FC = () => {
   const totalNetoUSD = preliquidacion.reduce((acc, p) => acc + (p.totalNetoUSD || 0), 0);
   const totalNetoBs = preliquidacion.reduce((acc, p) => acc + (p.totalNetoBs || 0), 0);
   const totalPagados = preliquidacion.filter((p) => p.pagado).length;
+
+  const cicloActivo = useMemo(() => {
+    return ciclos.find((c) => c.id === cicloSeleccionadoId) || ciclos.find((c) => c.estado === 'ABIERTO') || ciclos[0];
+  }, [ciclos, cicloSeleccionadoId]);
+
+  const copiarDetalleWhatsApp = (row: PreliquidacionFincaDto) => {
+    const texto = `🧀 *TRANSPORTE VERGEL CARRILLO C.A.* 🥛
+📋 *RELACIÓN DE PAGO DE LECHE*
+────────────────────────
+🏡 *Finca:* ${row.fincaNombre}
+👤 *Productor:* ${row.propietarioNombre}
+📅 *Semana:* #${cicloActivo?.numeroSemana || 'Operativa'} (${cicloActivo?.año || '2026'})
+────────────────────────
+🥛 *Litros Totales:* ${(row.totalLitros || 0).toLocaleString()} Lts
+💵 *Precio/Litro:* $${(row.precioLitroUSD || 0).toFixed(4)}
+💰 *Total Bruto:* $${(row.totalBrutoUSD || 0).toFixed(2)} USD
+${row.totalAdelantosUSD ? `🔻 *Deducción Adelantos:* -$${row.totalAdelantosUSD.toFixed(2)} USD\n` : ''}────────────────────────
+✅ *TOTAL NETO A PAGAR:*
+👉 *$${(row.totalNetoUSD || 0).toFixed(2)} USD*
+🇻🇪 *Bs. ${(row.totalNetoBs || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}* (Tasa BCV: ${row.tasaBCV || 0})
+────────────────────────
+🏦 *Banco:* ${row.bancoNombre || 'N/A'}
+💳 *Cuenta:* ${row.numeroCuenta || 'N/A'}
+${row.pagoMovil ? `📱 *Pago Móvil:* ${row.pagoMovil}\n` : ''}${row.referenciaPago ? `🔖 *Ref. Pago:* ${row.referenciaPago}\n` : ''}
+_¡Gracias por su valiosa producción y confianza!_`;
+
+    navigator.clipboard.writeText(texto);
+    Swal.fire({
+      icon: 'success',
+      title: '¡Copiado para WhatsApp!',
+      text: `La relación de compra de leche de ${row.fincaNombre} se copió con formato de emojis al portapapeles.`,
+      timer: 2500,
+      showConfirmButton: false,
+      toast: true,
+      position: 'top-end',
+    });
+  };
+
+  const handleActualizarTasaPendientes = async () => {
+    const { value: nuevaTasa } = await Swal.fire({
+      title: 'Actualizar Tasa BCV (Pendientes)',
+      text: 'Ingresa la nueva tasa BCV que se aplicará a todas las fincas con estado PENDIENTE de pago:',
+      input: 'number',
+      inputAttributes: {
+        step: '0.01',
+        min: '1',
+      },
+      inputValue: preliquidacion[0]?.tasaBCV || '',
+      showCancelButton: true,
+      confirmButtonText: 'Actualizar Tasa',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#d97706',
+    });
+
+    if (nuevaTasa && Number(nuevaTasa) > 0) {
+      try {
+        const res = await finanzasApi.actualizarTasaPendientes(cicloSeleccionadoId || 0, Number(nuevaTasa));
+        Swal.fire({
+          icon: 'success',
+          title: '¡Tasa Actualizada!',
+          text: res.message || 'Se actualizó la tasa BCV para las fincas pendientes.',
+          confirmButtonColor: '#059669',
+        });
+        queryClient.invalidateQueries({ queryKey: ['preliquidacion'] });
+      } catch (err: any) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: err.response?.data?.message || 'Error al actualizar tasa',
+          confirmButtonColor: '#ef4444',
+        });
+      }
+    }
+  };
+
+  const preliquidacionVisual = useMemo(() => {
+    const filtrados = preliquidacion.filter((p) => {
+      if (filtroEstado === 'PENDIENTE') return !p.pagado;
+      if (filtroEstado === 'PAGADO') return p.pagado;
+      return true;
+    });
+
+    if (modoAgrupacion === 'FINCA') {
+      return filtrados;
+    }
+
+    // Agrupación Consolidada por Productor
+    const map = new Map<string, PreliquidacionFincaDto>();
+    filtrados.forEach((item) => {
+      const key = item.propietarioNombre || 'Sin Productor';
+      if (!map.has(key)) {
+        map.set(key, {
+          ...item,
+          fincaNombre: `Consolidado (${item.fincaNombre})`,
+          totalLitros: item.totalLitros,
+          totalBrutoUSD: item.totalBrutoUSD,
+          totalAdelantosUSD: item.totalAdelantosUSD,
+          totalNetoUSD: item.totalNetoUSD,
+          totalNetoBs: item.totalNetoBs,
+        });
+      } else {
+        const exist = map.get(key)!;
+        exist.fincaNombre = `${exist.fincaNombre}, ${item.fincaNombre}`;
+        exist.totalLitros += item.totalLitros;
+        exist.totalBrutoUSD += item.totalBrutoUSD;
+        exist.totalAdelantosUSD += item.totalAdelantosUSD;
+        exist.totalNetoUSD += item.totalNetoUSD;
+        exist.totalNetoBs += item.totalNetoBs;
+        exist.pagado = exist.pagado && item.pagado;
+      }
+    });
+
+    return Array.from(map.values());
+  }, [preliquidacion, filtroEstado, modoAgrupacion]);
 
   const columns: ColumnDef<PreliquidacionFincaDto>[] = [
     {
@@ -167,6 +282,28 @@ export const LiquidacionesPage: React.FC = () => {
       className: 'text-right',
       cell: (row) => (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+          <button
+            type="button"
+            onClick={() => copiarDetalleWhatsApp(row)}
+            className="btn btn-sm"
+            style={{
+              height: '30px',
+              padding: '0 8px',
+              fontSize: '11px',
+              fontWeight: 800,
+              background: '#25d366',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer',
+            }}
+            title="Copiar relación formateada con emojis para WhatsApp"
+          >
+            <i className="fa-brands fa-whatsapp text-white"></i> WhatsApp
+          </button>
           {!row.pagado && (
             <button
               type="button"
@@ -339,7 +476,7 @@ export const LiquidacionesPage: React.FC = () => {
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>
               <i className="fa-solid fa-filter" style={{ color: '#10b981', marginRight: '4px' }}></i> Estado:
             </label>
@@ -353,15 +490,35 @@ export const LiquidacionesPage: React.FC = () => {
               <option value="PENDIENTE">⏳ Pendientes</option>
               <option value="PAGADO">✅ Pagados</option>
             </select>
+
+            <button
+              type="button"
+              onClick={handleActualizarTasaPendientes}
+              className="btn btn-sm"
+              style={{
+                height: '34px',
+                padding: '0 12px',
+                fontSize: '12px',
+                fontWeight: 800,
+                borderRadius: '6px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#ffffff',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 5px rgba(217, 119, 6, 0.3)',
+              }}
+              title="Actualizar tasa BCV a todas las fincas pendientes"
+            >
+              <i className="fa-solid fa-arrows-rotate"></i> Actualizar BCV (Pendientes)
+            </button>
           </div>
         </div>
 
         <DataTable
-          data={preliquidacion.filter((p) => {
-            if (filtroEstado === 'PENDIENTE') return !p.pagado;
-            if (filtroEstado === 'PAGADO') return p.pagado;
-            return true;
-          })}
+          data={preliquidacionVisual}
           columns={columns}
           isLoading={isLoading}
           searchPlaceholder="Buscar por finca, propietario, código o banco..."
