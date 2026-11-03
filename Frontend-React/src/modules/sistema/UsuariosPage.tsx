@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { sistemaApi } from '@/api/sistema.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { UsuarioDto, GuardarUsuarioDto } from '@/types';
 
 export const UsuariosPage: React.FC = () => {
@@ -218,8 +219,8 @@ export const UsuariosPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(`¿Desactivar el usuario "${row.nombreCompleto}"?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Desactivar el usuario', row.nombreCompleto)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

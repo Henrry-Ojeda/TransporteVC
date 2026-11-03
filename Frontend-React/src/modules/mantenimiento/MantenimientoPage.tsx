@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { mantenimientoApi } from '@/api/mantenimiento.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type {
   MantenimientoCamionDto,
   CrearMantenimientoCamionDto,
@@ -278,8 +279,8 @@ export const MantenimientoPage: React.FC = () => {
           <button
             type="button"
             className="btn btn-sm btn-outline"
-            onClick={() => {
-              if (window.confirm(`¿Eliminar registro de mantenimiento #${row.id}?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Eliminar registro de mantenimiento', `#${row.id}`)) {
                 mutationEliminar.mutate(row.id);
               }
             }}

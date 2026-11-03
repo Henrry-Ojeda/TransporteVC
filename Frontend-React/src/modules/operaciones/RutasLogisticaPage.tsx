@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import {
   Route as RouteIcon,
   PlusCircle,
@@ -186,8 +187,8 @@ export const RutasLogisticaPage: React.FC = () => {
             <Edit2 className="w-4 h-4" />
           </button>
           <button
-            onClick={() => {
-              if (window.confirm(`¿Eliminar la ruta "${row.nombre}"?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Eliminar la ruta logística', row.nombre)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

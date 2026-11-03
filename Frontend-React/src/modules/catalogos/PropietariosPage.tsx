@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { PropietarioDto, CrearPropietarioDto, BancoDto, FincaDto } from '@/types';
 
 export const PropietariosPage: React.FC = () => {
@@ -233,8 +234,8 @@ export const PropietariosPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(`¿Desactivar al propietario "${row.nombreCompleto}"?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Desactivar al propietario', row.nombreCompleto)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

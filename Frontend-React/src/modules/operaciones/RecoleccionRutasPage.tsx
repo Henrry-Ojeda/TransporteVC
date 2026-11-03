@@ -6,6 +6,7 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { confirmDialog } from '@/lib/sweetalert';
 import { useAuthStore } from '@/stores/authStore';
 import type { ControlRutaDto, FincaDto, CamionDto, CompaniaDto } from '@/types';
 
@@ -412,8 +413,16 @@ export const RecoleccionRutasPage: React.FC = () => {
             className="btn btn-sm btn-outline"
             title="Eliminar recolección"
             style={{ padding: '4px 8px', borderColor: '#fecaca' }}
-            onClick={() => {
-              if (window.confirm(`¿Seguro que deseas eliminar la recolección de "${row.fincaNombre}" (${row.litros} Lts)?`)) {
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  title: '¿Eliminar recolección?',
+                  text: `¿Seguro que deseas eliminar la recolección de "${row.fincaNombre}" (${row.litros} Lts)?`,
+                  icon: 'warning',
+                  confirmButtonText: 'Sí, eliminar',
+                  danger: true,
+                })
+              ) {
                 eliminarRecoleccionMutation.mutate(row.id);
               }
             }}

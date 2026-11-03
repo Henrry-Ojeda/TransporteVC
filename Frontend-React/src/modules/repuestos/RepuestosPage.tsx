@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { repuestosApi } from '@/api/repuestos.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type {
   RepuestoDto,
   GuardarRepuestoDto,
@@ -236,8 +237,8 @@ export const RepuestosPage: React.FC = () => {
           <button
             type="button"
             className="btn btn-sm btn-outline"
-            onClick={() => {
-              if (window.confirm(`¿Eliminar repuesto ${row.nombre}?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Eliminar el repuesto', row.nombre)) {
                 mutationEliminarRepuesto.mutate(row.id);
               }
             }}

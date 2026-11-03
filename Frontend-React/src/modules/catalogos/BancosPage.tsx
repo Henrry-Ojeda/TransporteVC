@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { BancoDto } from '@/types';
 
 export const BancosPage: React.FC = () => {
@@ -128,8 +129,8 @@ export const BancosPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(`¿Eliminar la entidad bancaria "${row.nombre}"?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Eliminar la entidad bancaria', row.nombre)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

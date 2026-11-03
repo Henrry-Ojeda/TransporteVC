@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import { useAuthStore } from '@/stores/authStore';
 import type { FincaDto, GuardarFincaDto, PropietarioDto } from '@/types';
 
@@ -278,8 +279,8 @@ export const FincasPage: React.FC = () => {
             <i className="fa-solid fa-pen-to-square" style={{ color: '#4f46e5' }}></i>
           </button>
           <button
-            onClick={() => {
-              if (confirm(`¿Estás seguro de desactivar la finca ${row.nombre}?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Desactivar la finca', row.nombre)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

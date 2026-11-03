@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { sistemaApi } from '@/api/sistema.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { ChoferDto, CamionDto } from '@/types';
 
 export const ConductoresPage: React.FC = () => {
@@ -203,8 +204,8 @@ export const ConductoresPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(`¿Desactivar el conductor "${row.nombreCompleto}"?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Desactivar el conductor', row.nombreCompleto)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

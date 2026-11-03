@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { CamionDto, GuardarCamionDto, ChoferDto } from '@/types';
 
 export const CamionesPage: React.FC = () => {
@@ -213,8 +214,8 @@ export const CamionesPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(`¿Desactivar el vehículo "${row.placa}"?`)) {
+            onClick={async () => {
+              if (await confirmDeleteOrDeactivate('Desactivar el vehículo', row.placa)) {
                 eliminarMutation.mutate(row.id);
               }
             }}

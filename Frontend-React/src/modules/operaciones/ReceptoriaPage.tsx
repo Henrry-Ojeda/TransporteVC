@@ -7,6 +7,7 @@ import { sistemaApi } from '@/api/sistema.api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { CompaniaDto, CamionDto, UsuarioDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
 
 export const ReceptoriaPage: React.FC = () => {
@@ -1465,8 +1466,8 @@ export const ReceptoriaPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-sm btn-outline"
-                            onClick={() => {
-                              if (window.confirm(`¿Eliminar este registro de entrega #${e.id}?`)) {
+                            onClick={async () => {
+                              if (await confirmDeleteOrDeactivate('Eliminar el registro de entrega', `#${e.id}`)) {
                                 eliminarEntregaMutation.mutate(e.id);
                               }
                             }}
