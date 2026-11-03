@@ -6,6 +6,7 @@ import { catalogosApi } from '@/api/catalogos.api';
 import { sistemaApi } from '@/api/sistema.api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type { CompaniaDto, CamionDto, UsuarioDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
 
 export const ReceptoriaPage: React.FC = () => {
@@ -45,7 +46,22 @@ export const ReceptoriaPage: React.FC = () => {
     observacion: '',
   });
 
-  // Formulario nuevo despacho a quesera / salida
+  // Formulario nuevo despacho a quesera / salida con multi-destinos
+  interface DestinoSalidaRow {
+    id: string;
+    companiaId: number;
+    litrosDespachados: number;
+    tipoLeche: string;
+    numeroGuiaSADA: string;
+    observacion: string;
+  }
+
+  const [despachoCamionId, setDespachoCamionId] = useState<number>(0);
+  const [despachoUsuarioId, setDespachoUsuarioId] = useState<number>(0);
+  const [destinosSalida, setDestinosSalida] = useState<DestinoSalidaRow[]>([
+    { id: '1', companiaId: 0, litrosDespachados: 0, tipoLeche: 'VACA', numeroGuiaSADA: '', observacion: '' }
+  ]);
+
   const [formDespacho, setFormDespacho] = useState({
     camionId: 0,
     companiaId: 0,
@@ -55,25 +71,29 @@ export const ReceptoriaPage: React.FC = () => {
     observaciones: '',
   });
 
-  // Queries
+  // Queries con auto-actualización reactiva en tiempo real (cada 8s)
   const { data: entregasHoy = [], isLoading: loadingEntregas } = useQuery<any[]>({
     queryKey: ['receptoria-hoy', filtroFecha],
     queryFn: () => operacionesApi.getEntregasHoy(filtroFecha || undefined),
+    refetchInterval: 8000,
   });
 
   const { data: rutasHoy = [] } = useQuery<any[]>({
     queryKey: ['rutas-hoy', filtroFecha],
     queryFn: () => operacionesApi.getRutasHoy(filtroFecha || undefined),
+    refetchInterval: 8000,
   });
 
   const { data: despachosCompanias = [], isLoading: loadingDespachos } = useQuery<DespachoCompaniaDto[]>({
     queryKey: ['despachos-companias', filtroFecha],
     queryFn: () => operacionesApi.getDespachosCompanias(filtroFecha || undefined),
+    refetchInterval: 8000,
   });
 
   const { data: viajesActivos = [] } = useQuery<ControlRutaDto[]>({
     queryKey: ['viajes-activos-receptoria'],
     queryFn: () => operacionesApi.getControles(),
+    refetchInterval: 8000,
   });
 
   const { data: companias = [] } = useQuery<CompaniaDto[]>({
@@ -90,6 +110,37 @@ export const ReceptoriaPage: React.FC = () => {
     queryKey: ['usuarios-choferes'],
     queryFn: () => sistemaApi.getUsuarios('CHOFER'),
   });
+
+  // Opciones con búsqueda interna para SearchableSelect
+  const camionesOptions = useMemo(() => {
+    return camiones.map((c) => ({
+      value: c.id,
+      label: `${c.placa} - ${c.marca || 'Cisterna'} ${c.modelo || ''}`.trim(),
+      subLabel: `Chofer: ${c.choferNombre || 'Sin chofer asignado'} | Capacidad: ${(c.capacidadLitros || 0).toLocaleString()} L`,
+      badge: `${(c.capacidadLitros || 0).toLocaleString()} L`,
+    }));
+  }, [camiones]);
+
+  const conductoresOptions = useMemo(() => {
+    return usuarios.map((u) => ({
+      value: u.id,
+      label: u.nombreCompleto || u.nombreUsuario,
+      subLabel: `Usuario: ${u.nombreUsuario} | Rol: ${u.rol || 'CHOFER'}`,
+    }));
+  }, [usuarios]);
+
+  const companiasOptions = useMemo(() => {
+    return companias.map((c) => ({
+      value: c.id,
+      label: c.nombre,
+      subLabel: c.contacto ? `Contacto: ${c.contacto}` : undefined,
+    }));
+  }, [companias]);
+
+  const tiposLecheOptions = useMemo(() => [
+    { value: 'VACA', label: '🥛 Leche de Vaca' },
+    { value: 'BUFALA', label: '🐃 Leche de Búfala' },
+  ], []);
 
   // Mutaciones
   const guardarEntregaMutation = useMutation({
@@ -130,6 +181,42 @@ export const ReceptoriaPage: React.FC = () => {
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al crear despacho');
+    },
+  });
+
+  const crearDespachosMultiMutation = useMutation({
+    mutationFn: async (payload: { camionId: number; usuarioId: number; destinos: DestinoSalidaRow[] }) => {
+      const results = [];
+      for (const dest of payload.destinos) {
+        const res = await operacionesApi.crearDespachoCompania({
+          camionId: payload.camionId,
+          usuarioId: payload.usuarioId,
+          companiaId: dest.companiaId,
+          litrosDespachados: dest.litrosDespachados,
+          tipoLeche: dest.tipoLeche,
+          numeroGuiaSADA: dest.numeroGuiaSADA,
+          observaciones: dest.observacion,
+        });
+        results.push(res);
+      }
+      return results;
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.length} Ticket(s) de salida emitido(s) con éxito`);
+      queryClient.invalidateQueries({ queryKey: ['despachos-companias'] });
+      queryClient.invalidateQueries({ queryKey: ['receptoria-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['receptoria-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['viajes-activos-receptoria'] });
+      setModalNuevoDespacho(false);
+      setDestinosSalida([
+        { id: '1', companiaId: 0, litrosDespachados: 0, tipoLeche: 'VACA', numeroGuiaSADA: '', observacion: '' }
+      ]);
+      setDespachoCamionId(0);
+      setDespachoUsuarioId(0);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al emitir despacho');
     },
   });
 
@@ -323,6 +410,16 @@ export const ReceptoriaPage: React.FC = () => {
     });
     return Array.from(set).sort();
   }, [entregasHoy]);
+
+  const filtroChoferOptions = useMemo(() => [
+    { value: '', label: 'TODOS LOS CHOFERES' },
+    ...choferesUnicosHoy.map((c) => ({ value: c, label: c }))
+  ], [choferesUnicosHoy]);
+
+  const filtroCompaniaOptions = useMemo(() => [
+    { value: '', label: 'TODAS LAS COMPAÑÍAS' },
+    ...companiasUnicasHoy.map((cp) => ({ value: cp, label: cp }))
+  ], [companiasUnicasHoy]);
 
   // Bandeja 1: Camiones en espera
   const camionesEnEspera = useMemo(() => {
@@ -818,20 +915,13 @@ export const ReceptoriaPage: React.FC = () => {
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Conductor / Operador *
                 </label>
-                <select
-                  className="form-input"
-                  required
+                <SearchableSelect
+                  options={conductoresOptions}
                   value={formEntrega.usuarioId || ''}
-                  onChange={(e) => setFormEntrega({ ...formEntrega, usuarioId: Number(e.target.value) })}
-                  style={{ height: '38px', borderRadius: '8px', fontWeight: 600 }}
-                >
-                  <option value="">-- Seleccionar Chofer --</option>
-                  {usuarios.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombreCompleto} ({u.nombreUsuario})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setFormEntrega({ ...formEntrega, usuarioId: Number(val) })}
+                  placeholder="-- Seleccionar Chofer --"
+                  searchPlaceholder="Buscar chofer por nombre..."
+                />
               </div>
 
               {/* Compañía / Planta */}
@@ -839,20 +929,13 @@ export const ReceptoriaPage: React.FC = () => {
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Compañía / Planta *
                 </label>
-                <select
-                  className="form-input"
-                  required
+                <SearchableSelect
+                  options={companiasOptions}
                   value={formEntrega.companiaId || ''}
-                  onChange={(e) => setFormEntrega({ ...formEntrega, companiaId: Number(e.target.value) })}
-                  style={{ height: '38px', borderRadius: '8px', fontWeight: 600 }}
-                >
-                  <option value="">-- Seleccionar Compañía / Silo --</option>
-                  {companias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre} {c.contacto ? `(${c.contacto})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setFormEntrega({ ...formEntrega, companiaId: Number(val) })}
+                  placeholder="-- Seleccionar Compañía / Silo --"
+                  searchPlaceholder="Buscar compañía o planta..."
+                />
               </div>
 
               {/* Litros Entregados */}
@@ -1025,22 +1108,17 @@ export const ReceptoriaPage: React.FC = () => {
               <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>
                 <i className="fa-solid fa-user"></i> 2. Filtrar por Chofer
               </label>
-              <select
-                className="form-input"
+              <SearchableSelect
+                options={filtroChoferOptions}
                 value={filtroChoferTabla}
-                onChange={(e) => {
-                  setFiltroChoferTabla(e.target.value);
+                onChange={(val) => {
+                  setFiltroChoferTabla(val || '');
                   setCurrentPage(1);
                 }}
-                style={{ height: '38px', fontSize: '13px', borderRadius: '8px', fontWeight: 600 }}
-              >
-                <option value="">TODOS LOS CHOFERES</option>
-                {choferesUnicosHoy.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                placeholder="TODOS LOS CHOFERES"
+                searchPlaceholder="Buscar chofer en entregas..."
+                allowClear={true}
+              />
             </div>
 
             {/* 3. Compañía Desplegable Buscable */}
@@ -1048,22 +1126,17 @@ export const ReceptoriaPage: React.FC = () => {
               <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>
                 <i className="fa-solid fa-building"></i> 3. Filtrar por Compañía
               </label>
-              <select
-                className="form-input"
+              <SearchableSelect
+                options={filtroCompaniaOptions}
                 value={filtroCompaniaTabla}
-                onChange={(e) => {
-                  setFiltroCompaniaTabla(e.target.value);
+                onChange={(val) => {
+                  setFiltroCompaniaTabla(val || '');
                   setCurrentPage(1);
                 }}
-                style={{ height: '38px', fontSize: '13px', borderRadius: '8px', fontWeight: 600 }}
-              >
-                <option value="">TODAS LAS COMPAÑÍAS</option>
-                {companiasUnicasHoy.map((cp) => (
-                  <option key={cp} value={cp}>
-                    {cp}
-                  </option>
-                ))}
-              </select>
+                placeholder="TODAS LAS COMPAÑÍAS"
+                searchPlaceholder="Buscar planta o silo..."
+                allowClear={true}
+              />
             </div>
           </div>
 
@@ -1483,17 +1556,21 @@ export const ReceptoriaPage: React.FC = () => {
             className="content-card"
             style={{
               width: '100%',
-              maxWidth: '540px',
+              maxWidth: '780px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
               background: '#ffffff',
               borderRadius: '16px',
               padding: 0,
               overflow: 'hidden',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
             }}
           >
+            {/* Cabecera del Modal */}
             <div
               style={{
-                padding: '16px 20px',
+                padding: '16px 22px',
                 background: 'linear-gradient(135deg, #9333ea, #7e22ce)',
                 color: '#ffffff',
                 display: 'flex',
@@ -1501,13 +1578,18 @@ export const ReceptoriaPage: React.FC = () => {
                 alignItems: 'center',
               }}
             >
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fa-solid fa-truck-arrow-right"></i> Nuevo Ticket Salida a Quesera / Compañía
-              </h3>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-truck-arrow-right"></i> Nuevo Ticket Salida a Quesera / Compañía
+                </h3>
+                <span style={{ fontSize: '11.5px', color: '#e9d5ff', marginTop: '2px', display: 'block' }}>
+                  Despacho desde tanques de receptoría hacia plantas procesadoras (Soporta múltiples destinos)
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setModalNuevoDespacho(false)}
-                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '16px', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '18px', cursor: 'pointer', padding: '4px' }}
               >
                 <i className="fa-solid fa-xmark"></i>
               </button>
@@ -1516,123 +1598,325 @@ export const ReceptoriaPage: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (formDespacho.camionId === 0 || formDespacho.companiaId === 0 || formDespacho.litrosDespachados <= 0) {
-                  toast.error('Complete todos los campos obligatorios');
+                if (despachoCamionId === 0) {
+                  toast.error('Debe seleccionar el camión cisterna asignado');
                   return;
                 }
-                crearDespachoMutation.mutate(formDespacho);
+                const invalidDestino = destinosSalida.some((d) => d.companiaId === 0 || d.litrosDespachados <= 0);
+                if (invalidDestino) {
+                  toast.error('Todos los destinos deben tener planta seleccionada y litros mayores a 0');
+                  return;
+                }
+                crearDespachosMultiMutation.mutate({
+                  camionId: despachoCamionId,
+                  usuarioId: despachoUsuarioId,
+                  destinos: destinosSalida,
+                });
               }}
-              style={{ padding: '20px' }}
+              style={{ padding: '20px', overflowY: 'auto', flex: 1 }}
             >
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Compañía / Planta Destino *
-                </label>
-                <select
-                  className="form-input"
-                  required
-                  value={formDespacho.companiaId || ''}
-                  onChange={(e) => setFormDespacho({ ...formDespacho, companiaId: Number(e.target.value) })}
-                  style={{ width: '100%', height: '38px', borderRadius: '8px', fontWeight: 600 }}
-                >
-                  <option value="">-- Seleccionar Planta Destino --</option>
-                  {companias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre} {c.contacto ? `(${c.contacto})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* SECCIÓN 1: TRANSPORTE Y CONDUCTOR */}
+              <div style={{ background: '#faf5ff', border: '1.5px solid #d8b4fe', borderRadius: '12px', padding: '14px 16px', marginBottom: '18px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-truck"></i> 1. Unidad de Transporte y Conductor
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                  {/* Selector de Camión */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Camión Cisterna Asignado *
+                    </label>
+                    <SearchableSelect
+                      options={camionesOptions}
+                      value={despachoCamionId || ''}
+                      onChange={(val) => {
+                        const num = Number(val);
+                        setDespachoCamionId(num);
+                        const cMatch = camiones.find((c) => c.id === num);
+                        if (cMatch && cMatch.usuarioId) {
+                          setDespachoUsuarioId(cMatch.usuarioId);
+                        }
+                      }}
+                      placeholder="-- Seleccionar Camión Cisterna --"
+                      searchPlaceholder="Buscar por placa o marca..."
+                    />
+                  </div>
 
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Camión Cisterna Asignado *
-                </label>
-                <select
-                  className="form-input"
-                  required
-                  value={formDespacho.camionId || ''}
-                  onChange={(e) => setFormDespacho({ ...formDespacho, camionId: Number(e.target.value) })}
-                  style={{ width: '100%', height: '38px', borderRadius: '8px', fontWeight: 600 }}
-                >
-                  <option value="">-- Seleccionar Camión Cisterna --</option>
-                  {camiones.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.placa} - {c.marca} {c.modelo} ({c.capacidadLitros?.toLocaleString()} L)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                    Litros a Despachar *
-                  </label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    required
-                    placeholder="Litros"
-                    value={formDespacho.litrosDespachados || ''}
-                    onChange={(e) => setFormDespacho({ ...formDespacho, litrosDespachados: Number(e.target.value) })}
-                    style={{ height: '38px', fontWeight: 800, fontSize: '15px', color: '#7e22ce' }}
-                  />
+                  {/* Selector de Conductor */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Conductor Asignado *
+                    </label>
+                    <SearchableSelect
+                      options={conductoresOptions}
+                      value={despachoUsuarioId || ''}
+                      onChange={(val) => setDespachoUsuarioId(Number(val))}
+                      placeholder="-- Seleccionar Conductor --"
+                      searchPlaceholder="Buscar por nombre de chofer..."
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                    Tipo de Leche
-                  </label>
-                  <select
-                    className="form-input"
-                    value={formDespacho.tipoLeche}
-                    onChange={(e) => setFormDespacho({ ...formDespacho, tipoLeche: e.target.value })}
-                    style={{ height: '38px', fontWeight: 600 }}
+                {despachoCamionId > 0 && (
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#7e22ce', fontWeight: 600 }}>
+                    <span>
+                      <i className="fa-solid fa-gauge-high"></i> Capacidad Cisterna:{' '}
+                      <strong>{(camiones.find((c) => c.id === despachoCamionId)?.capacidadLitros || 0).toLocaleString()} Lts</strong>
+                    </span>
+                    <span>&bull;</span>
+                    <span>
+                      <i className="fa-solid fa-user-check"></i> Chofer Registrado:{' '}
+                      <strong>{camiones.find((c) => c.id === despachoCamionId)?.choferNombre || 'Sin asignar en catálogo'}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* SECCIÓN 2: DESTINOS Y CARGAS (SOPORTE MULTI-DESTINO) */}
+              <div style={{ marginBottom: '18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-building-wheat" style={{ color: '#9333ea' }}></i> 2. Destinos y Plantas a Despachar
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDestinosSalida([
+                        ...destinosSalida,
+                        {
+                          id: String(Date.now()),
+                          companiaId: 0,
+                          litrosDespachados: 0,
+                          tipoLeche: 'VACA',
+                          numeroGuiaSADA: '',
+                          observacion: '',
+                        },
+                      ]);
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      boxShadow: '0 2px 4px rgba(16, 185, 129, 0.25)',
+                    }}
                   >
-                    <option value="VACA">🐄 Leche de Vaca</option>
-                    {hasBufala && <option value="BUFALA">🐃 Leche de Búfala</option>}
-                  </select>
+                    <i className="fa-solid fa-plus"></i> + Añadir Otra Planta / Destino
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {destinosSalida.map((dest, idx) => (
+                    <div
+                      key={dest.id}
+                      style={{
+                        background: '#f8fafc',
+                        border: '1.5px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#7e22ce', textTransform: 'uppercase', background: '#f3e8ff', padding: '2px 8px', borderRadius: '4px' }}>
+                          Destino #{idx + 1}
+                        </span>
+                        {destinosSalida.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDestinosSalida(destinosSalida.filter((d) => d.id !== dest.id));
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="Quitar este destino"
+                          >
+                            <i className="fa-solid fa-trash-can"></i> Quitar
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', alignItems: 'end' }}>
+                        {/* Compañía Destino */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Planta Destino *
+                          </label>
+                          <SearchableSelect
+                            options={companiasOptions}
+                            value={dest.companiaId || ''}
+                            onChange={(val) => {
+                              const updated = destinosSalida.map((d) =>
+                                d.id === dest.id ? { ...d, companiaId: Number(val) } : d
+                              );
+                              setDestinosSalida(updated);
+                            }}
+                            placeholder="-- Seleccionar Planta Destino --"
+                            searchPlaceholder="Buscar por nombre de compañía..."
+                          />
+                        </div>
+
+                        {/* Litros a Despachar */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Litros a Despachar *
+                          </label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            required
+                            placeholder="Litros"
+                            value={dest.litrosDespachados || ''}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              const updated = destinosSalida.map((d) =>
+                                d.id === dest.id ? { ...d, litrosDespachados: val } : d
+                              );
+                              setDestinosSalida(updated);
+                            }}
+                            style={{ height: '38px', fontWeight: 800, fontSize: '14.5px', color: '#7e22ce' }}
+                          />
+                        </div>
+
+                        {/* Tipo de Leche (Ambos tipos SIEMPRE disponibles) */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Tipo de Leche *
+                          </label>
+                          <SearchableSelect
+                            options={tiposLecheOptions}
+                            value={dest.tipoLeche}
+                            onChange={(val) => {
+                              const updated = destinosSalida.map((d) =>
+                                d.id === dest.id ? { ...d, tipoLeche: val } : d
+                              );
+                              setDestinosSalida(updated);
+                            }}
+                            allowClear={false}
+                          />
+                        </div>
+
+                        {/* N° Guía SADA */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Guía SADA / Observación
+                          </label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Ej: SADA-89123..."
+                            value={dest.numeroGuiaSADA}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const updated = destinosSalida.map((d) =>
+                                d.id === dest.id ? { ...d, numeroGuiaSADA: val } : d
+                              );
+                              setDestinosSalida(updated);
+                            }}
+                            style={{ height: '38px', fontSize: '12.5px' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  N° Guía SADA / Observación
-                </label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ej: SADA-89123..."
-                  value={formDespacho.numeroGuiaSADA}
-                  onChange={(e) => setFormDespacho({ ...formDespacho, numeroGuiaSADA: e.target.value })}
-                  style={{ height: '38px' }}
-                />
-              </div>
+              {/* BARRA DE RESUMEN Y BALANCE DE CARGA */}
+              {(() => {
+                const camionSel = camiones.find((c) => c.id === despachoCamionId);
+                const cap = camionSel?.capacidadLitros || 0;
+                const totLitros = destinosSalida.reduce((acc, d) => acc + (Number(d.litrosDespachados) || 0), 0);
+                const excede = cap > 0 && totLitros > cap;
 
+                return (
+                  <div
+                    style={{
+                      background: excede ? '#fef2f2' : '#f0fdf4',
+                      border: `1.5px solid ${excede ? '#fca5a5' : '#86efac'}`,
+                      borderRadius: '10px',
+                      padding: '12px 16px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '10px',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: excede ? '#991b1b' : '#166534', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Total a Despachar:
+                      </span>
+                      <strong style={{ fontSize: '17px', color: excede ? '#dc2626' : '#15803d', marginLeft: '6px' }}>
+                        {totLitros.toLocaleString()} Lts
+                      </strong>
+                      {cap > 0 && (
+                        <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '8px' }}>
+                          (de {cap.toLocaleString()} Lts capacidad cisterna)
+                        </span>
+                      )}
+                    </div>
+                    {excede ? (
+                      <span style={{ fontSize: '12px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fa-solid fa-triangle-exclamation"></i> Carga excede capacidad del camión por {(totLitros - cap).toLocaleString()} Lts
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fa-solid fa-circle-check"></i> Carga dentro del límite ({destinosSalida.length} destino{destinosSalida.length > 1 ? 's' : ''})
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Botones del Modal */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
                 <button
                   type="button"
                   className="btn btn-outline"
                   onClick={() => setModalNuevoDespacho(false)}
-                  style={{ height: '38px', padding: '0 16px' }}
+                  style={{ height: '40px', padding: '0 18px', fontWeight: 600 }}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={crearDespachoMutation.isPending}
+                  disabled={crearDespachosMultiMutation.isPending}
                   style={{
-                    height: '38px',
-                    padding: '0 20px',
-                    fontWeight: 700,
+                    height: '40px',
+                    padding: '0 24px',
+                    fontWeight: 800,
+                    fontSize: '13.5px',
                     background: 'linear-gradient(135deg, #9333ea, #7e22ce)',
                     border: 'none',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 14px rgba(147, 51, 234, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                   }}
                 >
                   <i className="fa-solid fa-paper-plane"></i>
-                  {crearDespachoMutation.isPending ? 'Despachando...' : 'Emitir Ticket Salida'}
+                  {crearDespachosMultiMutation.isPending
+                    ? 'Emitiendo Tickets...'
+                    : `Emitir ${destinosSalida.length > 1 ? `${destinosSalida.length} Tickets de Salida` : 'Ticket de Salida'}`}
                 </button>
               </div>
             </form>

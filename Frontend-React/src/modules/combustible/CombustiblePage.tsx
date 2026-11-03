@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { combustibleApi } from '@/api/combustible.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type {
   CombustibleHistorialDto,
   RegistrarDespachoCombustibleDto,
@@ -62,6 +63,14 @@ export const CombustiblePage: React.FC = () => {
     queryKey: ['camiones-activos'],
     queryFn: combustibleApi.getCamiones,
   });
+
+  const camionesOptions = useMemo(() => {
+    return camiones.map((c: any) => ({
+      value: c.id,
+      label: `${c.placa} (${c.marca || 'Cisterna'}) ${c.choferNombre ? `- ${c.choferNombre}` : ''}`.trim(),
+      subLabel: `Capacidad: ${(c.capacidadLitros || 0).toLocaleString()} Lts | Chofer: ${c.choferNombre || 'Sin asignar'}`,
+    }));
+  }, [camiones]);
 
   // Mutaciones
   const mutationDespacho = useMutation({
@@ -536,20 +545,13 @@ export const CombustiblePage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Vehículo / Camión Cisterna *
                   </label>
-                  <select
-                    value={formDespacho.camionId}
-                    onChange={(e) => setFormDespacho({ ...formDespacho, camionId: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px' }}
-                    required
-                  >
-                    <option value="0">Seleccionar camión...</option>
-                    {camiones.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.placa} ({c.marca || 'Cisterna'}) {c.choferNombre ? `- ${c.choferNombre}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={camionesOptions}
+                    value={formDespacho.camionId || ''}
+                    onChange={(val) => setFormDespacho({ ...formDespacho, camionId: Number(val) })}
+                    placeholder="-- Seleccionar Unidad Cisterna --"
+                    searchPlaceholder="Buscar por placa o chofer..."
+                  />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

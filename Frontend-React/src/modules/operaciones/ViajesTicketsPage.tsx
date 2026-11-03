@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type { ControlRutaDto, CamionDto, RutaLogisticaDto, FincaDto, CompaniaDto } from '@/types';
 
 export const ViajesTicketsPage: React.FC = () => {
@@ -44,10 +45,11 @@ export const ViajesTicketsPage: React.FC = () => {
     observaciones: '',
   });
 
-  // Queries
+  // Queries con auto-actualización reactiva en tiempo real (cada 8s)
   const { data: viajes = [], isLoading, refetch } = useQuery<ControlRutaDto[]>({
     queryKey: ['viajes-controles'],
     queryFn: () => operacionesApi.getControles(),
+    refetchInterval: 8000,
   });
 
   const { data: camiones = [] } = useQuery<CamionDto[]>({
@@ -69,6 +71,25 @@ export const ViajesTicketsPage: React.FC = () => {
     queryKey: ['companias'],
     queryFn: () => catalogosApi.getCompanias(true),
   });
+
+  const camionesOptions = useMemo(() => {
+    return camiones.map((c) => ({
+      value: c.id,
+      label: `${c.placa} (${c.marca || 'Cisterna'}) ${c.choferNombre ? `- Chofer: ${c.choferNombre}` : ''}`.trim(),
+      subLabel: `Capacidad: ${(c.capacidadLitros || 0).toLocaleString()} Lts | Chofer: ${c.choferNombre || 'Sin asignar'}`,
+    }));
+  }, [camiones]);
+
+  const rutasOptions = useMemo(() => {
+    return [
+      { value: 0, label: '-- Ruta Abierta / Sin predefinir --' },
+      ...rutasLogistica.map((r) => ({
+        value: r.id,
+        label: `${r.nombre} (${r.totalFincas || 0} fincas)`,
+        subLabel: r.descripcion || undefined,
+      })),
+    ];
+  }, [rutasLogistica]);
 
   // Query fincas y entregas del viaje seleccionado
   const { data: fincasViaje = [], refetch: refetchFincas } = useQuery({
@@ -564,39 +585,27 @@ export const ViajesTicketsPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Unidad Cisterna *
                   </label>
-                  <select
-                    value={formIniciar.camionId}
-                    onChange={(e) => setFormIniciar({ ...formIniciar, camionId: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px' }}
-                    required
-                  >
-                    <option value="0">Seleccionar camión...</option>
-                    {camiones.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.placa} ({c.marca || 'Cisterna'}) {c.choferNombre ? `- Chofer: ${c.choferNombre}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={camionesOptions}
+                    value={formIniciar.camionId || ''}
+                    onChange={(val) => setFormIniciar({ ...formIniciar, camionId: Number(val) })}
+                    placeholder="-- Seleccionar Unidad Cisterna --"
+                    searchPlaceholder="Buscar por placa, marca o chofer..."
+                  />
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Ruta Planificada
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={rutasOptions}
                     value={formIniciar.rutaLogisticaId}
-                    onChange={(e) => setFormIniciar({ ...formIniciar, rutaLogisticaId: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px' }}
-                  >
-                    <option value="0">-- Ruta Abierta / Sin predefinir --</option>
-                    {rutasLogistica.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.nombre} ({r.totalFincas || 0} fincas)
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormIniciar({ ...formIniciar, rutaLogisticaId: Number(val) })}
+                    placeholder="-- Ruta Abierta / Sin predefinir --"
+                    searchPlaceholder="Buscar ruta planificada..."
+                    allowClear={true}
+                  />
                 </div>
 
                 <div>

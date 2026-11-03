@@ -100,11 +100,11 @@ export const RecoleccionRutasPage: React.FC = () => {
     observacion: '',
   });
 
-  // Queries
+  // Queries con auto-actualización reactiva en tiempo real (cada 8s)
   const { data: viajes = [], isLoading: loadingViajes, refetch: refetchViajes } = useQuery<ControlRutaDto[]>({
     queryKey: ['rutas-viajes-hoy', fechaFiltro],
     queryFn: () => operacionesApi.getControles(fechaFiltro),
-    refetchInterval: modoVista === 'diario' ? 20000 : false,
+    refetchInterval: 8000,
   });
 
   const { data: recolecciones = [], isLoading: loadingRecolecciones, refetch: refetchRecolecciones } = useQuery<RutaDetalleFinca[]>({
@@ -113,7 +113,13 @@ export const RecoleccionRutasPage: React.FC = () => {
       const res = await apiClient.get<RutaDetalleFinca[]>(`/rutas/hoy?fecha=${fechaFiltro}`).catch(() => ({ data: [] }));
       return Array.isArray(res.data) ? res.data : [];
     },
+    refetchInterval: 8000,
   });
+
+  const tiposLecheOptions = useMemo(() => [
+    { value: 'VACA', label: '🥛 Leche de Vaca' },
+    { value: 'BUFALA', label: '🐃 Leche de Búfala' },
+  ], []);
 
   const { data: camiones = [] } = useQuery<CamionDto[]>({
     queryKey: ['camiones'],
@@ -617,8 +623,47 @@ export const RecoleccionRutasPage: React.FC = () => {
                   v.estadoProceso === 'CERRADO' ||
                   v.procesoActualId === 4;
 
-                const ltsRecolectados = v.totalLitrosFinca != null ? v.totalLitrosFinca : (v.totalLitrosRecogidos || 0);
-                const ltsEntregados = v.litrosEntregadosCompania != null ? v.litrosEntregadosCompania : (v.totalLitrosReceptoria != null ? v.totalLitrosReceptoria : (v.totalLitrosEntregados || 0));
+                // Cálculo en tiempo real de fincas recolectadas asociadas a este ticket
+                const fincasTicket = recolecciones.filter((r) => {
+                  const cId = r.controlRutaId || (r as any).ControlRutaId;
+                  const tCode = r.ticketCodigo || (r as any).TicketCodigo;
+                  return (
+                    cId === v.id ||
+                    (tCode && (tCode === v.codigoTicket || tCode === `TKT-${v.id}` || tCode === String(v.id)))
+                  );
+                });
+                const sumFincasTicket = fincasTicket.reduce(
+                  (acc, f) => acc + Number(f.litros || (f as any).Litros || 0),
+                  0
+                );
+                const ltsRecolectados =
+                  v.totalLitrosFinca != null && v.totalLitrosFinca > 0
+                    ? v.totalLitrosFinca
+                    : sumFincasTicket > 0
+                    ? sumFincasTicket
+                    : v.totalLitrosRecogidos || 0;
+
+                const ltsEntregados =
+                  v.litrosEntregadosCompania != null
+                    ? v.litrosEntregadosCompania
+                    : v.totalLitrosReceptoria != null
+                    ? v.totalLitrosReceptoria
+                    : v.totalLitrosEntregados || 0;
+
+                const camionMatch = camiones.find(
+                  (c) => c.id === v.camionId || (v.camionPlaca && c.placa === v.camionPlaca)
+                );
+                const placaTexto = camionMatch
+                  ? `${camionMatch.placa} - ${camionMatch.marca || 'Cisterna'}`
+                  : v.camionPlaca || (v.camionId ? `Camión #${v.camionId}` : 'Ruta Logística Activa');
+
+                const choferMatch = conductores.find((u) => u.id === v.usuarioId || u.id === v.choferId);
+                const choferTexto =
+                  v.choferNombre ||
+                  v.nombreConductor ||
+                  camionMatch?.choferNombre ||
+                  choferMatch?.nombreCompleto ||
+                  'Sin asignar';
 
                 return (
                   <div
@@ -656,12 +701,12 @@ export const RecoleccionRutasPage: React.FC = () => {
 
                       <div style={{ fontSize: '13.5px', color: '#0f172a', marginBottom: '6px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <i className="fa-solid fa-truck" style={{ color: '#2563eb' }}></i>
-                        <span>{v.camionPlaca || (v.camionId ? `Camión #${v.camionId}` : 'Ruta Logística Activa')}</span>
+                        <span>{placaTexto}</span>
                       </div>
 
                       <div style={{ fontSize: '12.5px', color: '#475569', marginBottom: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <i className="fa-regular fa-user" style={{ color: '#64748b' }}></i>
-                        <span>Chofer: <strong style={{ color: '#1e293b' }}>{v.choferNombre || v.nombreConductor || 'Sin asignar'}</strong></span>
+                        <span>Chofer: <strong style={{ color: '#1e293b' }}>{choferTexto}</strong></span>
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
@@ -1064,15 +1109,12 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Tipo de Leche *
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={tiposLecheOptions}
                       value={formFinca.tipoLeche}
-                      onChange={(e) => setFormFinca({ ...formFinca, tipoLeche: e.target.value })}
-                      className="form-input"
-                      style={{ width: '100%', height: '38px', fontWeight: 700 }}
-                    >
-                      <option value="VACA">🥛 Leche de Vaca</option>
-                      <option value="BUFALA">🐃 Leche de Búfala</option>
-                    </select>
+                      onChange={(val) => setFormFinca({ ...formFinca, tipoLeche: val })}
+                      allowClear={false}
+                    />
                   </div>
                 </div>
 
@@ -1177,15 +1219,12 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Tipo de Leche *
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={tiposLecheOptions}
                       value={formEditar.tipoLeche}
-                      onChange={(e) => setFormEditar({ ...formEditar, tipoLeche: e.target.value })}
-                      className="form-input"
-                      style={{ width: '100%', height: '38px', fontWeight: 700 }}
-                    >
-                      <option value="VACA">🥛 Leche de Vaca</option>
-                      <option value="BUFALA">🐃 Leche de Búfala</option>
-                    </select>
+                      onChange={(val) => setFormEditar({ ...formEditar, tipoLeche: val })}
+                      allowClear={false}
+                    />
                   </div>
                 </div>
 
@@ -1350,15 +1389,12 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Tipo de Leche Despachada
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={tiposLecheOptions}
                       value={formCompania.tipoLeche}
-                      onChange={(e) => setFormCompania({ ...formCompania, tipoLeche: e.target.value })}
-                      className="form-input"
-                      style={{ width: '100%', height: '38px', fontWeight: 700 }}
-                    >
-                      <option value="VACA">🥛 Leche de Vaca</option>
-                      <option value="BUFALA">🐃 Leche de Búfala</option>
-                    </select>
+                      onChange={(val) => setFormCompania({ ...formCompania, tipoLeche: val })}
+                      allowClear={false}
+                    />
                   </div>
                 </div>
 

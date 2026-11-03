@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import type { AbonoCompaniaDto, CompaniaDto } from '@/types';
 
 export const AbonosCompaniasPage: React.FC = () => {
@@ -31,6 +32,24 @@ export const AbonosCompaniasPage: React.FC = () => {
     queryKey: ['companias'],
     queryFn: () => catalogosApi.getCompanias(true),
   });
+
+  const companiasOptions = useMemo(() => {
+    return companias.map((c) => ({
+      value: c.id,
+      label: c.nombre,
+      subLabel: c.contacto ? `Contacto: ${c.contacto}` : undefined,
+    }));
+  }, [companias]);
+
+  const companiasFiltroOptions = useMemo(() => {
+    return [
+      { value: '', label: 'Todas las compañías' },
+      ...companias.map((c) => ({
+        value: String(c.id),
+        label: c.nombre,
+      })),
+    ];
+  }, [companias]);
 
   const crearMutation = useMutation({
     mutationFn: (dto: typeof initialForm) => finanzasApi.crearAbonoCompania(dto),
@@ -219,17 +238,14 @@ export const AbonosCompaniasPage: React.FC = () => {
             <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
               <i className="fa-solid fa-building" style={{ color: '#059669', marginRight: '4px' }}></i> Filtrar por Compañía:
             </label>
-            <select
+            <SearchableSelect
+              options={companiasFiltroOptions}
               value={filtroCompania}
-              onChange={(e) => setFiltroCompania(e.target.value)}
-              className="form-input"
-              style={{ height: '38px', fontSize: '13px', fontWeight: 600, minWidth: '240px' }}
-            >
-              <option value="">Todas las compañías</option>
-              {companias.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
+              onChange={(val) => setFiltroCompania(val || '')}
+              placeholder="Todas las compañías"
+              searchPlaceholder="Buscar compañía..."
+              allowClear={true}
+            />
           </div>
         </div>
       </div>
@@ -295,18 +311,13 @@ export const AbonosCompaniasPage: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                   Compañía / Planta Receptora *
                 </label>
-                <select
-                  value={form.companiaId}
-                  onChange={(e) => setForm({ ...form, companiaId: Number(e.target.value) })}
-                  className="form-input"
-                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
-                  required
-                >
-                  <option value="0">Seleccionar compañía...</option>
-                  {companias.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={companiasOptions}
+                  value={form.companiaId || ''}
+                  onChange={(val) => setForm({ ...form, companiaId: Number(val) })}
+                  placeholder="-- Seleccionar Compañía --"
+                  searchPlaceholder="Buscar por nombre..."
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>

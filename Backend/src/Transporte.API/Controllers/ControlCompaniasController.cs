@@ -106,11 +106,6 @@ namespace Transporte.API.Controllers
 
             try
             {
-                if (dto.UsuarioId <= 0)
-                {
-                    return BadRequest(new { message = "Debe seleccionar un conductor asignado para el despacho." });
-                }
-
                 if (dto.LitrosDespachados <= 0)
                 {
                     return BadRequest(new { message = "Los litros despachados deben ser mayores a 0." });

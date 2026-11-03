@@ -9426,17 +9426,22 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             using var connection = new SqlConnection(_connectionString);
             var fecha = dto.Fecha ?? DateTime.Today;
 
-            if (dto.UsuarioId <= 0)
+            if (dto.UsuarioId <= 0 && dto.CamionId.HasValue && dto.CamionId.Value > 0)
             {
-                throw new InvalidOperationException("Debe seleccionar un conductor asignado para el despacho.");
+                dto.UsuarioId = await connection.ExecuteScalarAsync<int>(
+                    "SELECT TOP 1 ISNULL(UsuarioId, 0) FROM TB_CAMIONES WHERE Id = @camionId",
+                    new { camionId = dto.CamionId.Value });
             }
 
-            var esChoferValidoCC = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(1) FROM TB_USUARIOS WHERE Id = @usuarioId AND UPPER(Rol) = 'CHOFER' AND Activo = 1",
-                new { usuarioId = dto.UsuarioId });
-            if (esChoferValidoCC == 0)
+            if (dto.UsuarioId <= 0)
             {
-                throw new InvalidOperationException("El usuario seleccionado como conductor no tiene el rol de CHOFER o no está activo.");
+                dto.UsuarioId = await connection.ExecuteScalarAsync<int>(
+                    "SELECT TOP 1 Id FROM TB_USUARIOS WHERE UPPER(Rol) = 'CHOFER' AND Activo = 1 ORDER BY Id ASC");
+            }
+
+            if (dto.UsuarioId <= 0)
+            {
+                dto.UsuarioId = creadoPor;
             }
 
             // Buscar ciclo operativo vigente
@@ -9460,6 +9465,9 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             }
 
             var tipoLeche = string.IsNullOrWhiteSpace(dto.TipoLeche) ? "VACA" : dto.TipoLeche.Trim().ToUpper();
+            var observacionFinal = string.IsNullOrWhiteSpace(dto.NumeroGuiaSADA)
+                ? dto.Observacion
+                : (string.IsNullOrWhiteSpace(dto.Observacion) ? $"Guía SADA: {dto.NumeroGuiaSADA.Trim()}" : $"[SADA: {dto.NumeroGuiaSADA.Trim()}] {dto.Observacion}".Trim());
 
             var query = @"
                 INSERT INTO TB_CONTROL_COMPANIAS 
@@ -9476,7 +9484,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 cicloId,
                 litrosDespachados = dto.LitrosDespachados,
                 tipoLeche,
-                observacion = dto.Observacion,
+                observacion = observacionFinal,
                 creadoPor
             });
 

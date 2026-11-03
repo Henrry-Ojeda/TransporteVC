@@ -1443,10 +1443,12 @@ namespace Transporte.Core.DTOs
     {
         public DateTime? Fecha { get; set; }
         public int UsuarioId { get; set; }           // Chofer asignado o CHOFER OTRO
+        public int? CamionId { get; set; }
         public int CompaniaId { get; set; }          // Compañía destino
         public int LitrosDespachados { get; set; }   // Litros de salida
         public string? TipoLeche { get; set; }       // VACA, BUFALO
         public string? Observacion { get; set; }
+        public string? NumeroGuiaSADA { get; set; }
     }
 
     public class DesgloseEntregaCompaniaDto

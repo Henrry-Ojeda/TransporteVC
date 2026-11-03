@@ -57,6 +57,13 @@ export const SemanasPage: React.FC = () => {
     },
   });
 
+  const displaySemana = (s: any) => {
+    if (!s) return 'Semana';
+    const num = s.numeroSemana || s.NumeroSemana || s.codigo?.match(/#\s*(\d+)/)?.[1] || s.id;
+    const anio = s.anio || s.Anio || s.año || s.Año || (s.fechaInicio ? new Date(s.fechaInicio).getFullYear() : '');
+    return `Semana #${num} (${anio})`;
+  };
+
   const columns: ColumnDef<CicloSemanalDto>[] = [
     {
       header: 'SEMANA & AÑO',
@@ -64,7 +71,7 @@ export const SemanasPage: React.FC = () => {
       cell: (row) => (
         <div>
           <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
-            {row.codigo ? row.codigo.split('(')[0].trim() : `Semana #${row.numeroSemana || (row as any).id}`} ({row.año || (row as any).anio || (row.fechaInicio ? new Date(row.fechaInicio).getFullYear() : '')})
+            {displaySemana(row)}
           </div>
           <div style={{ fontSize: '11px', color: '#64748b' }}>
             {new Date(row.fechaInicio).toLocaleDateString('es-VE')} al {new Date(row.fechaFin).toLocaleDateString('es-VE')}
@@ -277,7 +284,7 @@ export const SemanasPage: React.FC = () => {
                 CÓDIGO / SEMANA
               </span>
               <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                {semanaActiva.codigo ? semanaActiva.codigo.split('(')[0].trim() : `Semana #${semanaActiva.numeroSemana || (semanaActiva as any).id}`} ({semanaActiva.año || (semanaActiva as any).anio || (semanaActiva.fechaInicio ? new Date(semanaActiva.fechaInicio).getFullYear() : '')})
+                {displaySemana(semanaActiva)}
               </div>
             </div>
 

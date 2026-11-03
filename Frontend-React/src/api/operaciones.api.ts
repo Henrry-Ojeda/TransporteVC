@@ -99,8 +99,21 @@ export const operacionesApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  crearDespachoCompania: async (dto: { camionId: number; companiaId: number; litrosDespachados: number; tipoLeche: string; numeroGuiaSADA?: string; observaciones?: string }): Promise<{ id: number; message: string }> => {
-    const res = await apiClient.post('/controlcompanias', dto);
+  crearDespachoCompania: async (dto: {
+    camionId?: number;
+    usuarioId?: number;
+    companiaId: number;
+    litrosDespachados: number;
+    tipoLeche: string;
+    numeroGuiaSADA?: string;
+    observaciones?: string;
+    observacion?: string;
+  }): Promise<{ id: number; message: string }> => {
+    const payload = {
+      ...dto,
+      observacion: dto.observacion || dto.observaciones || '',
+    };
+    const res = await apiClient.post('/controlcompanias', payload);
     return res.data;
   },
 
