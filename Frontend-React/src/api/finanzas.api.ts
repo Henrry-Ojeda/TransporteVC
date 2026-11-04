@@ -17,18 +17,44 @@ export const finanzasApi = {
     const res = await apiClient.get<CicloSemanalDto>('/catalogos/ciclo-activo');
     return res.data;
   },
-  crearCiclo: async (dto: { numeroSemana: number; año: number; fechaInicio: string; fechaFin: string; codigo?: string }): Promise<{ id: number; message: string }> => {
+  crearCiclo: async (dto: { codigo: string; fechaInicio: string; fechaFin: string; observaciones?: string; numeroSemana?: number; año?: number }): Promise<{ id: number; message: string }> => {
     const payload = {
       ...dto,
-      codigo: dto.codigo || `Semana #${dto.numeroSemana} (${dto.año})`,
+      codigo: dto.codigo || `Semana #${dto.numeroSemana || 1} (${dto.año || new Date().getFullYear()})`,
       fechaInicio: dto.fechaInicio,
       fechaFin: dto.fechaFin,
+      observaciones: dto.observaciones || '',
     };
     const res = await apiClient.post('/ciclos', payload);
     return res.data;
   },
-  cerrarCiclo: async (id: number, tasaBCV: number): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/ciclos/${id}/cerrar`, { tasaBCV });
+  editarCiclo: async (id: number, dto: { codigo: string; fechaInicio: string; fechaFin: string; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.put(`/ciclos/${id}`, dto);
+    return res.data;
+  },
+  generar52Semanas: async (dto: { anio: number; diaInicio: number; diaFin: number; fechaPrimerInicio?: string }): Promise<{ message: string; creadas?: number }> => {
+    const res = await apiClient.post('/ciclos/generar-52', dto);
+    return res.data;
+  },
+  validarActivacionCiclo: async (id: number): Promise<any> => {
+    const res = await apiClient.get(`/ciclos/${id}/validar-activacion`).catch(() => ({ data: null }));
+    return res.data;
+  },
+  activarCiclo: async (id: number, stockInicialPersonalizado?: number): Promise<{ success: boolean; message: string }> => {
+    const body = stockInicialPersonalizado !== undefined ? { stockInicialPersonalizado } : {};
+    const res = await apiClient.post(`/ciclos/${id}/activar`, body);
+    return res.data;
+  },
+  getResumenCierreCiclo: async (id: number): Promise<any> => {
+    const res = await apiClient.get(`/ciclos/${id}/resumen-cierre`).catch(() => ({ data: null }));
+    return res.data;
+  },
+  cerrarCiclo: async (id: number, stockFinalTanques: number, tasaBCV?: number): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/ciclos/${id}/cerrar`, { stockFinalTanques, tasaBCV });
+    return res.data;
+  },
+  reabrirCiclo: async (id: number, motivo: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post(`/ciclos/${id}/reabrir`, { motivo });
     return res.data;
   },
 
