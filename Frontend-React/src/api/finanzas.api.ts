@@ -32,8 +32,12 @@ export const finanzasApi = {
     const res = await apiClient.put(`/ciclos/${id}`, dto);
     return res.data;
   },
-  generar52Semanas: async (dto: { anio: number; diaInicio: number; diaFin: number; fechaPrimerInicio?: string }): Promise<{ message: string; creadas?: number }> => {
-    const res = await apiClient.post('/ciclos/generar-52', dto);
+  generar52Semanas: async (dto: { anio: number; diaInicio: number; diaFin: number; fechaPrimerInicio?: string }): Promise<{ message: string; creadas?: number; totalCreadas?: number }> => {
+    const res = await apiClient.post('/ciclos/generar-anual', {
+      anio: dto.anio,
+      diaInicio: dto.diaInicio,
+      diaFin: dto.diaFin,
+    });
     return res.data;
   },
   validarActivacionCiclo: async (id: number): Promise<any> => {

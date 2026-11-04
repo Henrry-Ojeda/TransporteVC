@@ -70,3 +70,14 @@ Este documento establece las directrices maestras que **SIEMPRE Y SIN EXCEPCIÓN
        ```
   5. Asegurar que las bases de datos de los inquilinos (`DB_PROD_TRANSPORTE_VERGEL_CARRILLO`, `DB_PROD_CAMPO_VERDE`, `DB_PRODUCTO_BASE`) cuenten con sus esquemas y tablas sincronizados.
 
+---
+
+### 6. 🔌 Validación Estricta de Endpoints de API (Backend ➔ Frontend)
+* **REGLA OBLIGATORIA ANTES DE CONECTAR CUALQUIER API**:
+  * **SIEMPRE Y SIN EXCEPCIÓN** antes de agregar o modificar una llamada en `Frontend-React/src/api/*.ts`, se debe verificar directamente en `Backend/src/Transporte.API/Controllers/*Controller.cs` y `Backend/src/Transporte.Core/DTOs/DTOs.cs`:
+    1. La ruta exacta del atributo `[HttpGet("...")]`, `[HttpPost("...")]`, `[HttpPut("...")]`, `[HttpDelete("...")]` (ej. verificar si en el Controller es `/api/ciclos/generar-anual` o `/api/bcv/hoy` antes de llamarlo).
+    2. El método HTTP exacto (`GET`, `POST`, `PUT`, `DELETE`).
+    3. Las propiedades exactas que espera el DTO en el Backend.
+  * Nunca asumir el nombre de un endpoint basándose únicamente en funciones antiguas o intuición sin confirmar primero en el Controller de C#.
+
+
