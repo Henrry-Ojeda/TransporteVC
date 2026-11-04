@@ -42,7 +42,7 @@ export const PropietariosPage: React.FC = () => {
 
   const { data: fincas = [] } = useQuery<FincaDto[]>({
     queryKey: ['fincas'],
-    queryFn: () => catalogosApi.getFincas(false),
+    queryFn: () => catalogosApi.getFincas(true),
   });
 
   // Mutaciones

@@ -34,24 +34,46 @@ export const FincasPage: React.FC = () => {
   };
   const [form, setForm] = useState<GuardarFincaDto>(initialForm);
 
-  // Queries
+  // Queries (En el módulo Fincas se muestran TODAS: activas e inactivas)
   const { data: fincas = [], isLoading } = useQuery<FincaDto[]>({
-    queryKey: ['fincas'],
+    queryKey: ['fincas-catalogo-completo'],
     queryFn: () => catalogosApi.getFincas(false),
   });
 
   const { data: propietarios = [] } = useQuery<PropietarioDto[]>({
-    queryKey: ['propietarios'],
+    queryKey: ['propietarios-selector'],
     queryFn: () => catalogosApi.getPropietarios(),
   });
 
+  const invalidarCachesFincas = () => {
+    queryClient.invalidateQueries({ queryKey: ['fincas-catalogo-completo'] });
+    queryClient.invalidateQueries({ queryKey: ['fincas'] });
+    queryClient.invalidateQueries({ queryKey: ['fincas-catalogos'] });
+    queryClient.invalidateQueries({ queryKey: ['fincas-evolucion'] });
+    queryClient.invalidateQueries({ queryKey: ['fincas-bufala'] });
+    queryClient.invalidateQueries({ queryKey: ['rutas-logistica'] });
+    queryClient.invalidateQueries({ queryKey: ['propietarios'] });
+    queryClient.invalidateQueries({ queryKey: ['propietarios-selector'] });
+  };
+
   // Mutaciones
   const guardarMutation = useMutation({
-    mutationFn: (dto: GuardarFincaDto) =>
-      modoEdicionId ? catalogosApi.actualizarFinca(modoEdicionId, dto) : catalogosApi.crearFinca(dto),
+    mutationFn: (dto: GuardarFincaDto) => {
+      const propObj = propietarios.find((p) => Number(p.id) === Number(dto.propietarioId));
+      const propNombre = propObj
+        ? propObj.nombre || propObj.nombreCompleto || ''
+        : (dto as any).propietario || (dto as any).propietarioNombre || '';
+      const payload: any = {
+        ...dto,
+        propietario: propNombre,
+        propietarioNombre: propNombre,
+        rutaId: dto.activo === false ? undefined : dto.rutaId,
+      };
+      return modoEdicionId ? catalogosApi.actualizarFinca(modoEdicionId, payload) : catalogosApi.crearFinca(payload);
+    },
     onSuccess: (data: any) => {
       toast.success(data.message || 'Finca guardada exitosamente');
-      queryClient.invalidateQueries({ queryKey: ['fincas'] });
+      invalidarCachesFincas();
       cerrarModal();
     },
     onError: (err: any) => {
@@ -63,7 +85,7 @@ export const FincasPage: React.FC = () => {
     mutationFn: (id: number) => catalogosApi.eliminarFinca(id),
     onSuccess: (data) => {
       toast.success(data.message || 'Finca desactivada');
-      queryClient.invalidateQueries({ queryKey: ['fincas'] });
+      invalidarCachesFincas();
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al desactivar finca');
@@ -74,7 +96,7 @@ export const FincasPage: React.FC = () => {
     mutationFn: (precio: number) => catalogosApi.actualizarPreciosMasivo(precio),
     onSuccess: (data) => {
       toast.success(data.message || 'Precios actualizados en lote');
-      queryClient.invalidateQueries({ queryKey: ['fincas'] });
+      invalidarCachesFincas();
       setModalPrecioMasivo(false);
     },
     onError: (err: any) => {
@@ -90,11 +112,20 @@ export const FincasPage: React.FC = () => {
 
   const abrirModalEditar = (item: FincaDto) => {
     setModoEdicionId(item.id);
+    const propNameRaw = String((item as any).propietario || item.propietarioNombre || '').trim().toLowerCase();
+    const matchedProp =
+      propietarios.find((p) => Number(p.id) === Number(item.propietarioId)) ||
+      (propNameRaw
+        ? propietarios.find(
+            (p) => String(p.nombre || p.nombreCompleto || '').trim().toLowerCase() === propNameRaw
+          )
+        : undefined);
+
     setForm({
       codigo: item.codigo,
       nombre: item.nombre,
-      propietarioId: item.propietarioId,
-      rutaId: item.rutaId,
+      propietarioId: matchedProp ? matchedProp.id : item.propietarioId,
+      rutaId: item.activo !== false ? item.rutaId : undefined,
       precioLitroUSD: item.precioLitroUSD || 0.35,
       precioLitroAcidaUSD: item.precioLitroAcidaUSD || 0.20,
       tieneDosTiposLeche: Boolean(item.tieneDosTiposLeche),
@@ -102,7 +133,7 @@ export const FincasPage: React.FC = () => {
       tipoLeche: item.tipoLeche || 'VACA',
       telefono: item.telefono || '',
       ubicacion: item.ubicacion || '',
-      activo: item.activo,
+      activo: item.activo !== false,
     });
     setModalAbierto(true);
   };
@@ -255,16 +286,53 @@ export const FincasPage: React.FC = () => {
       accessorKey: 'activo',
       sortable: true,
       cell: (row) => (
-        <span
+        <button
+          type="button"
+          onClick={async () => {
+            const nuevoEstado = !row.activo;
+            try {
+              await catalogosApi.actualizarFinca(row.id, {
+                codigo: row.codigo,
+                nombre: row.nombre,
+                propietarioId: row.propietarioId,
+                rutaId: nuevoEstado ? row.rutaId : undefined,
+                precioLitroUSD: row.precioLitroUSD || 0.35,
+                precioLitroAcidaUSD: row.precioLitroAcidaUSD || 0.2,
+                tieneDosTiposLeche: Boolean(row.tieneDosTiposLeche),
+                precioBufalaLitroUSD: row.precioBufalaLitroUSD || 0.4,
+                tipoLeche: row.tipoLeche || 'VACA',
+                telefono: row.telefono || '',
+                ubicacion: row.ubicacion || '',
+                activo: nuevoEstado,
+                ...( { propietario: (row as any).propietario || row.propietarioNombre || '' } as any ),
+              });
+              toast.success(
+                nuevoEstado
+                  ? `Finca "${row.nombre}" activada exitosamente`
+                  : `Finca "${row.nombre}" marcada como INACTIVA (oculta en rutas y operaciones)`
+              );
+              invalidarCachesFincas();
+            } catch {
+              toast.error('No se pudo cambiar el estado de la finca');
+            }
+          }}
+          title="Clic para cambiar entre Activo / Inactivo"
           className="badge"
           style={{
             background: row.activo ? '#ecfdf5' : '#fff1f2',
             color: row.activo ? '#047857' : '#e11d48',
-            border: `1px solid ${row.activo ? '#a7f3d0' : '#fecdd3'}`,
+            border: `1.5px solid ${row.activo ? '#a7f3d0' : '#fecdd3'}`,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            fontWeight: 800,
+            padding: '4px 10px',
           }}
         >
+          <i className={`fa-solid ${row.activo ? 'fa-circle-check' : 'fa-circle-xmark'}`}></i>
           {row.activo ? 'ACTIVO' : 'INACTIVO'}
-        </span>
+        </button>
       ),
     },
     {
@@ -811,6 +879,56 @@ export const FincasPage: React.FC = () => {
                       style={{ width: '100%', height: '38px' }}
                     />
                   </div>
+                </div>
+
+                {/* 6. Estado Activo / Inactivo de la Finca */}
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: form.activo !== false ? '#f0fdf4' : '#fff1f2',
+                    border: `1.5px solid ${form.activo !== false ? '#86efac' : '#fecdd3'}`,
+                    borderRadius: '8px',
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      cursor: 'pointer',
+                      color: form.activo !== false ? '#065f46' : '#9f1239',
+                      fontSize: '13.5px',
+                      fontWeight: 700,
+                      margin: 0,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.activo !== false}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          activo: e.target.checked,
+                          rutaId: e.target.checked ? form.rutaId : undefined,
+                        })
+                      }
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        accentColor: form.activo !== false ? '#059669' : '#e11d48',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <span>
+                      <i
+                        className={`fa-solid ${form.activo !== false ? 'fa-circle-check' : 'fa-ban'}`}
+                        style={{ marginRight: '6px' }}
+                      ></i>
+                      {form.activo !== false
+                        ? 'Finca Activa para Recolecciones (Visible en todo el sistema)'
+                        : 'Finca Inactiva (Solo visible en catálogo de Fincas, sin ruta asociada)'}
+                    </span>
+                  </label>
                 </div>
               </div>
 

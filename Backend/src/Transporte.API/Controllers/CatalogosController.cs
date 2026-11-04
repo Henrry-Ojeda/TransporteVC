@@ -32,7 +32,6 @@ namespace Transporte.API.Controllers
         }
 
         [HttpGet("propietarios")]
-        [HttpGet("/api/propietarios")]
         public async Task<IActionResult> ObtenerPropietarios()
         {
             var result = await _catalogosRepository.ObtenerPropietariosAsync();

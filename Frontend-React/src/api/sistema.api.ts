@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { catalogosApi } from './catalogos.api';
 import type {
   UsuarioDto,
   GuardarUsuarioDto,
@@ -112,15 +113,15 @@ export const sistemaApi = {
 
   getReporteFincas: async (fechaInicio: string, fechaFin: string, fincaIds?: string): Promise<any[]> => {
     try {
-      const [rutasRes, fincasRes, bcvRes, adelantosRes] = await Promise.all([
+      const [rutasRes, fincasList, bcvRes, adelantosRes] = await Promise.all([
         apiClient.get<any[]>('/rutas/hoy', { params: { fechaInicio, fechaFin } }).catch(() => ({ data: [] })),
-        apiClient.get<any[]>('/catalogos/fincas').catch(() => ({ data: [] })),
+        catalogosApi.getFincas(false).catch(() => []),
         apiClient.get<any>('/bcv/actual').catch(() => ({ data: { tasaDolarBs: 889.5754 } })),
         apiClient.get<any[]>('/adelantos', { params: { tipoEntidad: 'FINCA' } }).catch(() => ({ data: [] })),
       ]);
 
       const rutas = Array.isArray(rutasRes.data) ? rutasRes.data : [];
-      const fincas = Array.isArray(fincasRes.data) ? fincasRes.data : [];
+      const fincas = Array.isArray(fincasList) ? fincasList : [];
       const tasaBcv = Number(bcvRes.data?.tasaDolarBs || bcvRes.data?.tasa || 889.5754);
       const adelantos = Array.isArray(adelantosRes.data) ? adelantosRes.data : [];
 
@@ -134,11 +135,13 @@ export const sistemaApi = {
       const fincasMap = new Map<number, any>();
       fincas.forEach((f: any) => fincasMap.set(Number(f.id), f));
 
-      // Agrupar recolecciones por fincaId
+      // Agrupar recolecciones por fincaId (solo fincas activas)
       const recoleccionesPorFinca = new Map<number, any[]>();
       rutas.forEach((r: any) => {
         const fId = Number(r.fincaId);
         if (!fId || fId === 68) return;
+        const fInfo = fincasMap.get(fId);
+        if (fInfo && fInfo.activo === false) return;
         if (filtroIds.length > 0 && !filtroIds.includes(fId)) return;
         const arr = recoleccionesPorFinca.get(fId) || [];
         arr.push(r);

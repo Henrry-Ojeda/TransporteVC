@@ -112,14 +112,19 @@ export const RutasLogisticaPage: React.FC = () => {
     return promedioGlobalReferencia;
   };
 
-  const { data: fincas = [] } = useQuery<FincaDto[]>({
+  const { data: fincasRaw = [] } = useQuery<FincaDto[]>({
     queryKey: ['fincas'],
     queryFn: () => catalogosApi.getFincas(true),
   });
 
-  // Fincas sin ruta asignada (Huérfanas / Pendientes)
+  // Las materas/fincas INACTIVAS nunca se muestran ni se asocian a las rutas logísticas
+  const fincas = useMemo(() => {
+    return fincasRaw.filter((f) => f.activo !== false);
+  }, [fincasRaw]);
+
+  // Fincas sin ruta asignada (Huérfanas / Pendientes, solo ACTIVAS)
   const fincasSinRuta = useMemo(() => {
-    return fincas.filter((f) => !f.rutaId || f.rutaId === 0);
+    return fincas.filter((f) => f.activo !== false && (!f.rutaId || f.rutaId === 0));
   }, [fincas]);
 
   // Cálculo de Capacidad, Litros y Rendimiento en tiempo real
@@ -149,7 +154,10 @@ export const RutasLogisticaPage: React.FC = () => {
         rId = res.id;
       }
       if (rId) {
-        await operacionesApi.asignarFincasARuta(rId, fincasSeleccionadas);
+        const fincasActivasIds = fincasSeleccionadas.filter((id) =>
+          fincas.some((f) => f.id === id && f.activo !== false)
+        );
+        await operacionesApi.asignarFincasARuta(rId, fincasActivasIds);
       }
       return { id: rId };
     },
@@ -446,7 +454,7 @@ export const RutasLogisticaPage: React.FC = () => {
       sortable: true,
       cell: (row) => (
         <span className="text-xs font-semibold text-gray-700">
-          {row.propietarioNombre || 'Sin propietario asignado'}
+          {(row as any).propietario || row.propietarioNombre || 'Sin propietario asignado'}
         </span>
       ),
     },
@@ -1101,8 +1109,8 @@ export const RutasLogisticaPage: React.FC = () => {
       {/* ========================================================================= */}
       {modalAsignarFincaDirecta && fincaParaAsignarDirecta && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden my-auto border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-visible my-auto border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex items-center justify-between rounded-t-2xl">
               <div className="flex items-center gap-2.5">
                 <RouteIcon className="w-5 h-5 text-white" />
                 <h3 className="text-base font-extrabold text-white">
@@ -1112,13 +1120,13 @@ export const RutasLogisticaPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setModalAsignarFincaDirecta(false)}
-                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-visible">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                   Finca Seleccionada:
@@ -1127,11 +1135,11 @@ export const RutasLogisticaPage: React.FC = () => {
                   {fincaParaAsignarDirecta.nombre}
                 </strong>
                 <span className="text-xs text-slate-600 block mt-0.5">
-                  Propietario: {fincaParaAsignarDirecta.propietarioNombre || 'Sin propietario'} • ~{getPromedioReal15Dias(fincaParaAsignarDirecta.id, fincaParaAsignarDirecta)} Lts/d
+                  Propietario: {(fincaParaAsignarDirecta as any).propietario || fincaParaAsignarDirecta.propietarioNombre || 'Productor'} • ~{getPromedioReal15Dias(fincaParaAsignarDirecta.id, fincaParaAsignarDirecta)} Lts/d
                 </span>
               </div>
 
-              <div>
+              <div className="relative z-30">
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Selecciona la Ruta Logística de Destino:
                 </label>
@@ -1149,7 +1157,7 @@ export const RutasLogisticaPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 rounded-b-2xl">
               <button
                 type="button"
                 onClick={() => setModalAsignarFincaDirecta(false)}

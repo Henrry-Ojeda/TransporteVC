@@ -33,7 +33,7 @@ export const BufalaPage: React.FC = () => {
 
   const { data: fincas = [] } = useQuery<FincaDto[]>({
     queryKey: ['fincas-bufala'],
-    queryFn: () => catalogosApi.getFincas(false),
+    queryFn: () => catalogosApi.getFincas(true),
   });
 
   const { data: companias = [] } = useQuery<CompaniaDto[]>({
