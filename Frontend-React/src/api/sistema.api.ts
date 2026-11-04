@@ -116,7 +116,7 @@ export const sistemaApi = {
       const [rutasRes, fincasList, bcvRes, adelantosRes] = await Promise.all([
         apiClient.get<any[]>('/rutas/hoy', { params: { fechaInicio, fechaFin } }).catch(() => ({ data: [] })),
         catalogosApi.getFincas(false).catch(() => []),
-        apiClient.get<any>('/bcv/actual').catch(() => ({ data: { tasaDolarBs: 889.5754 } })),
+        apiClient.get<any>('/bcv/hoy').catch(() => ({ data: { tasaDolarBs: 889.5754 } })),
         apiClient.get<any[]>('/adelantos', { params: { tipoEntidad: 'FINCA' } }).catch(() => ({ data: [] })),
       ]);
 
