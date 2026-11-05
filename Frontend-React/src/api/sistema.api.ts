@@ -343,4 +343,9 @@ export const sistemaApi = {
     const res = await apiClient.get<any[]>('/reportes/bancos', { params });
     return Array.isArray(res.data) ? res.data : [];
   },
+
+  getBcvHoy: async (): Promise<any> => {
+    const res = await apiClient.get<any>('/bcv/hoy').catch(() => ({ data: { tasaDolarBs: 889.5754, tasa: 889.5754 } }));
+    return res.data;
+  },
 };

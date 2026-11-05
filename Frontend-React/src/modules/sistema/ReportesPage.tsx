@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { finanzasApi } from '@/api/finanzas.api';
+import { bcvApi } from '@/api/bcv.api';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 export type TipoReporteOficial =
@@ -111,7 +112,7 @@ export const ReportesPage: React.FC = () => {
 
   const { data: bcvHoy } = useQuery({
     queryKey: ['bcv-hoy-reportes'],
-    queryFn: () => sistemaApi.getBcvHoy(),
+    queryFn: () => bcvApi.getTasaHoy(),
     staleTime: 1000 * 60 * 5,
   });
 
