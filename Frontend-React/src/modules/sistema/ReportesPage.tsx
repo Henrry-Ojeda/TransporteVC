@@ -156,7 +156,7 @@ export const ReportesPage: React.FC = () => {
 
   // Options para SearchableSelects
   const fincasOptions = useMemo(() => {
-    const opts: SelectOption[] = [{ value: '', label: '-- Todas las Fincas Ganaderas --' }];
+    const opts: SelectOption[] = [];
     (fincas || []).forEach((f: any) => {
       const id = f.id ?? f.Id;
       const nom = f.nombre ?? f.Nombre ?? `Finca #${id}`;
@@ -172,7 +172,7 @@ export const ReportesPage: React.FC = () => {
   }, [fincas]);
 
   const companiasOptions = useMemo(() => {
-    const opts = [{ value: '', label: '-- Todas las Plantas / Receptorías --' }];
+    const opts: SelectOption[] = [];
     companias.forEach((c: any) => {
       opts.push({
         value: String(c.id || c.Id),
@@ -183,7 +183,7 @@ export const ReportesPage: React.FC = () => {
   }, [companias]);
 
   const choferesOptions = useMemo(() => {
-    const opts = [{ value: '', label: '-- Todos los Choferes / Rutas --' }];
+    const opts: SelectOption[] = [];
     choferes.forEach((ch: any) => {
       opts.push({
         value: String(ch.id || ch.Id),
@@ -194,7 +194,7 @@ export const ReportesPage: React.FC = () => {
   }, [choferes]);
 
   const bancosOptions = useMemo(() => {
-    const opts = [{ value: '', label: '-- Todos los Bancos --' }];
+    const opts: SelectOption[] = [];
     bancos.forEach((b: any) => {
       opts.push({
         value: String(b.id || b.Id),
@@ -251,13 +251,26 @@ export const ReportesPage: React.FC = () => {
             undefined,
             tasaBcvActiva
           );
-        case 'RELACION_CHOFER':
-          return await sistemaApi.getReporteRelacionChoferes(fechaInicio, fechaFin);
+        case 'RELACION_CHOFER': {
+          const res = await sistemaApi.getReporteRelacionChoferes(fechaInicio, fechaFin);
+          if (choferId) {
+            return (res || []).filter((r: any) => String(r.usuarioId || r.UsuarioId) === String(choferId));
+          }
+          return res;
+        }
         default:
           return [];
       }
     },
     staleTime: 1000 * 60 * 3,
+    enabled:
+      tipoReporte === 'DIARIOS' ||
+      (tipoReporte === 'FINCAS' && Boolean(finca1Id || finca2Id)) ||
+      (tipoReporte === 'RECEPTORIAS' && Boolean(companiaId)) ||
+      (tipoReporte === 'CHOFERES' && Boolean(choferId)) ||
+      (tipoReporte === 'RELACION_CHOFER' && Boolean(choferId)) ||
+      (tipoReporte === 'BANCOS' && Boolean(bancoId)) ||
+      (tipoReporte === 'RELACION_PAGOS_COMPANIAS' && Boolean(companiaId)),
   });
 
   // Query de Historial de Precios para el modal de auditoría
@@ -801,7 +814,7 @@ export const ReportesPage: React.FC = () => {
                     options={fincasOptions}
                     value={finca1Id}
                     onChange={(val) => setFinca1Id(String(val || ''))}
-                    placeholder="Escriba para buscar Finca 1..."
+                    placeholder="Seleccionar Finca 1..."
                     searchPlaceholder="Buscar finca por nombre o productor..."
                   />
                 </div>
@@ -813,7 +826,7 @@ export const ReportesPage: React.FC = () => {
                     options={fincasOptions}
                     value={finca2Id}
                     onChange={(val) => setFinca2Id(String(val || ''))}
-                    placeholder="Escriba para buscar Finca 2..."
+                    placeholder="Seleccionar Finca 2 (Opcional)..."
                     searchPlaceholder="Buscar finca por nombre o productor..."
                   />
                 </div>
@@ -831,38 +844,26 @@ export const ReportesPage: React.FC = () => {
                     options={companiasOptions}
                     value={companiaId}
                     onChange={(val) => setCompaniaId(String(val || ''))}
-                    placeholder="Escriba para buscar Receptoría / Planta..."
+                    placeholder="Seleccionar Receptoría / Planta..."
                     searchPlaceholder="Buscar receptoría..."
                   />
                 </div>
               </div>
             )}
 
-            {/* Subfiltro CHOFERES: Conductor y Finca */}
+            {/* Subfiltro CHOFERES: Solo Conductor (1:1 V2) */}
             {tipoReporte === 'CHOFERES' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 420px)', gap: '20px' }}>
                 <div>
                   <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
-                    <i className="fa-solid fa-id-badge" style={{ color: '#0284c7' }}></i> Conductor / Chofer (Opcional):
+                    <i className="fa-solid fa-id-badge" style={{ color: '#0284c7' }}></i> Conductor / Chofer:
                   </label>
                   <SearchableSelect
                     options={choferesOptions}
                     value={choferId}
                     onChange={(val) => setChoferId(String(val || ''))}
-                    placeholder="Todos los choferes o escriba para buscar..."
+                    placeholder="Seleccionar conductor..."
                     searchPlaceholder="Buscar conductor..."
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
-                    <i className="fa-solid fa-cow" style={{ color: '#2563eb' }}></i> Filtrar por Finca (Opcional):
-                  </label>
-                  <SearchableSelect
-                    options={fincasOptions}
-                    value={finca1Id}
-                    onChange={(val) => setFinca1Id(String(val || ''))}
-                    placeholder="Todas las fincas o escriba para buscar..."
-                    searchPlaceholder="Buscar finca..."
                   />
                 </div>
               </div>
@@ -879,7 +880,7 @@ export const ReportesPage: React.FC = () => {
                     options={bancosOptions}
                     value={bancoId}
                     onChange={(val) => setBancoId(String(val || ''))}
-                    placeholder="TODOS LOS BANCOS"
+                    placeholder="Seleccionar Banco..."
                     searchPlaceholder="Buscar banco..."
                   />
                 </div>
@@ -917,7 +918,7 @@ export const ReportesPage: React.FC = () => {
                     options={companiasOptions}
                     value={companiaId}
                     onChange={(val) => setCompaniaId(String(val || ''))}
-                    placeholder="Todas las Compañías..."
+                    placeholder="Seleccionar Compañía..."
                     searchPlaceholder="Buscar compañía..."
                   />
                 </div>
@@ -1038,6 +1039,54 @@ export const ReportesPage: React.FC = () => {
           <div style={{ textAlign: 'center', padding: '50px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '32px', color: '#2563eb', marginBottom: '12px', display: 'block' }}></i>
             <div style={{ fontWeight: 700, color: '#0f172a' }}>Cargando datos del reporte oficial...</div>
+          </div>
+        ) : tipoReporte === 'FINCAS' && !finca1Id && !finca2Id ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <i className="fa-solid fa-cow" style={{ fontSize: '40px', marginBottom: '12px', color: '#4f46e5', display: 'block' }}></i>
+            <h3 style={{ fontSize: '16px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>Escriba y Seleccione una Finca</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Seleccione en el campo <strong>Finca Principal</strong> (y opcionalmente <strong>Comparar / 2da Finca</strong>) para consultar su reporte.
+            </p>
+          </div>
+        ) : tipoReporte === 'RECEPTORIAS' && !companiaId ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <i className="fa-solid fa-truck" style={{ fontSize: '40px', marginBottom: '12px', color: '#059669', display: 'block' }}></i>
+            <h3 style={{ fontSize: '16px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>Seleccione una Receptoría / Planta</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Seleccione en el campo <strong>Receptoría o Planta</strong> para buscar y consultar sus entregas.
+            </p>
+          </div>
+        ) : tipoReporte === 'CHOFERES' && !choferId ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <i className="fa-solid fa-user-tie" style={{ fontSize: '40px', marginBottom: '12px', color: '#0284c7', display: 'block' }}></i>
+            <h3 style={{ fontSize: '16px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>Seleccione un Conductor / Chofer</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Seleccione un chofer para visualizar el reporte detallado de recolecciones.
+            </p>
+          </div>
+        ) : tipoReporte === 'RELACION_CHOFER' && !choferId ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <i className="fa-solid fa-truck-arrow-right" style={{ fontSize: '40px', marginBottom: '12px', color: '#ea580c', display: 'block' }}></i>
+            <h3 style={{ fontSize: '16px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>Seleccione un Conductor / Chofer</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Seleccione un chofer para ver la relación de viajes, entregas y mermas.
+            </p>
+          </div>
+        ) : tipoReporte === 'BANCOS' && !bancoId ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <i className="fa-solid fa-building-columns" style={{ fontSize: '40px', marginBottom: '12px', color: '#d97706', display: 'block' }}></i>
+            <h3 style={{ fontSize: '16px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>Seleccione un Banco</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Seleccione una entidad bancaria para generar la nómina de transferencias y pagos.
+            </p>
+          </div>
+        ) : tipoReporte === 'RELACION_PAGOS_COMPANIAS' && !companiaId ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <i className="fa-solid fa-building-wheat" style={{ fontSize: '40px', marginBottom: '12px', color: '#9333ea', display: 'block' }}></i>
+            <h3 style={{ fontSize: '16px', color: '#0f172a', fontWeight: 700, marginBottom: '6px' }}>Seleccione una Compañía / Planta</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Seleccione una planta o compañía receptora para ver la relación de pagos y entregas.
+            </p>
           </div>
         ) : (
           <>
@@ -1506,7 +1555,11 @@ const RenderReporteFincas: React.FC<{
     };
   });
 
-  // Grand Totals Consolidados (1:1 V2_3_11_26)
+  const cardObj1 = cardsArray[0] || null;
+  const cardObj2 = cardsArray[1] || null;
+  const tieneDosTablas = Boolean(cardObj1 && cardObj2);
+
+  // Grand Totals Consolidados (1:1 V2_3_11_26) - Sumar estrictamente las 2 fincas seleccionadas
   let grandTotalLitrosBuena = 0;
   let grandTotalLitrosMala = 0;
   let grandTotalUSD = 0;
@@ -1514,7 +1567,8 @@ const RenderReporteFincas: React.FC<{
   let grandTotalAdelantosUSD = 0;
   let grandTotalAdelantosBs = 0;
 
-  cardsArray.forEach((f) => {
+  const fincasParaConsolidar = tieneDosTablas ? [cardObj1, cardObj2].filter(Boolean) : cardsArray;
+  fincasParaConsolidar.forEach((f) => {
     grandTotalLitrosBuena += f.totalLitrosBuena;
     grandTotalLitrosMala += f.totalLitrosMala;
     grandTotalUSD += f.fincaTotalUSD;
@@ -1530,10 +1584,6 @@ const RenderReporteFincas: React.FC<{
   const saldoDeudaBs = grandTotalAdelantosBs > grandTotalBs ? (grandTotalAdelantosBs - grandTotalBs) : 0;
   const tieneSaldoDeudor = saldoDeudaUSD > 0.001 || saldoDeudaBs > 0.01;
   const tieneGrandTotalMala = grandTotalLitrosMala > 0;
-  const tieneDosTablas = cardsArray.length >= 2;
-
-  const cardObj1 = cardsArray[0] || null;
-  const cardObj2 = cardsArray[1] || null;
 
   const prop1 = (cardObj1?.propietario || '').trim().toUpperCase();
   const prop2 = (cardObj2?.propietario || '').trim().toUpperCase();
@@ -2948,174 +2998,421 @@ const RenderReporteRelacionChoferes: React.FC<{
   onCambiarFiltroTermino: (val: string) => void;
   onCapturar: (el: HTMLElement | null, titulo: string) => void;
   onExportarExcel: (html: string, nombre: string) => void;
-}> = ({ data, fechaDesde, fechaHasta, filtroTermino, onCambiarFiltroTermino }) => {
+}> = ({ data, fechaDesde, fechaHasta, filtroTermino, onCambiarFiltroTermino, onCapturar, onExportarExcel }) => {
   const lista = Array.isArray(data) ? data : [];
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filtrado en tiempo real
+  // Filtrado en vivo reactivo (1:1 V2_3_11_26)
   const datosFiltrados = useMemo(() => {
-    const term = (filtroTermino || '').trim().toLowerCase();
-    if (!term) return lista;
+    const termClean = (filtroTermino || '').trim().toLowerCase();
+    if (!termClean) return lista;
 
     return lista
       .map((r: any) => {
         const chName = (r.chofer || '').toLowerCase();
-        const fincas = r.detalleFincas || [];
-        const fincasMatch = fincas.filter((f: any) => {
-          const fNom = (f.fincaNombre || '').toLowerCase();
-          const fProp = (f.propietario || '').toLowerCase();
-          const fTipo = (f.tipoLeche || '').toLowerCase();
-          return fNom.includes(term) || fProp.includes(term) || fTipo.includes(term);
+        const fincas = r.detalleFincas || r.DetalleFincas || [];
+        const fincasCoincidentes = fincas.filter((f: any) => {
+          const fNom = (f.fincaNombre || f.FincaNombre || '').toLowerCase();
+          const fProp = (f.propietario || f.Propietario || '').toLowerCase();
+          const fTipo = (f.tipoLeche || f.TipoLeche || '').toLowerCase();
+          const fObs = (f.observacion || f.Observacion || '').toLowerCase();
+          const fFec = formatearFechaLocal(f.fecha || f.Fecha).toLowerCase();
+          return fNom.includes(termClean) || fProp.includes(termClean) || fTipo.includes(termClean) || fObs.includes(termClean) || fFec.includes(termClean);
         });
 
-        if (chName.includes(term)) return r;
-        if (fincasMatch.length > 0) {
-          return { ...r, detalleFincas: fincasMatch };
+        if (chName.includes(termClean)) {
+          return r;
+        }
+        if (fincasCoincidentes.length > 0) {
+          return { ...r, detalleFincas: fincasCoincidentes, DetalleFincas: fincasCoincidentes };
         }
         return null;
       })
       .filter(Boolean);
   }, [lista, filtroTermino]);
 
-  // Cálculos de KPIs Superiores
+  // Cálculos de KPIs Superiores Globales (1:1 V2_3_11_26)
   let sumLitrosRuta = 0;
   let sumLitrosQuesera = 0;
   let sumDiferencias = 0;
 
   datosFiltrados.forEach((r: any) => {
     const lRuta = Number(r.litrosRuta || 0);
-    const lQues = Number(r.litrosQuesera || 0);
-    const diff = Number(r.diferencias != null ? r.diferencias : lRuta - lQues);
+    const lQuesera = Number(r.litrosQuesera || 0);
+    const diff = Number(r.diferencias != null ? r.diferencias : (lRuta - lQuesera));
 
     sumLitrosRuta += lRuta;
-    sumLitrosQuesera += lQues;
+    sumLitrosQuesera += lQuesera;
     sumDiferencias += diff;
   });
 
-  const pctMerma = sumLitrosRuta > 0 ? ((Math.abs(sumDiferencias) / sumLitrosRuta) * 100).toFixed(2) : '0.00';
+  const pctTotalMerma = sumLitrosRuta > 0 ? ((Math.abs(sumDiferencias) / sumLitrosRuta) * 100).toFixed(2) : '0.00';
+
+  if (lista.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', background: '#ffffff', borderRadius: '16px', border: '1.5px dashed #cbd5e1', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <i className="fa-solid fa-truck-ramp-box" style={{ fontSize: '38px', marginBottom: '12px', display: 'block', color: '#94a3b8' }}></i>
+        <div style={{ fontWeight: 800, fontSize: '16px', color: '#1e293b' }}>No se encontraron viajes o recolecciones</div>
+        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+          En el rango seleccionado ({formatearFechaLocal(fechaDesde)} al {formatearFechaLocal(fechaHasta)}).
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      {/* Buscador Reactivo en Vivo */}
-      <div style={{ marginBottom: '14px', position: 'relative', maxWidth: '420px' }}>
-        <i
-          className="fa-solid fa-magnifying-glass"
-          style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}
-        ></i>
+    <div ref={containerRef}>
+      {/* BUSCADOR EN VIVO DE FINCA / CONDUCTOR (1:1 V2_3_11_26) */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1.5px solid #cbd5e1',
+          borderRadius: '12px',
+          padding: '10px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        }}
+      >
+        <i className="fa-solid fa-magnifying-glass" style={{ color: '#2563eb', fontSize: '16px' }}></i>
         <input
           type="text"
-          className="form-input"
-          placeholder="Filtrar por chofer, finca o propietario..."
           value={filtroTermino}
           onChange={(e) => onCambiarFiltroTermino(e.target.value)}
-          style={{ paddingLeft: '34px', height: '40px', fontWeight: 600, width: '100%' }}
+          placeholder="Filtrar en vivo por Finca, Propietario, Conductor o Tipo de Leche..."
+          style={{
+            border: 'none',
+            outline: 'none',
+            width: '100%',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            color: '#0f172a',
+            background: 'transparent',
+          }}
+          autoComplete="off"
         />
+        {filtroTermino && (
+          <button
+            type="button"
+            onClick={() => onCambiarFiltroTermino('')}
+            title="Limpiar filtro"
+            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '14px', padding: '4px' }}
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        )}
       </div>
 
-      {/* 4 KPIs Resumen Superior (1:1 V2_3_11_26) */}
+      {/* KPI RESUMEN SUPERIOR (1:1 V2_3_11_26) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '14px', padding: '14px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
           <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total Litros Finca</div>
-          <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>
-            {formatearNumero(sumLitrosRuta)} L
-          </div>
+          <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{formatearNumero(sumLitrosRuta)} L</div>
         </div>
-        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '14px', padding: '14px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
           <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total Litros Destino</div>
-          <div style={{ fontSize: '18px', fontWeight: 900, color: '#2563eb', marginTop: '4px' }}>
-            {formatearNumero(sumLitrosQuesera)} L
-          </div>
+          <div style={{ fontSize: '18px', fontWeight: 900, color: '#2563eb', marginTop: '4px' }}>{formatearNumero(sumLitrosQuesera)} L</div>
         </div>
-        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '14px', padding: '14px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
           <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Merma Total</div>
-          <div style={{ fontSize: '18px', fontWeight: 900, color: sumDiferencias > 0 ? '#b91c1c' : '#047857', marginTop: '4px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 900, color: sumDiferencias > 0 ? '#b91c1c' : (sumDiferencias < 0 ? '#047857' : '#475569'), marginTop: '4px' }}>
             {sumDiferencias > 0 ? `+${formatearNumero(sumDiferencias)}` : formatearNumero(sumDiferencias)} L
           </div>
         </div>
-        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+        <div style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '14px', padding: '14px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
           <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>% Merma Ponderado</div>
-          <div style={{ fontSize: '18px', fontWeight: 900, color: parseFloat(pctMerma) > 1.0 ? '#b91c1c' : '#047857', marginTop: '4px' }}>
-            {pctMerma}%
+          <div style={{ fontSize: '18px', fontWeight: 900, color: parseFloat(pctTotalMerma) > 1.0 ? '#b91c1c' : '#047857', marginTop: '4px' }}>
+            {pctTotalMerma}%
           </div>
         </div>
       </div>
 
-      {/* Listado de Tarjetas de Conductores */}
+      {/* HEADER DE SECCIÓN */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+          <i className="fa-solid fa-truck-moving" style={{ color: '#2563eb', marginRight: '6px' }}></i> RELACIÓN DE CONDUCTORES Y VIAJES
+        </div>
+        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, background: '#f1f5f9', padding: '4px 10px', borderRadius: '8px' }}>
+          <i className="fa-regular fa-calendar-check" style={{ marginRight: '4px' }}></i> Período: {formatearFechaLocal(fechaDesde)} al {formatearFechaLocal(fechaHasta)}
+        </div>
+      </div>
+
+      {/* TARJETAS DE CHOFERES (1:1 V2_3_11_26) */}
       {datosFiltrados.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '30px', background: '#f8fafc', borderRadius: '12px', border: '1.5px dashed #cbd5e1', color: '#64748b' }}>
-          No se encontraron coincidencias para "{filtroTermino}".
+        <div style={{ textAlign: 'center', padding: '30px', background: '#f8fafc', borderRadius: '12px', border: '1.5px dashed #cbd5e1', color: '#64748b', fontSize: '13.5px', fontWeight: 600 }}>
+          <i className="fa-solid fa-magnifying-glass" style={{ fontSize: '24px', marginBottom: '8px', display: 'block', color: '#94a3b8' }}></i>
+          No se encontraron fincas o conductores que coincidan con <strong>"{filtroTermino}"</strong>.
         </div>
       ) : (
         datosFiltrados.map((r: any, idx: number) => {
           const lRuta = Number(r.litrosRuta || 0);
-          const lQues = Number(r.litrosQuesera || 0);
-          const diff = Number(r.diferencias != null ? r.diferencias : lRuta - lQues);
-          const fincas = r.detalleFincas || [];
+          const lQuesera = Number(r.litrosQuesera || 0);
+          const diff = Number(r.diferencias != null ? r.diferencias : (lRuta - lQuesera));
+          const pctMerma = lRuta > 0 ? ((Math.abs(diff) / lRuta) * 100).toFixed(2) : '0.00';
+          const fincas = r.detalleFincas || r.DetalleFincas || [];
+          const choferName = (r.chofer || 'OTROS').toUpperCase();
+
+          let badgeBg = '#ecfdf5';
+          let badgeColor = '#047857';
+          let badgeBorder = '#a7f3d0';
+          let statusLabel = 'Normal';
+          let statusIcon = <i className="fa-solid fa-circle-check" style={{ color: '#10b981' }}></i>;
+
+          if (diff > 0 && parseFloat(pctMerma) > 1.0) {
+            badgeBg = '#fef2f2';
+            badgeColor = '#b91c1c';
+            badgeBorder = '#fecaca';
+            statusLabel = 'Merma Alta';
+            statusIcon = <i className="fa-solid fa-triangle-exclamation" style={{ color: '#ef4444' }}></i>;
+          } else if (diff > 0 && parseFloat(pctMerma) > 0.0) {
+            badgeBg = '#fffbeb';
+            badgeColor = '#b45309';
+            badgeBorder = '#fde68a';
+            statusLabel = 'Merma Leve';
+            statusIcon = <i className="fa-solid fa-circle-exclamation" style={{ color: '#f59e0b' }}></i>;
+          }
 
           return (
             <div
               key={idx}
-              className="content-card"
-              style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '16px', marginBottom: '16px' }}
+              style={{
+                background: '#ffffff',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: '16px',
+                marginBottom: '20px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
+              }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                  <i className="fa-solid fa-truck" style={{ color: '#2563eb', marginRight: '6px' }}></i>
-                  {r.chofer?.toUpperCase() || 'CONDUCTOR'}
+              {/* HEADER CHOFER CON DEGRADADO OSCURO 1:1 V2_3_11_26 */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  color: '#ffffff',
+                  padding: '14px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: 'rgba(37,99,235,0.25)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '18px',
+                      color: '#60a5fa',
+                    }}
+                  >
+                    <i className="fa-solid fa-user-gear"></i>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '0.02em', color: '#ffffff' }}>
+                      {choferName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+                      {fincas.length} recolecciones registradas
+                    </div>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', fontSize: '12.5px', fontWeight: 700 }}>
-                  <span style={{ color: '#334155' }}>Fincas: {formatearNumero(lRuta)} L</span>
-                  <span style={{ color: '#2563eb' }}>Destino: {formatearNumero(lQues)} L</span>
-                  <span style={{ color: diff > 0 ? '#dc2626' : '#16a34a' }}>
-                    Diff: {diff > 0 ? `+${formatearNumero(diff)}` : formatearNumero(diff)} L
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      fontSize: '12px',
+                      background: badgeBg,
+                      color: badgeColor,
+                      border: `1px solid ${badgeBorder}`,
+                    }}
+                  >
+                    Merma: {pctMerma}%
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      background: 'rgba(255,255,255,0.1)',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    {statusIcon} {statusLabel}
                   </span>
                 </div>
               </div>
 
-              {/* Desglose de Fincas */}
-              <div style={{ overflowX: 'auto' }}>
-                <table className="table-reporte-demarcada" style={{ fontSize: '11.5px' }}>
-                  <thead>
-                    <tr>
-                      <th>FECHA</th>
-                      <th>FINCA</th>
-                      <th>PROPIETARIO</th>
-                      <th>TIPO LECHE</th>
-                      <th>LITROS</th>
-                      <th>OBSERVACIÓN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fincas.length === 0 ? (
+              {/* RESUMEN EN CIFRAS DEL CHOFER (SIN DÓLARES) */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gap: '10px',
+                  padding: '12px 16px',
+                  background: '#f8fafc',
+                  borderBottom: '1.5px solid #e2e8f0',
+                }}
+              >
+                <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Litros Recogidos (Ruta)</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>{formatearNumero(lRuta)} L</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Litros Entregados (Destino)</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#2563eb', marginTop: '2px' }}>{formatearNumero(lQuesera)} L</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Diferencia / Merma</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: diff > 0 ? '#b91c1c' : (diff < 0 ? '#047857' : '#475569'), marginTop: '2px' }}>
+                    {diff > 0 ? `+${formatearNumero(diff)}` : (diff < 0 ? formatearNumero(diff) : '0')} L
+                  </div>
+                </div>
+              </div>
+
+              {/* DESGLOSE DE FINCAS RECOGIDAS, FECHAS Y OBSERVACIONES */}
+              <div style={{ padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-list-check" style={{ color: '#2563eb' }}></i>
+                    FINCAS RECOGIDAS, FECHAS Y OBSERVACIONES
+                    <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '10px', fontWeight: 800 }}>
+                      {fincas.length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* TABLA RESPONSIVA 1:1 V2_3_11_26 */}
+                <div className="table-responsive" style={{ margin: 0, border: 'none' }}>
+                  <table className="table-reporte-demarcada" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
                       <tr>
-                        <td colSpan={6} style={{ color: '#94a3b8', fontStyle: 'italic', padding: '12px' }}>
-                          Sin fincas desglosadas en este período
-                        </td>
+                        <th style={{ width: '15%', padding: '9px 12px', textAlign: 'center' }}>FECHA</th>
+                        <th style={{ width: '30%', padding: '9px 12px', textAlign: 'left' }}>FINCA / PROPIETARIO</th>
+                        <th style={{ width: '15%', padding: '9px 12px', textAlign: 'center' }}>TIPO LECHE</th>
+                        <th style={{ width: '15%', padding: '9px 12px', textAlign: 'right' }}>LITROS</th>
+                        <th style={{ width: '20%', padding: '9px 12px', textAlign: 'left' }}>OBSERVACIONES</th>
+                        <th style={{ width: '5%', padding: '9px 12px', textAlign: 'center' }}>TICKET</th>
                       </tr>
-                    ) : (
-                      fincas.map((f: any, fIdx: number) => (
-                        <tr key={fIdx}>
-                          <td>{formatearFechaLocal(f.fecha)}</td>
-                          <td className="text-left" style={{ fontWeight: 800 }}>
-                            {f.fincaNombre}
+                    </thead>
+                    <tbody>
+                      {fincas.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '18px', color: '#94a3b8', fontStyle: 'italic' }}>
+                            Sin fincas registradas en este período
                           </td>
-                          <td className="text-left">{f.propietario || '-'}</td>
-                          <td>
-                            <span className="badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
-                              {f.tipoLeche || 'VACA'}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight: 800 }}>{formatearNumero(f.litros)}</td>
-                          <td className="text-left">{f.observacion || '-'}</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        fincas.map((f: any, fIdx: number) => {
+                          const fLitros = Number(f.litros || f.Litros || 0);
+                          const fFecha = formatearFechaLocal(f.fecha || f.Fecha);
+                          const fNombre = (f.fincaNombre || f.FincaNombre || `Finca #${f.fincaId || f.FincaId || ''}`).toUpperCase();
+                          const fProp = (f.propietario || f.Propietario || '').trim();
+                          const fTipo = (f.tipoLeche || f.TipoLeche || 'VACA').toUpperCase();
+                          const fObs = (f.observacion || f.Observacion || '').trim();
+                          const fTicket = f.ticketControlId || f.TicketControlId || '';
+
+                          let tipoBadge = (
+                            <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase' }}>
+                              🥛 VACA
+                            </span>
+                          );
+                          if (fTipo.includes('BUF') || fTipo.includes('BÚF')) {
+                            tipoBadge = (
+                              <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase' }}>
+                                🐃 BÚFALA
+                              </span>
+                            );
+                          } else if (fTipo.includes('ACID') || fTipo.includes('ÁCID')) {
+                            tipoBadge = (
+                              <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase' }}>
+                                🍋 ÁCIDA
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <tr key={fIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ fontWeight: 700, color: '#334155', padding: '10px 12px', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                                <i className="fa-regular fa-calendar-days" style={{ color: '#2563eb', marginRight: '4px' }}></i> {fFecha}
+                              </td>
+                              <td style={{ fontWeight: 800, color: '#0f172a', padding: '10px 12px', textAlign: 'left' }}>
+                                <div>{fNombre}</div>
+                                {fProp && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{fProp}</div>}
+                              </td>
+                              <td style={{ textAlign: 'center', padding: '10px 12px' }}>
+                                {tipoBadge}
+                              </td>
+                              <td style={{ fontWeight: 900, color: '#059669', padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                {formatearNumero(fLitros)} L
+                              </td>
+                              <td style={{ padding: '10px 12px', fontSize: '12px', textAlign: 'left' }}>
+                                {fObs ? (
+                                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '3px solid #f59e0b', borderRadius: '6px', padding: '4px 8px', fontWeight: 600, color: '#92400e' }}>
+                                    <i className="fa-solid fa-comment-dots" style={{ color: '#d97706', marginRight: '4px' }}></i>
+                                    {fObs}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontStyle: 'italic', color: '#94a3b8' }}>Sin observaciones</span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center', padding: '10px 12px', fontSize: '11px', color: '#64748b', fontWeight: 700 }}>
+                                {fTicket ? (
+                                  <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>#{fTicket}</span>
+                                ) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           );
         })
       )}
+
+      {/* BOTONES INFERIORES */}
+      <div style={{ marginTop: '16px', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }} className="no-capture">
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => window.print()}
+          style={{ fontWeight: 700, borderRadius: '8px', padding: '8px 16px' }}
+        >
+          <i className="fa-solid fa-print"></i> Imprimir Reporte
+        </button>
+        <button
+          type="button"
+          className="btn btn-success"
+          onClick={() => {
+            if (containerRef.current) {
+              onExportarExcel(containerRef.current.innerHTML, `Relacion_Choferes_${fechaDesde}_al_${fechaHasta}`);
+            }
+          }}
+          style={{ fontWeight: 700, borderRadius: '8px', padding: '8px 18px', background: '#059669', color: '#ffffff', border: 'none', boxShadow: '0 2px 6px rgba(16,185,129,0.3)' }}
+        >
+          <i className="fa-solid fa-file-excel"></i> Exportar a Excel
+        </button>
+      </div>
     </div>
   );
 };

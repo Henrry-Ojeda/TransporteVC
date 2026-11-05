@@ -10042,9 +10042,9 @@ function verReciboPagoConsolidadoModal(propietarioNombre, fincaIds, tabActiva = 
     const fmtLts = (val) => Number(val || 0).toLocaleString('es-VE');
 
     const emp = window.empresaConfigData || {};
-    const empNombre = emp.nombre || 'TRANSPORTE VERGEL & CARRILLO';
-    const empRif = emp.rif || 'J-50000000-0';
-    const empDir = emp.direccion || 'Sector El Cruce, Estado Zulia, Venezuela';
+    const empNombre = emp.nombre || '';
+    const empRif = emp.rif || '';
+    const empDir = emp.direccion || '';
     const empLogoHtml = (emp.logoUrl && emp.logoUrl.trim().length > 10)
         ? `<img src="${emp.logoUrl}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">`
         : `<i class="fa-solid fa-truck-droplet" style="color: #38bdf8;"></i>`;
@@ -10253,13 +10253,13 @@ function verReciboPagoConsolidadoModal(propietarioNombre, fincaIds, tabActiva = 
                 <div style="text-align: center;">
                     <div style="border-bottom: 1.5px solid #475569; width: 75%; margin: 30px auto 8px auto;"></div>
                     <div style="font-size: 12px; font-weight: 800; color: #0f172a;">Autorizado y Liquidado por Administración</div>
-                    <div style="font-size: 11px; color: #64748b;">TRANSPORTE VERGEL & CARRILLO</div>
+                    <div style="font-size: 11px; color: #64748b;">${empNombre || 'ADMINISTRACIÓN CENTRAL'}</div>
                 </div>
             </div>
 
             <!-- SELLO DE VALIDACIÓN FOOTER -->
             <div style="margin-top: 22px; text-align: center; font-size: 10.5px; color: #94a3b8; font-weight: 600; letter-spacing: 0.4px;">
-                <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> COMPROBANTE EMITIDO ELECTRÓNICAMENTE | TRANSPORTE VERGEL & CARRILLO
+                <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> COMPROBANTE EMITIDO ELECTRÓNICAMENTE | ${empNombre || 'SISTEMA DE GESTIÓN'}
             </div>
 
         </div>
@@ -10486,9 +10486,9 @@ async function verDetalleCompraLecheConsolidadaModal(propietarioNombre, fincaIds
     const waTxtEscaped = encodeURIComponent(waTxt);
 
     const emp = window.empresaConfigData || {};
-    const empNombre = emp.nombre || 'TRANSPORTE VERGEL & CARRILLO';
-    const empRif = emp.rif || 'J-50000000-0';
-    const empDir = emp.direccion || 'Sector El Cruce, Estado Zulia, Venezuela';
+    const empNombre = emp.nombre || '';
+    const empRif = emp.rif || '';
+    const empDir = emp.direccion || '';
     const empLogoHtml = (emp.logoUrl && emp.logoUrl.trim().length > 10)
         ? `<img src="${emp.logoUrl}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">`
         : `<i class="fa-solid fa-truck-droplet" style="color: #38bdf8;"></i>`;
@@ -10690,14 +10690,14 @@ async function verDetalleCompraLecheConsolidadaModal(propietarioNombre, fincaIds
                 </div>
                 <div style="text-align: center;">
                     <div style="border-bottom: 1.5px solid #475569; width: 75%; margin: 26px auto 8px auto;"></div>
-                    <div style="font-size: 12px; font-weight: 800; color: #0f172a;">TRANSPORTE VERGEL & CARRILLO</div>
+                    <div style="font-size: 12px; font-weight: 800; color: #0f172a;">${empNombre || 'ADMINISTRACIÓN'}</div>
                     <div style="font-size: 11px; color: #64748b;">Administración y Liquidaciones</div>
                 </div>
             </div>
 
             <!-- SELLO DE VALIDACIÓN FOOTER -->
             <div style="margin-top: 22px; text-align: center; font-size: 10.5px; color: #94a3b8; font-weight: 600; letter-spacing: 0.4px;">
-                <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> COMPROBANTE EMITIDO ELECTRÓNICAMENTE | TRANSPORTE VERGEL & CARRILLO
+                <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> COMPROBANTE EMITIDO ELECTRÓNICAMENTE | ${empNombre || 'SISTEMA DE GESTIÓN'}
             </div>
 
         </div>
@@ -40075,11 +40075,11 @@ function popularFormularioEmpresa(data) {
     const inputLogoUrl = document.getElementById('empresaLogoUrl');
 
     if (inputId) inputId.value = data.id || 1;
-    if (inputNombre) inputNombre.value = data.nombre || 'TRANSPORTE VERGEL & CARRILLO';
-    if (inputRif) inputRif.value = data.rif || 'J-50000000-0';
-    if (inputTelefono) inputTelefono.value = data.telefono || '+58 414-0000000';
-    if (inputEmail) inputEmail.value = data.email || 'contacto@transporte-vergel-carrillo.com';
-    if (inputDireccion) inputDireccion.value = data.direccion || 'Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela';
+    if (inputNombre) inputNombre.value = data.nombre || '';
+    if (inputRif) inputRif.value = data.rif || '';
+    if (inputTelefono) inputTelefono.value = data.telefono || '';
+    if (inputEmail) inputEmail.value = data.email || '';
+    if (inputDireccion) inputDireccion.value = data.direccion || '';
     if (inputLogoUrl) inputLogoUrl.value = data.logoUrl || '';
 
     actualizarPreviewMembreteLive();
@@ -40087,11 +40087,11 @@ function popularFormularioEmpresa(data) {
 window.popularFormularioEmpresa = popularFormularioEmpresa;
 
 function actualizarPreviewMembreteLive() {
-    const nombre = document.getElementById('empresaNombre')?.value || 'TRANSPORTE VERGEL & CARRILLO';
-    const rif = document.getElementById('empresaRif')?.value || 'J-50000000-0';
-    const telefono = document.getElementById('empresaTelefono')?.value || '';
-    const email = document.getElementById('empresaEmail')?.value || '';
-    const direccion = document.getElementById('empresaDireccion')?.value || 'Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela';
+    const nombre = document.getElementById('empresaNombre')?.value || window.empresaConfigData?.nombre || '';
+    const rif = document.getElementById('empresaRif')?.value || window.empresaConfigData?.rif || '';
+    const telefono = document.getElementById('empresaTelefono')?.value || window.empresaConfigData?.telefono || '';
+    const email = document.getElementById('empresaEmail')?.value || window.empresaConfigData?.email || '';
+    const direccion = document.getElementById('empresaDireccion')?.value || window.empresaConfigData?.direccion || '';
     const logoUrl = document.getElementById('empresaLogoUrl')?.value || '';
 
     // Actualizar preview en la vista

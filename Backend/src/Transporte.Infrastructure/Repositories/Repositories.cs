@@ -4106,8 +4106,8 @@ namespace Transporte.Infrastructure.Repositories
             // 1. Resolver el Ciclo o Rango de Fechas
             int cId = 0;
             string codigoCiclo = "General";
-            DateTime fInicio = DateTime.MinValue;
-            DateTime fFin = DateTime.MaxValue;
+            DateTime fInicio = fechaInicio?.Date ?? DateTime.Today;
+            DateTime fFin = fechaFin?.Date.AddDays(1).AddTicks(-1) ?? DateTime.Today.AddDays(1).AddTicks(-1);
             decimal stockInicial = 0m;
 
             if (cicloId.HasValue && cicloId.Value > 0)

@@ -375,6 +375,8 @@ namespace Transporte.API.Controllers
         // CONFIGURACIÓN DE EMPRESA Y MEMBRETE
         // ==========================================
         [HttpGet("empresa")]
+        [HttpGet("/api/empresa")]
+        [HttpGet("/api/catalogos/empresa")]
         [AllowAnonymous]
         public async Task<IActionResult> ObtenerEmpresaConfig()
         {
@@ -384,6 +386,10 @@ namespace Transporte.API.Controllers
 
         [HttpPut("empresa")]
         [HttpPost("empresa")]
+        [HttpPut("/api/empresa")]
+        [HttpPost("/api/empresa")]
+        [HttpPut("/api/catalogos/empresa")]
+        [HttpPost("/api/catalogos/empresa")]
         [Authorize]
         public async Task<IActionResult> GuardarEmpresaConfig([FromBody] EmpresaConfigDto dto)
         {

@@ -41,11 +41,17 @@ namespace Transporte.API.Controllers
         [HttpGet("balance-volumetrico")]
         public async Task<IActionResult> ObtenerBalanceVolumetrico(
             [FromQuery] int? cicloId = null,
+            [FromQuery] DateTime? fecha = null,
             [FromQuery] DateTime? fechaInicio = null,
             [FromQuery] DateTime? fechaFin = null)
         {
             try
             {
+                if (fecha.HasValue && !fechaInicio.HasValue)
+                {
+                    fechaInicio = fecha.Value.Date;
+                    fechaFin = fecha.Value.Date.AddDays(1).AddTicks(-1);
+                }
                 var balance = await _entregasRepository.ObtenerBalanceVolumetricoAsync(cicloId, fechaInicio, fechaFin);
                 return Ok(balance);
             }
