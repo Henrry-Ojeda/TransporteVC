@@ -33,6 +33,8 @@ namespace Transporte.API.Multitenancy
         private static readonly ConcurrentDictionary<string, (TenantInfo info, DateTime cachedAt)> _tenantCache = new();
         private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
 
+        public static void InvalidateCache() => _tenantCache.Clear();
+
         private TenantInfo? _currentTenant;
 
         private static readonly Lazy<bool> _isDockerOrSqlInstancia = new(() =>

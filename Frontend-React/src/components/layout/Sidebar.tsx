@@ -186,37 +186,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
       <nav className="sidebar-nav">
         {isSidebarCollapsed ? (
-          /* MODO ACHICADO (68px): Íconos limpios, centrados con tooltip nativo, sin acordeón ni brinco de hover */
-          <div className="flex flex-col items-center py-2 space-y-1">
-            {groups.map((grp, grpIdx) => {
+          /* MODO ACHICADO (68px): Se muestran ÚNICAMENTE las categorías ("OPERACIONES", "CATÁLOGOS", "FLOTA", etc.) */
+          <div className="flex flex-col items-center py-2 space-y-2">
+            {groups.map((grp) => {
               const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
               if (visibleItems.length === 0) return null;
 
+              const active = isGroupActive(grp);
+              // Primer item accesible para navegación directa
+              const firstItem = visibleItems[0];
+
+              // Nombre corto para visualización compacta
+              const shortName = grp.title
+                .replace('& Flota', '')
+                .replace('& Mantenimiento', '')
+                .replace('& Pagos', '')
+                .trim()
+                .toUpperCase();
+
               return (
-                <div key={grp.id} className="w-full flex flex-col items-center">
-                  {grpIdx > 0 && (
-                    <div className="w-8 h-[1px] bg-white/10 my-1.5" />
-                  )}
-                  {visibleItems.map((item) => (
-                    <NavLink
-                      key={item.href}
-                      to={item.href}
-                      onClick={() => {
-                        if (isOpen) onClose();
-                      }}
-                      title={`${grp.title}: ${item.name}`}
-                      className={({ isActive }) =>
-                        `w-10 h-10 my-0.5 flex items-center justify-center rounded-xl transition-all duration-150 ${
-                          isActive
-                            ? 'bg-blue-600 text-white shadow-md font-bold'
-                            : 'text-slate-400 hover:text-white hover:bg-white/10'
-                        }`
-                      }
-                    >
-                      <i className={`${item.icon} text-[15px]`} style={item.color ? { color: item.color } : undefined}></i>
-                    </NavLink>
-                  ))}
-                </div>
+                <NavLink
+                  key={grp.id}
+                  to={firstItem?.href || '#'}
+                  onClick={() => {
+                    if (isOpen) onClose();
+                  }}
+                  title={`${grp.title} (Clic para abrir ${firstItem?.name})`}
+                  className={`w-14 py-2 px-1 my-0.5 flex flex-col items-center justify-center rounded-xl transition-all duration-150 ${
+                    active
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 font-black'
+                      : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <i className={`${grp.iconClass} text-[17px] mb-1`} style={active ? { color: '#ffffff' } : undefined}></i>
+                  <span
+                    style={{
+                      fontSize: '8px',
+                      fontWeight: 800,
+                      lineHeight: '10px',
+                      textAlign: 'center',
+                      letterSpacing: '0.04em',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '56px',
+                    }}
+                  >
+                    {shortName}
+                  </span>
+                </NavLink>
               );
             })}
           </div>

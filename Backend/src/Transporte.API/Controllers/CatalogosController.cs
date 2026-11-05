@@ -402,6 +402,8 @@ namespace Transporte.API.Controllers
             var ok = await _catalogosRepository.GuardarEmpresaConfigAsync(dto);
             if (!ok) return BadRequest(new { mensaje = "No se pudo actualizar la información de la empresa." });
 
+            Transporte.API.Multitenancy.TenantService.InvalidateCache();
+
             return Ok(new { mensaje = "Información de la empresa actualizada exitosamente.", data = dto });
         }
     }

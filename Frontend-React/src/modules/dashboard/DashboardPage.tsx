@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import { finanzasApi } from '@/api/finanzas.api';
+import { sistemaApi } from '@/api/sistema.api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -121,6 +122,13 @@ export const DashboardPage: React.FC = () => {
     return [...activasOrd, ...cerradasOrd];
   }, [ciclos]);
 
+  // Query de Métricas Históricas Avanzadas (Tendencia Real, Desempeño Conductores, Leche Ácida, Destinos)
+  const { data: dashboardAvanzado } = useQuery({
+    queryKey: ['dashboard-avanzado', cantSemanasTendencia],
+    queryFn: () => sistemaApi.getDashboardAvanzado(cantSemanasTendencia),
+    staleTime: 1000 * 60 * 5,
+  });
+
   // Query principal del Dashboard
   const { data: dashboardData, isLoading, refetch } = useQuery({
     queryKey: ['dashboard-data', modoDashboard, fechaFiltro, cicloSeleccionado],
@@ -225,8 +233,24 @@ export const DashboardPage: React.FC = () => {
   }, [rutas, entregas, despachos]);
 
   // Datos para Gráficos
-  // 1. Desempeño por Conductor
+  // 1. Desempeño por Conductor (Métricas avanzadas históricas del backend o en vivo)
   const conductoresData = useMemo(() => {
+    if (dashboardAvanzado?.desempenoConductores && dashboardAvanzado.desempenoConductores.length > 0) {
+      const labels = dashboardAvanzado.desempenoConductores.slice(0, 8).map((c: any) => c.conductor);
+      const litros = dashboardAvanzado.desempenoConductores.slice(0, 8).map((c: any) => Number(c.litros || 0));
+      return {
+        labels: labels.length ? labels : ['Sin datos'],
+        datasets: [
+          {
+            label: 'Litros Recolectados',
+            data: litros.length ? litros : [0],
+            backgroundColor: 'rgba(59, 130, 246, 0.75)',
+            borderRadius: 6,
+          },
+        ],
+      };
+    }
+
     const map = new Map<string, { litros: number; viajes: number }>();
     rutas.forEach((r) => {
       const chofer = r.conductorNombre || `Chofer #${r.conductorId || 'N/A'}`;
@@ -249,7 +273,7 @@ export const DashboardPage: React.FC = () => {
         },
       ],
     };
-  }, [rutas]);
+  }, [dashboardAvanzado, rutas]);
 
   // 2. Distribución Global por Servicio
   const serviciosData = useMemo(() => {
@@ -268,6 +292,20 @@ export const DashboardPage: React.FC = () => {
 
   // 3. Destino Logístico
   const companiasData = useMemo(() => {
+    if (dashboardAvanzado?.entregasPlantas && dashboardAvanzado.entregasPlantas.length > 0) {
+      const labels = dashboardAvanzado.entregasPlantas.slice(0, 5).map((p: any) => p.planta || p.compania || 'Planta');
+      const values = dashboardAvanzado.entregasPlantas.slice(0, 5).map((p: any) => Number(p.litros || 0));
+      return {
+        labels: labels.length ? labels : ['Receptoría Silos'],
+        datasets: [
+          {
+            data: values.length ? values : [100],
+            backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'],
+          },
+        ],
+      };
+    }
+
     const map = new Map<string, number>();
     despachos.forEach((d) => {
       const comp = d.companiaNombre || `Planta #${d.companiaId || '1'}`;
@@ -284,10 +322,26 @@ export const DashboardPage: React.FC = () => {
         },
       ],
     };
-  }, [despachos]);
+  }, [dashboardAvanzado, despachos]);
 
   // 4. Leche Ácida por Finca
   const acidaData = useMemo(() => {
+    if (dashboardAvanzado?.lecheAcidaFincas && dashboardAvanzado.lecheAcidaFincas.length > 0) {
+      const labels = dashboardAvanzado.lecheAcidaFincas.slice(0, 6).map((f: any) => f.finca || 'Finca');
+      const values = dashboardAvanzado.lecheAcidaFincas.slice(0, 6).map((f: any) => Number(f.litrosAcidos || 0));
+      return {
+        labels: labels.length ? labels : ['Sin incidencias'],
+        datasets: [
+          {
+            label: 'Litros Ácidos',
+            data: values.length ? values : [0],
+            backgroundColor: 'rgba(244, 63, 94, 0.8)',
+            borderRadius: 6,
+          },
+        ],
+      };
+    }
+
     const map = new Map<string, number>();
     rutas
       .filter((r) => r.esAcida)
@@ -308,14 +362,41 @@ export const DashboardPage: React.FC = () => {
         },
       ],
     };
-  }, [rutas]);
+  }, [dashboardAvanzado, rutas]);
 
-  // 5. Histórico Semanas
+  // 5. Histórico Semanas (Tendencia Operativa Real 1:1 desde Backend)
   const tendenciaSemanasData = useMemo(() => {
+    if (dashboardAvanzado?.tendenciaSemanas && dashboardAvanzado.tendenciaSemanas.length > 0) {
+      const labels = dashboardAvanzado.tendenciaSemanas.map((t: any) => t.semana || `Sem #${t.cicloId}`);
+      const recolectado = dashboardAvanzado.tendenciaSemanas.map((t: any) => Number(t.recolectado || 0));
+      const entregado = dashboardAvanzado.tendenciaSemanas.map((t: any) => Number(t.entregado || 0));
+      return {
+        labels: labels.length ? labels : ['Semana Activa'],
+        datasets: [
+          {
+            label: 'Total Recolectado (Lts)',
+            data: recolectado.length ? recolectado : [metricas.ltsTotalLitrosGlobal],
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+            fill: true,
+            tension: 0.3,
+          },
+          {
+            label: 'Total Entregado Receptoría (Lts)',
+            data: entregado.length ? entregado : [metricas.ltsTotalReceptoriaGlobal],
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            fill: true,
+            tension: 0.3,
+          },
+        ],
+      };
+    }
+
     const ultimosCiclos = (ciclos || []).slice(0, cantSemanasTendencia).reverse();
     const labels = ultimosCiclos.map((c) => `Sem #${c.numeroSemana}`);
     const recolectado = ultimosCiclos.map((c) => c.totalLitros || 0);
-    const entregado = ultimosCiclos.map((c) => Math.round((c.totalLitros || 0) * 0.985));
+    const entregado = ultimosCiclos.map((c) => (c as any).totalLitrosReceptoria || c.totalLitros || 0);
 
     return {
       labels: labels.length ? labels : ['Semana Activa'],
@@ -338,7 +419,7 @@ export const DashboardPage: React.FC = () => {
         },
       ],
     };
-  }, [ciclos, cantSemanasTendencia, metricas]);
+  }, [dashboardAvanzado, ciclos, cantSemanasTendencia, metricas]);
 
   return (
     <section id="tab-dashboard" className="tab-content active" style={{ display: 'block' }}>

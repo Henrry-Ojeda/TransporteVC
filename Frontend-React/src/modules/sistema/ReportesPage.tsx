@@ -1502,10 +1502,10 @@ const RenderReporteFincas: React.FC<{
 
     const nomOriginal = (finca.nombre || finca.Nombre || '').trim();
     const soloNombreFinca = nomOriginal.split(' - ')[0].split(' (')[0].trim().toUpperCase();
-    const precioBuena = Number(finca.precioLitroUSD || finca.PrecioLitroUSD || 0.82);
+    const precioBuena = Number(finca.precioLitroUSD ?? finca.PrecioLitroUSD ?? 0);
     const tienePrecioAcida = Number(finca.precioLitroAcidaUSD || finca.PrecioLitroAcidaUSD || 0) > 0;
     const precioMala = tienePrecioAcida ? Number(finca.precioLitroAcidaUSD || finca.PrecioLitroAcidaUSD) : 0.65;
-    const tasaFinca = Number(finca.tasaBcv || finca.TasaBcv || tasaBcv || 801.1752);
+    const tasaFinca = Number(finca.tasaBcv || finca.TasaBcv || tasaBcv || 0);
 
     const usdBuena = totalLitrosBuena * precioBuena;
     const usdMala = totalLitrosMala * (tienePrecioAcida ? precioMala : 0);
@@ -1765,8 +1765,8 @@ const RenderReporteFincas: React.FC<{
       </div>
 
       {/* GRID DE TABLAS INDIVIDUALES (1:1 V2_3_11_26) */}
-      <div className="report-grid-cards">
-        {cardsArray.map((finca) => {
+      <div className="report-grid-cards" style={{ display: 'grid', gridTemplateColumns: tieneDosTablas ? 'repeat(auto-fit, minmax(420px, 1fr))' : '1fr', gap: '20px' }}>
+        {[cardObj1, cardObj2].filter(Boolean).map((finca) => {
           const cardRef = React.createRef<HTMLDivElement>();
           const tieneLecheMala = finca.totalLitrosMala > 0;
           const tieneAdelantoEstaFinca = finca.adelantoUSD > 0;
@@ -1880,7 +1880,7 @@ const RenderReporteFincas: React.FC<{
                         {formatearNumero(finca.totalLitrosBuena)}
                       </td>
                       <td style={{ fontWeight: 800, color: '#ffffff', textAlign: 'right', padding: '7px 10px', border: '1px solid #000000' }}>
-                        {formatearNumero(finca.precioBuena, 2)}
+                        $ {formatearNumero(finca.precioBuena, 2)} / Lt
                       </td>
                     </tr>
 

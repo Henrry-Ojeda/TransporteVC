@@ -3288,6 +3288,22 @@ namespace Transporte.Infrastructure.Repositories
                     VALUES (@Nombre, @Rif, @Direccion, @Telefono, @Email, @LogoUrl, GETDATE());
                 END";
             var rows = await connection.ExecuteAsync(sql, dto);
+
+            // Sincronizar en DB_SAAS_MASTER si aplica para que el nombre persista en multitenant
+            try
+            {
+                string tenantCode = _tenantService?.GetTenantCode() ?? "";
+                if (!string.IsNullOrWhiteSpace(tenantCode) && !string.IsNullOrWhiteSpace(dto.Nombre))
+                {
+                    string masterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;";
+                    using var masterDb = new SqlConnection(masterConn);
+                    await masterDb.ExecuteAsync(
+                        "UPDATE TB_EMPRESAS SET NombreComercial = @Nombre WHERE Codigo = @tenantCode",
+                        new { dto.Nombre, tenantCode });
+                }
+            }
+            catch { }
+
             return rows > 0;
         }
     }

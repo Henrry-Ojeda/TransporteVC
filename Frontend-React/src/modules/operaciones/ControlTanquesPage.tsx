@@ -442,30 +442,15 @@ export const ControlTanquesPage: React.FC = () => {
           </div>
 
           {puedeModificar && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  const filled = autoLlenarFilasConViajes(viajesDelDia);
-                  setFilasRecepcion(filled);
-                  toast.success(`Se auto-llenaron ${Math.min(15, viajesDelDia.length)} entradas de rutas del día`);
-                }}
-                className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-sky-50 text-sky-700 border border-sky-300 hover:bg-sky-100 rounded-lg shadow-sm"
-                title="Llenar automáticamente las recepciones con los viajes registrados en el día"
-              >
-                <i className="fa-solid fa-wand-magic-sparkles"></i> Auto-llenar Rutas ({viajesDelDia.length})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => guardarMutation.mutate()}
-                disabled={guardarMutation.isPending}
-                className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
-                title="Guardar borrador o cambios del formulario"
-              >
-                <Save className="w-4 h-4" /> Guardar
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => guardarMutation.mutate()}
+              disabled={guardarMutation.isPending}
+              className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
+              title="Guardar borrador o cambios del formulario"
+            >
+              <Save className="w-4 h-4" /> Guardar
+            </button>
           )}
 
           {esSupervisorOAdmin && (
