@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import html2canvas from 'html2canvas';
 import Swal from 'sweetalert2';
 import { toast } from 'sonner';
+import { apiClient } from '@/api/client';
 import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { finanzasApi } from '@/api/finanzas.api';
@@ -49,13 +50,44 @@ function formatearFechaLocal(fechaStr: string | undefined | null): string {
 export const ReportesPage: React.FC = () => {
   const queryClient = useQueryClient();
 
-  // Estados de Filtros Principales
+  // Ciclo Operativo Activo (1:1 V2_3_11_26)
+  const { data: cicloActivo } = useQuery({
+    queryKey: ['ciclo-activo-reportes'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get<any>('/ciclos/activo');
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // Estados de Filtros Principales (inicializados por el ciclo operativo activo)
   const [tipoReporte, setTipoReporte] = useState<TipoReporteOficial>('DIARIOS');
-  const [fechaInicio, setFechaInicio] = useState(
-    new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
-  );
-  const [fechaFin, setFechaFin] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaInicio, setFechaInicio] = useState<string>('');
+  const [fechaFin, setFechaFin] = useState<string>('');
   const [tasaManual, setTasaManual] = useState<string>('');
+
+  // Sincronizar fechas con el ciclo operativo activo (o cálculo estándar Martes -> Lunes)
+  useEffect(() => {
+    if (cicloActivo?.fechaInicio && cicloActivo?.fechaFin) {
+      setFechaInicio(String(cicloActivo.fechaInicio).split('T')[0]);
+      setFechaFin(String(cicloActivo.fechaFin).split('T')[0]);
+    } else {
+      const hoy = new Date();
+      const diaSemana = hoy.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab
+      const diffDias = diaSemana >= 2 ? diaSemana - 2 : diaSemana + 5;
+      const martes = new Date(hoy);
+      martes.setDate(hoy.getDate() - diffDias);
+      const lunes = new Date(martes);
+      lunes.setDate(martes.getDate() + 6);
+      const fFormat = (d: Date) => d.toISOString().split('T')[0];
+      setFechaInicio(fFormat(martes));
+      setFechaFin(fFormat(lunes));
+    }
+  }, [cicloActivo]);
 
   // Subfiltros contextuales
   const [finca1Id, setFinca1Id] = useState<string>('');
@@ -657,7 +689,9 @@ export const ReportesPage: React.FC = () => {
               borderRadius: '6px',
             }}
           >
-            Semana Operativa: ({formatearFechaLocal(fechaInicio)} al {formatearFechaLocal(fechaFin)})
+            {cicloActivo?.numeroSemana
+              ? `Semana ${cicloActivo.numeroSemana}: (${formatearFechaLocal(fechaInicio)} al ${formatearFechaLocal(fechaFin)})`
+              : `Semana Operativa: (${formatearFechaLocal(fechaInicio)} al ${formatearFechaLocal(fechaFin)})`}
           </span>
         </div>
 
