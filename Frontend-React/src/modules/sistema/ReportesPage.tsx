@@ -99,7 +99,7 @@ export const ReportesPage: React.FC = () => {
   // Estados interactivos para Reporte Fincas
   const [mostrarAdelanto, setMostrarAdelanto] = useState<boolean>(false);
   const [adelantosManuales, setAdelantosManuales] = useState<Record<number, number>>({});
-  const [mostrarConsolidadoManual, setMostrarConsolidadoManual] = useState<boolean>(true);
+  const [mostrarConsolidadoManual, setMostrarConsolidadoManual] = useState<boolean>(false);
 
   // Estados para Relación Compañías
   const [filtroServicioCompania, setFiltroServicioCompania] = useState<'TODOS' | 'TRANSPORTE' | 'RUTA'>('TODOS');
@@ -1074,6 +1074,8 @@ export const ReportesPage: React.FC = () => {
                 mostrarAdelanto={mostrarAdelanto}
                 adelantosManuales={adelantosManuales}
                 mostrarConsolidadoManual={mostrarConsolidadoManual}
+                  onToggleAdelanto={() => setMostrarAdelanto(!mostrarAdelanto)}
+                  onToggleConsolidado={() => setMostrarConsolidadoManual(!mostrarConsolidadoManual)}
                 onCapturar={ejecutarCaptura}
                 onExportarExcel={descargarExcelConDiseno}
                 onAjustarPrecioAcida={abrirModalAjustarPrecioAcida}
@@ -1388,7 +1390,7 @@ const RenderReporteReceptorias: React.FC<{
   );
 };
 
-// --- 3. RENDER REPORTE FINCAS ---
+// --- 3. RENDER REPORTE FINCAS (1:1 EXACTO V2_3_11_26) ---
 const RenderReporteFincas: React.FC<{
   data: any[];
   fechaDesde: string;
@@ -1397,6 +1399,8 @@ const RenderReporteFincas: React.FC<{
   mostrarAdelanto: boolean;
   adelantosManuales: Record<number, number>;
   mostrarConsolidadoManual: boolean;
+  onToggleAdelanto: () => void;
+  onToggleConsolidado: () => void;
   onCapturar: (el: HTMLElement | null, titulo: string) => void;
   onExportarExcel: (html: string, nombre: string) => void;
   onAjustarPrecioAcida: (id: number, nombre: string) => void;
@@ -1409,295 +1413,900 @@ const RenderReporteFincas: React.FC<{
   mostrarAdelanto,
   adelantosManuales,
   mostrarConsolidadoManual,
+  onToggleAdelanto,
+  onToggleConsolidado,
   onCapturar,
   onExportarExcel,
   onAjustarPrecioAcida,
   onAjustarAdelantoManual,
 }) => {
   const fincasList = Array.isArray(data) ? data : [];
+  const consolidadoCardRef = useRef<HTMLDivElement>(null);
+  const reporteContainerRef = useRef<HTMLDivElement>(null);
 
   if (fincasList.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
-        No se encontraron recolecciones registradas para las fincas seleccionadas en este período.
+        <i className="fa-solid fa-cow" style={{ fontSize: '32px', marginBottom: '10px', display: 'block', color: '#94a3b8' }}></i>
+        No se encontraron registros de recolección en fincas en el rango seleccionado ({formatearFechaLocal(fechaDesde)} al {formatearFechaLocal(fechaHasta)}).
       </div>
     );
   }
 
-  // Cálculos consolidados para cuando hay 2 fincas en pantalla
-  let grandTotalLitros = 0;
-  let grandTotalUSD = 0;
-  let grandTotalAdelantoUSD = 0;
-  let grandTotalNetoBs = 0;
+  // Desglose de cada finca según algoritmo exacto 1:1 V2_3_11_26
+  const cardsArray = fincasList.map((finca: any) => {
+    const detalle = finca.detalle || finca.Detalle || [];
+    let totalLitrosBuena = 0;
+    let totalLitrosMala = 0;
 
-  fincasList.forEach((f: any) => {
-    const lts = f.totalLitros || 0;
-    const usd = f.totalUSD || 0;
-    const adelManual = adelantosManuales[f.id] !== undefined ? adelantosManuales[f.id] : (f.totalAdelantosUSD || 0);
-    const adelBs = adelManual * tasaBcv;
-    const netoBs = Math.max(0, usd * tasaBcv - adelBs);
+    detalle.forEach((d: any) => {
+      const obs = (d.observacion || d.Observacion || '').toUpperCase();
+      const isAcida = Boolean(d.esAcida) || obs.includes('ACID') || obs.includes('MALA') || String(d.tipoLeche || '').includes('ACID');
+      const lts = Number(d.litros || d.Litros || 0);
 
-    grandTotalLitros += lts;
-    grandTotalUSD += usd;
-    grandTotalAdelantoUSD += adelManual;
-    grandTotalNetoBs += netoBs;
+      if (isAcida) {
+        totalLitrosMala += lts;
+      } else {
+        totalLitrosBuena += lts;
+      }
+    });
+
+    const nomOriginal = (finca.nombre || finca.Nombre || '').trim();
+    const soloNombreFinca = nomOriginal.split(' - ')[0].split(' (')[0].trim().toUpperCase();
+    const precioBuena = Number(finca.precioLitroUSD || finca.PrecioLitroUSD || 0.82);
+    const tienePrecioAcida = Number(finca.precioLitroAcidaUSD || finca.PrecioLitroAcidaUSD || 0) > 0;
+    const precioMala = tienePrecioAcida ? Number(finca.precioLitroAcidaUSD || finca.PrecioLitroAcidaUSD) : 0.65;
+    const tasaFinca = Number(finca.tasaBcv || finca.TasaBcv || tasaBcv || 801.1752);
+
+    const usdBuena = totalLitrosBuena * precioBuena;
+    const usdMala = totalLitrosMala * (tienePrecioAcida ? precioMala : 0);
+    const fincaTotalUSD = usdBuena + usdMala;
+    const fincaTotalBs = fincaTotalUSD * tasaFinca;
+
+    // Cálculo de Adelantos (Automático o Manual Ajustado)
+    const adelantoManual = adelantosManuales[finca.id] !== undefined
+      ? adelantosManuales[finca.id]
+      : Number(finca.totalAdelantosUSD || finca.TotalAdelantosUSD || 0);
+
+    const adelantoUSD = adelantoManual;
+    const adelantoBs = (Number(finca.totalAdelantosBs || 0) > 0 && adelantosManuales[finca.id] === undefined)
+      ? Number(finca.totalAdelantosBs)
+      : (adelantoUSD * tasaFinca);
+
+    const fincaNetoUSD = Math.max(0, fincaTotalUSD - adelantoUSD);
+    const fincaNetoBs = Math.max(0, fincaTotalBs - adelantoBs);
+
+    const nomNorm = nomOriginal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const esBufala = nomOriginal.includes('(Búfala)') || nomOriginal.includes('(Bufala)') || nomNorm.includes('BUFAL') || (precioBuena === 0 && Number(finca.precioBufalaLitroUSD || finca.PrecioBufalaLitroUSD || 0) > 0);
+
+    return {
+      id: String(finca.id ?? finca.Id ?? ''),
+      numericId: Number(finca.id ?? finca.Id ?? 0),
+      raw: finca,
+      nombreOriginal: nomOriginal,
+      soloNombreFinca,
+      propietario: (finca.propietario || finca.Propietario || '').trim().toUpperCase(),
+      esBufala,
+      detalle,
+      totalLitrosBuena,
+      totalLitrosMala,
+      totalLitros: totalLitrosBuena + totalLitrosMala,
+      precioBuena,
+      tienePrecioAcida,
+      precioMala,
+      tasaBCV: tasaFinca,
+      usdBuena,
+      usdMala,
+      fincaTotalUSD,
+      fincaTotalBs,
+      adelantoUSD,
+      adelantoBs,
+      fincaNetoUSD,
+      fincaNetoBs,
+    };
   });
 
-  const consolidadoCardRef = React.createRef<HTMLDivElement>();
+  // Grand Totals Consolidados (1:1 V2_3_11_26)
+  let grandTotalLitrosBuena = 0;
+  let grandTotalLitrosMala = 0;
+  let grandTotalUSD = 0;
+  let grandTotalBs = 0;
+  let grandTotalAdelantosUSD = 0;
+  let grandTotalAdelantosBs = 0;
+
+  cardsArray.forEach((f) => {
+    grandTotalLitrosBuena += f.totalLitrosBuena;
+    grandTotalLitrosMala += f.totalLitrosMala;
+    grandTotalUSD += f.fincaTotalUSD;
+    grandTotalBs += f.fincaTotalBs;
+    grandTotalAdelantosUSD += f.adelantoUSD;
+    grandTotalAdelantosBs += f.adelantoBs;
+  });
+
+  const consolidadoNetoUSD = Math.max(0, grandTotalUSD - grandTotalAdelantosUSD);
+  const consolidadoNetoBs = Math.max(0, grandTotalBs - grandTotalAdelantosBs);
+
+  const saldoDeudaUSD = grandTotalAdelantosUSD > grandTotalUSD ? (grandTotalAdelantosUSD - grandTotalUSD) : 0;
+  const saldoDeudaBs = grandTotalAdelantosBs > grandTotalBs ? (grandTotalAdelantosBs - grandTotalBs) : 0;
+  const tieneSaldoDeudor = saldoDeudaUSD > 0.001 || saldoDeudaBs > 0.01;
+  const tieneGrandTotalMala = grandTotalLitrosMala > 0;
+  const tieneDosTablas = cardsArray.length >= 2;
+
+  const cardObj1 = cardsArray[0] || null;
+  const cardObj2 = cardsArray[1] || null;
+
+  const prop1 = (cardObj1?.propietario || '').trim().toUpperCase();
+  const prop2 = (cardObj2?.propietario || '').trim().toUpperCase();
+  const cleanNom1 = (cardObj1?.nombreOriginal || '').replace(/BUFALA|BUFALO|\(VACA\)|\(BUFALA\)/gi, '').trim().toUpperCase();
+  const cleanNom2 = (cardObj2?.nombreOriginal || '').replace(/BUFALA|BUFALO|\(VACA\)|\(BUFALA\)/gi, '').trim().toUpperCase();
+  const sonMismoPropietario = Boolean(cardObj1 && cardObj2 && (
+    (prop1 !== '' && prop1 === prop2) ||
+    (cleanNom1.length > 3 && cleanNom1 === cleanNom2)
+  ));
+
+  let objVaca: any = null;
+  let objBufala: any = null;
+  if (cardObj1?.esBufala && !cardObj2?.esBufala) {
+    objBufala = cardObj1;
+    objVaca = cardObj2;
+  } else if (cardObj2?.esBufala && !cardObj1?.esBufala) {
+    objBufala = cardObj2;
+    objVaca = cardObj1;
+  }
+  const esCasoVacaBufala = Boolean(objVaca && objBufala);
+
+  const consolidadoTitulo = esCasoVacaBufala
+    ? `LIQUIDACIÓN CONSOLIDADA (VACA + BÚFALA) • ${cardObj1?.propietario || cleanNom1}`
+    : (sonMismoPropietario 
+        ? `SUMA TOTAL CONSOLIDADA EN BS • ${cardObj1?.propietario || cleanNom1}`
+        : 'SUMA TOTAL CONSOLIDADA EN BS (AMBAS FINCAS)');
+
+  const mostrarConsolidadoCard = tieneDosTablas && (sonMismoPropietario || mostrarConsolidadoManual);
 
   return (
-    <div>
+    <div ref={reporteContainerRef}>
+      {/* 1:1 ACTION HEADER IDENTICO A V2_3_11_26 */}
+      <div
+        className="report-action-header no-capture"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: '#ffffff',
+          border: '1.5px solid #cbd5e1',
+          padding: '14px 20px',
+          borderRadius: '12px',
+          marginBottom: '18px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              background: '#eff6ff',
+              color: '#2563eb',
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+            }}
+          >
+            <i className="fa-solid fa-cow"></i>
+          </div>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>
+              Reporte de Fincas ({formatearFechaLocal(fechaDesde)} al {formatearFechaLocal(fechaHasta)})
+            </div>
+            <small style={{ color: sonMismoPropietario ? '#047857' : '#64748b', fontSize: '12px', fontWeight: 700 }}>
+              {tieneDosTablas ? (
+                sonMismoPropietario ? (
+                  <>
+                    <i className="fa-solid fa-circle-check" style={{ color: '#047857', marginRight: '4px' }}></i>
+                    {esCasoVacaBufala ? 'Reporte Separado de Leche (VACA + BÚFALA)' : 'Fincas del Mismo Propietario'} ({cardObj1?.propietario || cleanNom1})
+                  </>
+                ) : (
+                  'Comparativa de 2 Fincas (Propietarios Distintos)'
+                )
+              ) : (
+                'Vista de Recolección Individual'
+              )}
+            </small>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn"
+            id="btnToggleAdelantoFincas"
+            onClick={onToggleAdelanto}
+            style={{
+              background: mostrarAdelanto ? 'linear-gradient(135deg, #d97706, #b45309)' : 'linear-gradient(135deg, #475569, #334155)',
+              color: '#ffffff',
+              fontWeight: 800,
+              padding: '9px 18px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            }}
+            title="Activar / Desactivar cálculo de adelantos en el reporte"
+          >
+            <i className="fa-solid fa-hand-holding-dollar"></i> {mostrarAdelanto ? 'Adelanto: ACTIVADO' : 'Mostrar Adelanto (Opcional)'}
+          </button>
+
+          {tieneDosTablas && (
+            <>
+              {!sonMismoPropietario && (
+                <button
+                  type="button"
+                  className="btn"
+                  id="btnSumarTotalesOpcional"
+                  onClick={onToggleConsolidado}
+                  style={{
+                    background: 'linear-gradient(135deg, #047857, #065f46)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(4,120,87,0.3)',
+                  }}
+                >
+                  <i className={`fa-solid ${mostrarConsolidadoManual ? 'fa-eye-slash' : 'fa-calculator'}`}></i>
+                  {mostrarConsolidadoManual ? 'Ocultar Suma' : 'Sumar Totales (Opcional)'}
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn"
+                onClick={() => window.print()}
+                style={{
+                  background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(15,23,42,0.3)',
+                }}
+              >
+                <i className="fa-solid fa-print"></i> Imprimir Ambas Tablas
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => onCapturar(reporteContainerRef.current, `Consolidado_Fincas_${fechaDesde}_al_${fechaHasta}`)}
+                style={{
+                  background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(37,99,235,0.3)',
+                }}
+              >
+                <i className="fa-solid fa-camera"></i> Capturar Imagen Ambas
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* GRID DE TABLAS INDIVIDUALES (1:1 V2_3_11_26) */}
       <div className="report-grid-cards">
-        {fincasList.map((finca: any, idx: number) => {
+        {cardsArray.map((finca) => {
           const cardRef = React.createRef<HTMLDivElement>();
-          const detalle = finca.detalle || [];
-          const nom = finca.nombre || `Finca #${finca.id}`;
-          const prop = finca.propietario || '';
-          const totalLitros = finca.totalLitros || detalle.reduce((acc: number, d: any) => acc + Number(d.litros || 0), 0);
-          const precioUSD = Number(finca.precioLitroUSD || 0.82);
-          const totalUSD = finca.totalUSD || totalLitros * precioUSD;
-          const totalBs = finca.totalBs || totalUSD * tasaBcv;
+          const tieneLecheMala = finca.totalLitrosMala > 0;
+          const tieneAdelantoEstaFinca = finca.adelantoUSD > 0;
 
-          // Adelantos de esta finca (manual o calculado)
-          const adelantoUSD = adelantosManuales[finca.id] !== undefined ? adelantosManuales[finca.id] : (finca.totalAdelantosUSD || 0);
-          const adelantoBs = adelantoUSD * tasaBcv;
-          const netoUSD = Math.max(0, totalUSD - adelantoUSD);
-          const netoBs = Math.max(0, totalBs - adelantoBs);
-
-          // Verificar si hay leche ácida sin precio
-          const tieneAcidaSinPrecio = detalle.some((d: any) => (d.esAcida || String(d.tipoLeche || '').includes('ACID')) && Number(finca.precioLitroAcidaUSD || 0) <= 0);
+          const cardHeaderBg = finca.esBufala
+            ? 'linear-gradient(135deg, #065f46 0%, #047857 100%)'
+            : 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)';
 
           return (
-            <div key={idx} ref={cardRef} className="report-card-demarcada">
-              <table className="table-reporte-demarcada">
-                <thead>
-                  <tr>
-                    <th colSpan={3}>
-                      {nom.toUpperCase()} {prop ? `- ${prop.toUpperCase()}` : ''}
-                    </th>
-                  </tr>
-                  <tr>
-                    <th style={{ width: '25%' }}>FECHA</th>
-                    <th style={{ width: '25%' }}>LITROS</th>
-                    <th style={{ width: '50%' }}>OBSERVACION</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detalle.length === 0 ? (
+            <div
+              key={finca.id}
+              ref={cardRef}
+              className="report-card-demarcada"
+              style={{
+                background: '#ffffff',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '12px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                marginBottom: '24px',
+                overflow: 'hidden',
+              }}
+            >
+              <div className="table-responsive" style={{ margin: 0, border: 'none' }}>
+                <table className="table-reporte-demarcada" style={{ width: '100%', marginBottom: 0, borderCollapse: 'collapse' }}>
+                  <thead>
                     <tr>
-                      <td colSpan={3} style={{ color: '#94a3b8', fontStyle: 'italic', padding: '16px' }}>
-                        Sin registros en este período
+                      <th
+                        colSpan={3}
+                        style={{
+                          background: cardHeaderBg,
+                          color: '#ffffff',
+                          fontSize: '15px',
+                          fontWeight: 900,
+                          textAlign: 'center',
+                          padding: '12px 14px',
+                          letterSpacing: '0.03em',
+                          border: '2px solid #000000',
+                        }}
+                      >
+                        <span style={{ color: '#ffffff', fontWeight: 900, fontSize: '15px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                          {finca.soloNombreFinca} ({finca.esBufala ? 'LECHE DE BÚFALA' : 'LECHE DE VACA'})
+                        </span>
+                      </th>
+                    </tr>
+                    <tr style={{ background: '#e2e8f0', color: '#000000', fontWeight: 900, fontSize: '12px' }}>
+                      <th style={{ width: '33%', textAlign: 'center', padding: '9px 8px', background: '#e2e8f0', color: '#000000', fontWeight: 900, border: '1.5px solid #000000' }}>
+                        FECHA
+                      </th>
+                      <th style={{ width: '33%', textAlign: 'center', padding: '9px 8px', background: '#e2e8f0', color: '#000000', fontWeight: 900, border: '1.5px solid #000000' }}>
+                        LITROS
+                      </th>
+                      <th style={{ width: '34%', textAlign: 'center', padding: '9px 8px', background: '#e2e8f0', color: '#000000', fontWeight: 900, border: '1.5px solid #000000' }}>
+                        OBSERVACION
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {finca.detalle.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} style={{ color: '#94a3b8', fontStyle: 'italic', padding: '16px', textAlign: 'center', border: '1px solid #000000' }}>
+                          Sin registros en este período
+                        </td>
+                      </tr>
+                    ) : (
+                      finca.detalle.map((d: any, dIdx: number) => {
+                        const obs = (d.observacion || d.Observacion || '').toUpperCase();
+                        const isAcida = Boolean(d.esAcida) || obs.includes('ACID') || obs.includes('MALA') || String(d.tipoLeche || '').includes('ACID');
+                        let obsLimpia = (d.observacion || d.Observacion || '')
+                          .replace(/\[\s*BUFAL[AO]\s*\]/gi, '')
+                          .replace(/\bBUFAL[AO]\b/gi, '')
+                          .trim();
+                        let obsDisplay = obsLimpia;
+                        if (isAcida) {
+                          if (!obsLimpia.toUpperCase().includes('ACID') && !obsLimpia.toUpperCase().includes('MALA')) {
+                            obsDisplay = obsLimpia ? `ÁCIDA - ${obsLimpia}` : 'ÁCIDA';
+                          }
+                        }
+
+                        return (
+                          <tr key={dIdx} style={{ borderBottom: '1px solid #000000' }}>
+                            <td style={{ fontWeight: 700, color: '#000000', textAlign: 'center', border: '1px solid #000000', padding: '8px 10px' }}>
+                              {formatearFechaLocal(d.fecha)}
+                            </td>
+                            <td style={{ fontWeight: 900, color: '#000000', textAlign: 'center', border: '1px solid #000000', padding: '8px 10px' }}>
+                              {formatearNumero(Number(d.litros || d.Litros || 0))}
+                            </td>
+                            <td
+                              style={{
+                                color: isAcida ? '#dc2626' : '#000000',
+                                fontWeight: isAcida ? 900 : 700,
+                                textAlign: 'left',
+                                border: '1px solid #000000',
+                                padding: '8px 10px',
+                              }}
+                            >
+                              {obsDisplay || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+
+                  {/* TFOOT EXACTO 1:1 V2_3_11_26 CON COLOR CORPORATIVO #047857 */}
+                  <tfoot style={{ background: '#047857', color: '#ffffff', fontWeight: 800 }}>
+                    <tr style={{ borderTop: '1.5px solid #000000' }}>
+                      <td style={{ color: '#ffffff', fontWeight: 800, textAlign: 'left', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {tieneLecheMala ? 'TOTAL BUENA' : 'TOTAL'}
+                      </td>
+                      <td style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff', textAlign: 'center', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {formatearNumero(finca.totalLitrosBuena)}
+                      </td>
+                      <td style={{ fontWeight: 800, color: '#ffffff', textAlign: 'right', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {formatearNumero(finca.precioBuena, 2)}
                       </td>
                     </tr>
-                  ) : (
-                    detalle.map((d: any, dIdx: number) => (
-                      <tr key={dIdx}>
-                        <td>{formatearFechaLocal(d.fecha)}</td>
-                        <td style={{ fontWeight: 800 }}>{formatearNumero(d.litros)}</td>
-                        <td className="text-left">{d.observacion || '-'}</td>
-                      </tr>
-                    ))
-                  )}
 
-                  {tieneAcidaSinPrecio && (
-                    <tr style={{ background: '#fef2f2' }}>
-                      <td colSpan={2} style={{ color: '#dc2626', fontWeight: 800 }}>
-                        <i className="fa-solid fa-triangle-exclamation"></i> LECHE ÁCIDA SIN PRECIO
+                    {tieneLecheMala && (
+                      <tr style={{ background: 'rgba(0,0,0,0.12)' }}>
+                        <td style={{ color: '#fef08a', fontWeight: 800, textAlign: 'left', padding: '7px 10px', border: '1px solid #000000' }}>
+                          TOTAL MALA/ACIDA
+                        </td>
+                        <td style={{ fontSize: '13.5px', fontWeight: 800, color: '#fef08a', textAlign: 'center', padding: '7px 10px', border: '1px solid #000000' }}>
+                          {formatearNumero(finca.totalLitrosMala)}
+                        </td>
+                        <td style={{ fontWeight: 800, color: '#fef08a', textAlign: 'right', padding: '7px 10px', border: '1px solid #000000' }}>
+                          {finca.tienePrecioAcida ? (
+                            formatearNumero(finca.precioMala, 2)
+                          ) : (
+                            <button
+                              type="button"
+                              className="no-capture"
+                              onClick={() => onAjustarPrecioAcida(finca.numericId, finca.soloNombreFinca)}
+                              style={{
+                                background: '#f59e0b',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '11px',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                boxShadow: '0 2px 4px rgba(245,158,11,0.3)',
+                              }}
+                              title="Agregar precio de leche ácida"
+                            >
+                              <i className="fa-solid fa-plus-circle"></i> Agregar Precio
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+
+                    <tr>
+                      <td style={{ color: '#ffffff', fontWeight: 800, textAlign: 'left', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {mostrarAdelanto && tieneAdelantoEstaFinca ? 'Valor Dólar Bruto' : 'Valor Dolar'}
                       </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger no-capture"
-                          onClick={() => onAjustarPrecioAcida(finca.id, nom)}
-                          style={{ fontSize: '11px', padding: '3px 8px', fontWeight: 800, borderRadius: '4px' }}
-                        >
-                          + Agregar Precio
-                        </button>
+                      <td style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff', textAlign: 'center', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {formatearNumero(finca.fincaTotalUSD, 2)}
                       </td>
+                      <td style={{ border: '1px solid #000000' }}>&nbsp;</td>
                     </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>TOTAL</td>
-                    <td>{formatearNumero(totalLitros)}</td>
-                    <td>$ {formatearNumero(precioUSD, 4)}</td>
-                  </tr>
 
-                  {!mostrarAdelanto ? (
-                    <>
-                      <tr>
-                        <td>Valor Dolar</td>
-                        <td>$ {formatearNumero(totalUSD, 2)}</td>
-                        <td>&nbsp;</td>
-                      </tr>
-                      <tr>
-                        <td>Valor Bs</td>
-                        <td>Bs. {formatearNumero(totalBs, 2)}</td>
-                        <td>Tasa: {formatearNumero(tasaBcv, 4)}</td>
-                      </tr>
-                    </>
-                  ) : (
-                    <>
-                      <tr>
-                        <td>Valor Dólar Bruto</td>
-                        <td>$ {formatearNumero(totalUSD, 2)}</td>
-                        <td>&nbsp;</td>
-                      </tr>
-                      <tr style={{ background: '#fee2e2', color: '#991b1b' }}>
-                        <td>
-                          (-) Adelanto USD
+                    {mostrarAdelanto && tieneAdelantoEstaFinca && (
+                      <tr style={{ background: 'rgba(220, 38, 38, 0.28)', borderTop: '1px solid #000000', borderBottom: '1px solid #000000' }}>
+                        <td style={{ color: '#fee2e2', fontWeight: 900, textAlign: 'left', padding: '7px 10px', border: '1px solid #000000' }}>
+                          <i className="fa-solid fa-circle-minus" style={{ color: '#f87171', marginRight: '3px' }}></i> (-) Adelanto USD
                           <button
                             type="button"
                             className="no-capture"
-                            onClick={() => onAjustarAdelantoManual(finca.id, nom, adelantoUSD)}
+                            onClick={() => onAjustarAdelantoManual(finca.numericId, finca.soloNombreFinca, finca.adelantoUSD)}
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #fca5a5',
+                              color: '#dc2626',
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              borderRadius: '4px',
+                              padding: '2px 6px',
+                              marginLeft: '6px',
+                              cursor: 'pointer',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                            }}
                             title="Editar monto de adelanto"
-                            style={{ background: 'none', border: 'none', color: '#b45309', cursor: 'pointer', marginLeft: '6px' }}
                           >
                             <i className="fa-solid fa-pen"></i>
                           </button>
                         </td>
-                        <td>-$ {formatearNumero(adelantoUSD, 2)}</td>
-                        <td>Neto: $ {formatearNumero(netoUSD, 2)}</td>
+                        <td style={{ textAlign: 'center', padding: '7px 10px', border: '1px solid #000000' }}>
+                          <span
+                            style={{
+                              background: '#ffffff',
+                              color: '#dc2626',
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontWeight: 900,
+                              fontSize: '13.5px',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                              display: 'inline-block',
+                            }}
+                          >
+                            -{formatearNumero(finca.adelantoUSD, 2)}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '11.5px', fontWeight: 800, color: '#ffffff', textAlign: 'right', padding: '7px 10px', border: '1px solid #000000' }}>
+                          Neto: ${formatearNumero(finca.fincaNetoUSD, 2)}
+                        </td>
                       </tr>
-                      <tr>
-                        <td>Valor Bs Bruto</td>
-                        <td>Bs. {formatearNumero(totalBs, 2)}</td>
-                        <td>Tasa: {formatearNumero(tasaBcv, 4)}</td>
-                      </tr>
-                      <tr style={{ background: '#dcfce7', color: '#166534', fontWeight: 900 }}>
-                        <td>TOTAL NETO BS</td>
-                        <td>Bs. {formatearNumero(netoBs, 2)}</td>
-                        <td>(-) Bs. {formatearNumero(adelantoBs, 2)}</td>
-                      </tr>
-                    </>
-                  )}
-                </tfoot>
-              </table>
+                    )}
 
-              <div className="no-capture" style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <tr>
+                      <td style={{ color: '#ffffff', fontWeight: 800, textAlign: 'left', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {mostrarAdelanto && tieneAdelantoEstaFinca ? 'Valor Bs Bruto' : 'Valor Bs'}
+                      </td>
+                      <td style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff', textAlign: 'center', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {formatearNumero(finca.fincaTotalBs, 2)}
+                      </td>
+                      <td style={{ fontWeight: 800, color: '#ffffff', textAlign: 'right', padding: '7px 10px', border: '1px solid #000000' }}>
+                        {formatearNumero(finca.tasaBCV, 4)}
+                      </td>
+                    </tr>
+
+                    {mostrarAdelanto && (
+                      <tr style={{ borderTop: '2px solid #000000', borderBottom: '2px solid #000000', background: 'rgba(0,0,0,0.32)' }}>
+                        <td style={{ color: '#6ee7b7', fontWeight: 900, textAlign: 'left', padding: '8px 10px', fontSize: '13.5px', border: '1px solid #000000' }}>
+                          TOTAL NETO BS
+                        </td>
+                        <td style={{ fontSize: '15px', fontWeight: 900, color: '#6ee7b7', textAlign: 'center', padding: '8px 10px', border: '1px solid #000000' }}>
+                          {formatearNumero(tieneAdelantoEstaFinca ? finca.fincaNetoBs : finca.fincaTotalBs, 2)}
+                        </td>
+                        {tieneAdelantoEstaFinca ? (
+                          <td style={{ textAlign: 'right', padding: '8px 10px', border: '1px solid #000000' }}>
+                            <span
+                              style={{
+                                background: '#ffffff',
+                                color: '#dc2626',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 900,
+                                fontSize: '12px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                                display: 'inline-block',
+                              }}
+                            >
+                              (-) {formatearNumero(finca.adelantoBs, 2)} Bs
+                            </span>
+                          </td>
+                        ) : (
+                          <td style={{ border: '1px solid #000000' }}>&nbsp;</td>
+                        )}
+                      </tr>
+                    )}
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* ACCIONES DE CADA CARD */}
+              <div style={{ padding: '12px 16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button
                   type="button"
-                  className="btn-exportar-card"
+                  className="btn-exportar-card no-capture"
                   onClick={() => {
                     if (cardRef.current) {
-                      onExportarExcel(cardRef.current.innerHTML, `Finca_${nom.replace(/\s+/g, '_')}_${fechaDesde}`);
+                      onExportarExcel(cardRef.current.innerHTML, `Finca_${finca.soloNombreFinca}_${fechaDesde}`);
                     }
+                  }}
+                  title={`Exportar ${finca.soloNombreFinca} a Excel`}
+                  style={{
+                    background: '#059669',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    padding: '7px 15px',
+                    borderRadius: '6px',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 6px rgba(5,150,105,0.25)',
                   }}
                 >
                   <i className="fa-solid fa-file-excel"></i> Exportar
                 </button>
                 <button
                   type="button"
-                  className="btn btn-primary"
-                  onClick={() => onCapturar(cardRef.current, `Finca_${nom.replace(/\s+/g, '_')}_${fechaDesde}`)}
+                  className="btn-captura-card no-capture"
+                  onClick={() => onCapturar(cardRef.current, `Finca_${finca.soloNombreFinca}_${fechaDesde}`)}
+                  title={`Capturar imagen de la tabla ${finca.soloNombreFinca}`}
                   style={{
                     background: 'linear-gradient(135deg, #0284c7, #2563eb)',
                     border: 'none',
                     color: '#ffffff',
                     fontWeight: 700,
-                    padding: '6px 14px',
+                    padding: '7px 15px',
                     borderRadius: '6px',
-                    fontSize: '12px',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
+                    boxShadow: '0 2px 6px rgba(37,99,235,0.3)',
                   }}
                 >
                   <i className="fa-solid fa-camera"></i> Capturar Imagen
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onAjustarAdelantoManual(finca.id, nom, adelantoUSD)}
-                  className="btn"
-                  style={{
-                    background: '#fef3c7',
-                    color: '#92400e',
-                    border: '1px solid #fde68a',
-                    fontWeight: 800,
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <i className="fa-solid fa-hand-holding-dollar"></i> Adelanto: ${adelantoUSD.toFixed(2)}
-                </button>
+                {mostrarAdelanto && finca.adelantoUSD > 0 && (
+                  <button
+                    type="button"
+                    className="no-capture"
+                    onClick={() => onAjustarAdelantoManual(finca.numericId, finca.soloNombreFinca, finca.adelantoUSD)}
+                    style={{
+                      background: '#fffbeb',
+                      color: '#b45309',
+                      border: '1px solid #fde68a',
+                      fontWeight: 800,
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title="Ver Detalle de Adelanto"
+                  >
+                    <i className="fa-solid fa-receipt"></i> Adelanto: ${formatearNumero(finca.adelantoUSD, 2)}
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* TARJETA CONSOLIDADA (CUANDO SE COMPARAN 2 FINCAS) */}
-      {fincasList.length > 1 && mostrarConsolidadoManual && (
+      {/* TARJETA CONSOLIDADA (1:1 EXACTO V2_3_11_26) */}
+      {mostrarConsolidadoCard && (
         <div
           ref={consolidadoCardRef}
           id="cardConsolidadoAmbasFincas"
-          className="report-card-demarcada"
           style={{
-            marginTop: '20px',
-            background: 'linear-gradient(135deg, #0f172a, #1e293b)',
+            background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+            border: '2px solid #047857',
             color: '#ffffff',
-            border: '2px solid #38bdf8',
+            padding: '20px 24px',
             borderRadius: '12px',
-            padding: '20px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            marginTop: '20px',
+            boxShadow: '0 4px 14px rgba(4,120,87,0.3)',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '12px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '16px', fontWeight: 900, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="fa-solid fa-calculator"></i> CONSOLIDADO TOTAL AMBAS FINCAS
-            </div>
-            <button
-              type="button"
-              className="btn btn-sm no-capture"
-              onClick={() => onCapturar(consolidadoCardRef.current, `Consolidado_Ambas_Fincas_${fechaDesde}`)}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '14px',
+              borderBottom: '1px solid rgba(255,255,255,0.25)',
+              paddingBottom: '10px',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}
+          >
+            <h3
               style={{
-                background: '#38bdf8',
-                color: '#0f172a',
-                border: 'none',
-                fontWeight: 800,
-                padding: '6px 14px',
-                borderRadius: '6px',
-                cursor: 'pointer',
+                color: '#ffffff',
+                fontSize: '16.5px',
+                margin: 0,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
               }}
             >
-              <i className="fa-solid fa-camera"></i> Capturar Consolidado
-            </button>
+              <i className="fa-solid fa-calculator" style={{ color: '#a7f3d0' }}></i> {consolidadoTitulo}
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '12.5px',
+                  padding: '5px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                }}
+              >
+                Tasa BCV: {formatearNumero(tasaBcv, 4)} Bs/USD
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm no-capture"
+                onClick={() => onCapturar(consolidadoCardRef.current, `Consolidado_Ambas_Fincas_${fechaDesde}`)}
+                style={{
+                  background: 'rgba(255,255,255,0.25)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  fontWeight: 800,
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-camera"></i> Capturar Consolidado
+              </button>
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-            <div style={{ background: 'rgba(255,255,255,0.06)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Total Litros Ambas</span>
-              <div style={{ fontSize: '18px', fontWeight: 900, color: '#38bdf8', marginTop: '4px' }}>
-                {formatearNumero(grandTotalLitros)} Lts
-              </div>
-            </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: esCasoVacaBufala
+                ? mostrarAdelanto
+                  ? 'repeat(auto-fit, minmax(180px, 1fr))'
+                  : 'repeat(auto-fit, minmax(180px, 1fr))'
+                : 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '14px',
+              textAlign: 'center',
+            }}
+          >
+            {esCasoVacaBufala ? (
+              <>
+                <div
+                  style={{
+                    background: 'rgba(30,64,175,0.25)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid rgba(147,197,253,0.4)',
+                  }}
+                >
+                  <small style={{ color: '#bfdbfe', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    <i className="fa-solid fa-cow"></i> Litros VACA
+                  </small>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
+                    {formatearNumero(objVaca.totalLitros)} Lts
+                  </div>
+                  <small style={{ fontSize: '10.5px', color: '#bfdbfe', fontWeight: 700 }}>
+                    ${formatearNumero(objVaca.fincaTotalUSD, 2)}
+                  </small>
+                </div>
+                <div
+                  style={{
+                    background: 'rgba(6,95,70,0.3)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid rgba(167,243,208,0.4)',
+                  }}
+                >
+                  <small style={{ color: '#a7f3d0', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    <i className="fa-solid fa-leaf"></i> Litros BÚFALA
+                  </small>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
+                    {formatearNumero(objBufala.totalLitros)} Lts
+                  </div>
+                  <small style={{ fontSize: '10.5px', color: '#a7f3d0', fontWeight: 700 }}>
+                    ${formatearNumero(objBufala.fincaTotalUSD, 2)}
+                  </small>
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.12)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                  }}
+                >
+                  <small style={{ color: '#a7f3d0', fontSize: '11.5px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    {tieneGrandTotalMala ? 'Total Litros Buena' : 'Total Litros'}
+                  </small>
+                  <div style={{ fontSize: '19px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
+                    {formatearNumero(grandTotalLitrosBuena)} Lts
+                  </div>
+                </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.06)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Total Bruto USD</span>
-              <div style={{ fontSize: '18px', fontWeight: 900, color: '#4ade80', marginTop: '4px' }}>
+                {tieneGrandTotalMala && (
+                  <div
+                    style={{
+                      background: 'rgba(255,255,255,0.12)',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid rgba(255,255,255,0.15)',
+                    }}
+                  >
+                    <small style={{ color: '#fca5a5', fontSize: '11.5px', fontWeight: 800, textTransform: 'uppercase' }}>
+                      Total Litros Mala / Ácida
+                    </small>
+                    <div style={{ fontSize: '19px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
+                      {formatearNumero(grandTotalLitrosMala)} Lts
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.12)',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.15)',
+              }}
+            >
+              <small style={{ color: '#93c5fd', fontSize: '11.5px', fontWeight: 800, textTransform: 'uppercase' }}>
+                {mostrarAdelanto ? 'Total Bruto USD' : 'Total Consolidado USD'}
+              </small>
+              <div style={{ fontSize: '19px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
                 ${formatearNumero(grandTotalUSD, 2)}
               </div>
+              <small style={{ fontSize: '10.5px', color: '#bfdbfe', fontWeight: 700 }}>
+                Bs. {formatearNumero(grandTotalBs, 2)}
+              </small>
             </div>
 
             {mostrarAdelanto && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                <span style={{ fontSize: '11px', color: '#fca5a5', textTransform: 'uppercase', fontWeight: 700 }}>(-) Adelanto Ambas</span>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: '#f87171', marginTop: '4px' }}>
-                  -${formatearNumero(grandTotalAdelantoUSD, 2)}
+              <div
+                style={{
+                  background: 'rgba(239,68,68,0.22)',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid rgba(248,113,113,0.35)',
+                }}
+              >
+                <small style={{ color: '#fecaca', fontSize: '11.5px', fontWeight: 800, textTransform: 'uppercase' }}>
+                  (-) Total Adelantos
+                </small>
+                <div style={{ fontSize: '17px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
+                  -${formatearNumero(grandTotalAdelantosUSD, 2)}
                 </div>
+                <small style={{ fontSize: '10.5px', color: '#fecaca', fontWeight: 700 }}>
+                  -Bs. {formatearNumero(grandTotalAdelantosBs, 2)}
+                </small>
+                {tieneSaldoDeudor && (
+                  <div
+                    style={{
+                      marginTop: '5px',
+                      paddingTop: '5px',
+                      borderTop: '1px dashed rgba(254,202,202,0.4)',
+                      fontSize: '11px',
+                      color: '#fef08a',
+                      fontWeight: 800,
+                    }}
+                  >
+                    Deuda Restante: -${formatearNumero(saldoDeudaUSD, 2)}
+                    <br />
+                    <span style={{ fontSize: '10px', color: '#fca5a5' }}>
+                      (-Bs. {formatearNumero(saldoDeudaBs, 2)})
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
-            <div style={{ background: 'rgba(34, 197, 94, 0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
-              <span style={{ fontSize: '11px', color: '#86efac', textTransform: 'uppercase', fontWeight: 800 }}>TOTAL NETO A PAGAR BS</span>
-              <div style={{ fontSize: '20px', fontWeight: 900, color: '#4ade80', marginTop: '4px' }}>
-                Bs. {formatearNumero(grandTotalNetoBs, 2)}
+            <div
+              style={{
+                background: tieneSaldoDeudor
+                  ? 'rgba(220,38,38,0.35)'
+                  : mostrarAdelanto
+                  ? 'rgba(255,255,255,0.32)'
+                  : 'rgba(255,255,255,0.28)',
+                padding: '12px',
+                borderRadius: '8px',
+                border: `2px solid ${tieneSaldoDeudor ? '#fca5a5' : '#ffffff'}`,
+              }}
+            >
+              <small style={{ color: '#fef08a', fontSize: '11.5px', fontWeight: 900, textTransform: 'uppercase' }}>
+                {mostrarAdelanto ? 'TOTAL NETO A PAGAR BS' : 'TOTAL MONTO BS'}
+              </small>
+              <div style={{ fontSize: '21px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
+                Bs. {formatearNumero(mostrarAdelanto ? consolidadoNetoBs : grandTotalBs, 2)}
               </div>
+              {mostrarAdelanto && (
+                tieneSaldoDeudor ? (
+                  <div style={{ fontSize: '11px', color: '#fee2e2', fontWeight: 800, marginTop: '3px' }}>
+                    <i className="fa-solid fa-triangle-exclamation"></i> SALDO DEUDOR (-Bs. {formatearNumero(saldoDeudaBs, 2)})
+                  </div>
+                ) : (
+                  <small style={{ fontSize: '11px', color: '#a7f3d0', fontWeight: 800 }}>
+                    (Bruto Total: Bs. {formatearNumero(grandTotalBs, 2)})
+                  </small>
+                )
+              )}
             </div>
           </div>
         </div>

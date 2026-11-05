@@ -119,7 +119,7 @@ namespace Transporte.API.Multitenancy
                 var emp = db.QueryFirstOrDefault<dynamic>(
                     @"SELECT Id, Codigo, NombreComercial, CadenaConexion, Estado, FechaVencimientoLicencia, DiasGraciaMora
                       FROM TB_EMPRESAS
-                      WHERE DominioPrincipal = @h OR SubdominioAlterno = @h OR Codigo = @h",
+                      WHERE DominioPrincipal = @h OR SubdominioAlterno = @h OR Codigo = @h OR (@h LIKE '%campoverde%' AND Codigo = 'CAMPO_VERDE')",
                     new { h = host });
 
                 if (emp == null && (host == "localhost" || host == "127.0.0.1" || host == "84.247.178.194"))

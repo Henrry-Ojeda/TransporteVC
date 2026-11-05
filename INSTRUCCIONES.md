@@ -62,7 +62,7 @@ Este documento establece las directrices maestras que **SIEMPRE Y SIN EXCEPCIÓN
        ```
      * **Hijo Campo Verde**:
        ```bash
-       npx vercel alias set <deployment-url> campoverde-omega.vercel.app
+       npx vercel alias set <deployment-url> lacteos-campoverde.vercel.app
        ```
      * **Padre Base**:
        ```bash
