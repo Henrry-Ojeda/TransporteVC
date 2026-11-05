@@ -323,9 +323,24 @@ export const catalogosApi = {
     const res = await apiClient.put(`/catalogos/companias/${id}`, dto);
     return res.data;
   },
-  actualizarPrecioCompania: async (id: number, nuevoPrecioUSD: number): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.put(`/catalogos/companias/${id}/precio`, { precioLitroUSD: nuevoPrecioUSD });
+  actualizarPrecioCompania: async (id: number, dto: { nuevoPrecioUSD: number; nuevoPrecioBufalaUSD?: number; nuevoPrecioAcidaUSD?: number; observacion?: string } | number): Promise<{ success: boolean; message: string }> => {
+    const payload = typeof dto === 'number'
+      ? { nuevoPrecioUSD: dto, nuevoPrecioBufalaUSD: dto, nuevoPrecioAcidaUSD: 0, observacion: '' }
+      : dto;
+    const res = await apiClient.put(`/catalogos/companias/${id}/precio`, payload);
     return res.data;
+  },
+  ajustarPrecioAcidaFinca: async (dto: { fincaId: number; precioLitroUSD?: number; precioLitroAcidaUSD: number }): Promise<any> => {
+    const res = await apiClient.post('/catalogos/pre-liquidacion/ajustar', {
+      fincaId: dto.fincaId,
+      precioLitroUSD: dto.precioLitroUSD || 0,
+      precioLitroAcidaUSD: dto.precioLitroAcidaUSD,
+    });
+    return res.data;
+  },
+  getHistorialPrecios: async (): Promise<any[]> => {
+    const res = await apiClient.get<any[]>('/catalogos/fincas/historial-precios').catch(() => ({ data: [] }));
+    return Array.isArray(res.data) ? res.data : [];
   },
   eliminarCompania: async (id: number): Promise<{ success: boolean; message: string }> => {
     const res = await apiClient.delete(`/catalogos/companias/${id}`);

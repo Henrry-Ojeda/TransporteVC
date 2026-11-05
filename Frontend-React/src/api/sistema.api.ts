@@ -113,6 +113,17 @@ export const sistemaApi = {
 
   getReporteFincas: async (fechaInicio: string, fechaFin: string, fincaIds?: string): Promise<any[]> => {
     try {
+      const params: Record<string, any> = { fechaInicio, fechaFin };
+      if (fincaIds) params.fincaIds = fincaIds;
+      const resBackend = await apiClient.get<any[]>('/reportes/fincas', { params }).catch(() => null);
+      if (resBackend && Array.isArray(resBackend.data) && resBackend.data.length > 0) {
+        return resBackend.data;
+      }
+    } catch {
+      // Si falla endpoint backend, se procesa agregación local
+    }
+
+    try {
       const [rutasRes, fincasList, bcvRes, adelantosRes] = await Promise.all([
         apiClient.get<any[]>('/rutas/hoy', { params: { fechaInicio, fechaFin } }).catch(() => ({ data: [] })),
         catalogosApi.getFincas(false).catch(() => []),
