@@ -83,7 +83,7 @@ export const HistorialPagosPage: React.FC = () => {
 
   // 5. Ver Comprobante y Compartir WhatsApp
   const verComprobante = (item: PreliquidacionFincaDto) => {
-    const textoWhatsApp = `*COMPROBANTE DE LIQUIDACIÓN - TRANSPORTE VERGEL CARRILLO*\n` +
+    const textoWhatsApp = `*COMPROBANTE DE LIQUIDACIÓN*\n` +
       `📅 Fecha: ${item.fechaPago || new Date().toLocaleDateString()}\n` +
       `🚜 Finca: ${item.fincaNombre}\n` +
       `👤 Productor: ${item.propietarioNombre}\n` +

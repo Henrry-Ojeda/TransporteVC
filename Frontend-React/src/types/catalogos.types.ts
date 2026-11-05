@@ -134,6 +134,7 @@ export interface GuardarCamionDto {
 
 export interface EmpresaConfigDto {
   id?: number;
+  nombre?: string;
   nombreEmpresa: string;
   rif: string;
   direccion?: string;

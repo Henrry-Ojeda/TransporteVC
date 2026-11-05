@@ -1801,12 +1801,12 @@ namespace Transporte.Core.DTOs
     public class EmpresaConfigDto
     {
         public int Id { get; set; } = 1;
-        public string Nombre { get; set; } = "TRANSPORTE VERGEL & CARRILLO";
+        public string Nombre { get; set; } = "";
         public string? NombreEmpresa { get; set; }
-        public string? Rif { get; set; } = "J-50000000-0";
-        public string? Direccion { get; set; } = "Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela";
-        public string? Telefono { get; set; } = "+58 414-0000000";
-        public string? Email { get; set; } = "contacto@transporte-vergel-carrillo.com";
+        public string? Rif { get; set; } = "";
+        public string? Direccion { get; set; } = "";
+        public string? Telefono { get; set; } = "";
+        public string? Email { get; set; } = "";
         public string? LogoUrl { get; set; } = "";
         public DateTime? FechaActualizacion { get; set; }
     }

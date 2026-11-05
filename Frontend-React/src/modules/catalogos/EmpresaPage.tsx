@@ -67,7 +67,8 @@ export const EmpresaPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.nombreEmpresa?.trim() || !form.rif?.trim()) {
+    const nombreLimpio = (form.nombreEmpresa || form.nombre || '').trim();
+    if (!nombreLimpio || !form.rif?.trim()) {
       Swal.fire({
         icon: 'warning',
         title: 'Campos Requeridos',
@@ -76,7 +77,12 @@ export const EmpresaPage: React.FC = () => {
       });
       return;
     }
-    guardarMutation.mutate(form);
+    const payload: EmpresaConfigDto = {
+      ...form,
+      nombre: nombreLimpio,
+      nombreEmpresa: nombreLimpio,
+    };
+    guardarMutation.mutate(payload);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -83,6 +83,11 @@ export const ControlTanquesPage: React.FC = () => {
     queryFn: () => catalogosApi.getChoferes(),
   });
 
+  const { data: empresaConfig } = useQuery({
+    queryKey: ['empresa-config'],
+    queryFn: () => catalogosApi.getEmpresaConfig(),
+  });
+
   const { data: viajesDelDia = [] } = useQuery({
     queryKey: ['viajes-dia-tanques', fechaDocumento],
     queryFn: () => operacionesApi.getControles(fechaDocumento),
@@ -549,7 +554,7 @@ export const ControlTanquesPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-black tracking-wide text-blue-900 leading-tight">
-                TRANSPORTE VERGEL CARRILLO C.A.
+                {empresaConfig?.nombre || empresaConfig?.nombreEmpresa || 'SISTEMA DE CONTROL LOGÍSTICO'}
               </h1>
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                 Sistema de Control Logístico y Recepción de Leche

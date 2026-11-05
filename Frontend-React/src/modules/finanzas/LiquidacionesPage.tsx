@@ -53,8 +53,7 @@ export const LiquidacionesPage: React.FC = () => {
   }, [ciclos, cicloSeleccionadoId]);
 
   const copiarDetalleWhatsApp = (row: PreliquidacionFincaDto) => {
-    const texto = `🧀 *TRANSPORTE VERGEL CARRILLO C.A.* 🥛
-📋 *RELACIÓN DE PAGO DE LECHE*
+    const texto = `📋 *RELACIÓN DE PAGO DE LECHE*
 ────────────────────────
 🏡 *Finca:* ${row.fincaNombre}
 👤 *Productor:* ${row.propietarioNombre}

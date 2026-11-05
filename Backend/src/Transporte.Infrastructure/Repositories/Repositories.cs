@@ -952,8 +952,10 @@ namespace Transporte.Infrastructure.Repositories
     public class CatalogosRepository : ICatalogosRepository
     {
         private readonly string _connectionString;
+        private readonly Transporte.Core.Interfaces.ITenantService? _tenantService;
         public CatalogosRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
+            _tenantService = tenantService;
             _connectionString = tenantService?.GetConnectionString() 
                 ?? configuration.GetConnectionString("DefaultConnection") 
                 ?? configuration.GetConnectionString("BD_TRANSPORTE") 
@@ -3242,21 +3244,30 @@ namespace Transporte.Infrastructure.Repositories
             var config = await connection.QueryFirstOrDefaultAsync<EmpresaConfigDto>(sql);
             if (config == null)
             {
+                string tenantName = _tenantService?.GetTenantName() ?? "Lácteos Campo Verde, C.A.";
                 config = new EmpresaConfigDto
                 {
-                    Nombre = "TRANSPORTE VERGEL & CARRILLO",
+                    Nombre = tenantName,
+                    NombreEmpresa = tenantName,
                     Rif = "J-50000000-0",
-                    Direccion = "Carretera Nacional, Sector El Cruce, Estado Zulia, Venezuela",
-                    Telefono = "+58 414-0000000",
-                    Email = "contacto@transporte-vergel-carrillo.com",
+                    Direccion = "",
+                    Telefono = "",
+                    Email = "",
                     LogoUrl = ""
                 };
+            }
+            else
+            {
+                config.NombreEmpresa = config.Nombre;
             }
             return config;
         }
 
         public async Task<bool> GuardarEmpresaConfigAsync(EmpresaConfigDto dto)
         {
+            if (!string.IsNullOrWhiteSpace(dto.NombreEmpresa))
+                dto.Nombre = dto.NombreEmpresa;
+
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
                 IF EXISTS (SELECT 1 FROM TB_EMPRESA_CONFIG WHERE Id = @Id OR Id = 1)
