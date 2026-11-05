@@ -3244,12 +3244,12 @@ namespace Transporte.Infrastructure.Repositories
             var config = await connection.QueryFirstOrDefaultAsync<EmpresaConfigDto>(sql);
             if (config == null)
             {
-                string tenantName = _tenantService?.GetTenantName() ?? "Lácteos Campo Verde, C.A.";
+                string tenantName = _tenantService?.GetTenantName() ?? "";
                 config = new EmpresaConfigDto
                 {
                     Nombre = tenantName,
                     NombreEmpresa = tenantName,
-                    Rif = "J-50000000-0",
+                    Rif = "",
                     Direccion = "",
                     Telefono = "",
                     Email = "",

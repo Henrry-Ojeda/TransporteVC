@@ -57,6 +57,20 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     staleTime: 1000 * 60 * 30,
   });
 
+  // Query Empresa Config (100% dinámico desde BD)
+  const { data: empresaConfig } = useQuery({
+    queryKey: ['empresa-config'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get<any>('/catalogos/empresa');
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 1000 * 60 * 15,
+  });
+
   const handleSyncBcv = async () => {
     if (sincronizandoBcv) return;
     setSincronizandoBcv(true);
@@ -140,9 +154,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           <i className="fa-solid fa-bars"></i>
         </button>
         <div className="brand-logo" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <i className="fa-solid fa-cow brand-icon"></i>
+          {empresaConfig?.logoUrl ? (
+            <img
+              src={empresaConfig.logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '28px', maxWidth: '40px', objectFit: 'contain', borderRadius: '4px' }}
+            />
+          ) : (
+            <i className="fa-solid fa-cow brand-icon"></i>
+          )}
           <div>
-            <span className="brand-title">RUTAS DE LECHE</span>
+            <span className="brand-title">
+              {empresaConfig?.nombre || empresaConfig?.nombreEmpresa || 'RUTAS DE LECHE'}
+            </span>
           </div>
         </div>
       </div>

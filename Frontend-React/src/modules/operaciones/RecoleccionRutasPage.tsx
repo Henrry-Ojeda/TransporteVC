@@ -31,10 +31,6 @@ interface RutaDetalleFinca {
 export const RecoleccionRutasPage: React.FC = () => {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const empresaCodigo = user?.empresaCodigo || '';
-  const isVergelCarrillo =
-    empresaCodigo.toUpperCase().includes('VERGEL') ||
-    (typeof window !== 'undefined' && window.location.hostname.includes('vergel'));
 
   const hoyStr = new Date().toISOString().split('T')[0];
 
@@ -299,11 +295,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     return viajes;
   }, [viajes, filtroEstadoTicket]);
 
-  // Fincas disponibles según modo BASE vs VERGEL
-  const fincasDisponibles = useMemo(() => {
-    if (isVergelCarrillo) return fincas;
-    return fincas;
-  }, [fincas, isVergelCarrillo]);
+  const fincasDisponibles = fincas;
 
   // COLUMNAS TABLA DE RECOLECCIONES (PUNTO 1: TIPO DE LECHE Y ACCIONES SIEMPRE PRESENTES)
   const columnsRecolecciones: ColumnDef<RutaDetalleFinca>[] = [
@@ -454,9 +446,7 @@ export const RecoleccionRutasPage: React.FC = () => {
         <div>
           <h1 className="view-title">Rutas de Recolección & Operaciones en Campo</h1>
           <p className="view-subtitle">
-            {isVergelCarrillo
-              ? 'Modalidad Vergel Carrillo: Despacho libre por chofer con multi-destino y control de Búfala / Vaca'
-              : 'Modalidad Base: Asignación por Ruta Logística predeterminada, chofer y cisterna'}
+            Control de recolección de leche en campo, asignación de rutas y despacho a plantas receptoras
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
