@@ -681,6 +681,12 @@ export const ReportesPage: React.FC = () => {
                 className="form-input"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    refetch();
+                  }
+                }}
                 style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%', borderRadius: '8px' }}
               />
             </div>
@@ -693,6 +699,12 @@ export const ReportesPage: React.FC = () => {
                 className="form-input"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    refetch();
+                  }
+                }}
                 style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%', borderRadius: '8px' }}
               />
             </div>
@@ -704,6 +716,12 @@ export const ReportesPage: React.FC = () => {
                 className="form-input form-select"
                 value={tipoReporte}
                 onChange={(e) => setTipoReporte(e.target.value as TipoReporteOficial)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    refetch();
+                  }
+                }}
                 style={{ height: '42px', fontWeight: 700, fontSize: '13.5px', color: '#0f172a', width: '100%', borderRadius: '8px' }}
               >
                 {CATALOGO_REPORTES.map((r) => (
@@ -842,6 +860,12 @@ export const ReportesPage: React.FC = () => {
                     placeholder={`Hoy: ${formatearNumero(bcvHoy?.tasaDolarBs || bcvHoy?.tasa || 889.5754, 2)}`}
                     value={tasaManual}
                     onChange={(e) => setTasaManual(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        refetch();
+                      }
+                    }}
                     style={{ height: '42px', fontSize: '14px', fontWeight: 700, color: '#047857', width: '100%', borderRadius: '8px' }}
                   />
                 </div>
@@ -874,6 +898,12 @@ export const ReportesPage: React.FC = () => {
                     placeholder={`Hoy: ${formatearNumero(bcvHoy?.tasaDolarBs || bcvHoy?.tasa || 889.5754, 2)}`}
                     value={tasaManual}
                     onChange={(e) => setTasaManual(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        refetch();
+                      }
+                    }}
                     style={{ height: '42px', fontSize: '14px', fontWeight: 700, color: '#047857', width: '100%', borderRadius: '8px' }}
                   />
                 </div>
