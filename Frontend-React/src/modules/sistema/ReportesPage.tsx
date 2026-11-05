@@ -6,8 +6,7 @@ import { toast } from 'sonner';
 import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { finanzasApi } from '@/api/finanzas.api';
-import { bcvApi } from '@/api/bcv.api';
-import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { SearchableSelect, type SelectOption } from '@/components/common/SearchableSelect';
 
 export type TipoReporteOficial =
   | 'DIARIOS'
@@ -112,7 +111,7 @@ export const ReportesPage: React.FC = () => {
 
   const { data: bcvHoy } = useQuery({
     queryKey: ['bcv-hoy-reportes'],
-    queryFn: () => bcvApi.getTasaHoy(),
+    queryFn: () => sistemaApi.getBcvHoy(),
     staleTime: 1000 * 60 * 5,
   });
 
@@ -125,11 +124,16 @@ export const ReportesPage: React.FC = () => {
 
   // Options para SearchableSelects
   const fincasOptions = useMemo(() => {
-    const opts = [{ value: '', label: '-- Todas las Fincas Ganaderas --' }];
-    fincas.forEach((f: any) => {
+    const opts: SelectOption[] = [{ value: '', label: '-- Todas las Fincas Ganaderas --' }];
+    (fincas || []).forEach((f: any) => {
+      const id = f.id ?? f.Id;
+      const nom = f.nombre ?? f.Nombre ?? `Finca #${id}`;
+      const prop = f.propietarioNombre || f.propietario || f.Propietario || '';
       opts.push({
-        value: String(f.id || f.Id),
-        label: `${f.nombre || f.Nombre} ${f.propietario ? `(${f.propietario})` : ''}`,
+        value: String(id),
+        label: prop ? `${nom} (${prop})` : nom,
+        subLabel: prop ? `Propietario: ${prop}` : undefined,
+        badge: f.tipoLeche === 'BUFALA' ? '🐃 BÚFALA' : (f.tieneDosTiposLeche ? 'Dual' : undefined),
       });
     });
     return opts;
@@ -526,293 +530,441 @@ export const ReportesPage: React.FC = () => {
   return (
     <section id="tab-reportes" className="tab-content active" style={{ display: 'block', paddingBottom: '40px' }}>
       {/* =======================================================================
-          BARRA SUPERIOR MAESTRA DE FILTROS (1:1 V2_3_11_26)
+          ENCABEZADO DE VISTA MAESTRO (1:1 V2_3_11_26)
+         ======================================================================= */}
+      <div
+        className="view-header mb-4"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '15px',
+          marginBottom: '20px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '22px',
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+            }}
+          >
+            <i className="fa-solid fa-chart-pie"></i>
+          </div>
+          <div>
+            <h2
+              className="view-title"
+              style={{
+                margin: 0,
+                fontSize: '20px',
+                fontWeight: 800,
+                color: '#0f172a',
+                letterSpacing: '-0.5px',
+              }}
+            >
+              INFORMACIÓN GENERAL / REPORTES
+            </h2>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
+              Generación de balances, nómina bancaria y resumen de recolección
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => window.print()}
+            style={{
+              borderRadius: '8px',
+              padding: '7px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              background: '#ffffff',
+              borderColor: '#cbd5e1',
+              color: '#334155',
+            }}
+          >
+            <i className="fa-solid fa-print"></i> Imprimir / PDF
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-success"
+            onClick={exportarReporteActualExcel}
+            style={{
+              borderRadius: '8px',
+              padding: '7px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+              background: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+            }}
+          >
+            <i className="fa-solid fa-file-excel"></i> Exportar
+          </button>
+        </div>
+      </div>
+
+      {/* =======================================================================
+          PANEL BUSCAR REPORTES (1:1 V2_3_11_26)
          ======================================================================= */}
       <div
         className="content-card"
         style={{
+          marginBottom: '20px',
+          padding: 0,
+          overflow: 'visible',
           background: '#ffffff',
           borderRadius: '12px',
           border: '1px solid #cbd5e1',
-          padding: '16px 20px',
-          marginBottom: '20px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="fa-solid fa-file-invoice" style={{ color: '#2563eb' }}></i>
-              Módulo de Reportes Oficiales
-            </h1>
-            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-              Generación de comprobantes, liquidaciones, análisis de mermas y dispersión bancaria
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-outline"
-              onClick={() => window.print()}
-              style={{ fontWeight: 700, padding: '7px 14px', fontSize: '12.5px', borderRadius: '6px' }}
-            >
-              <i className="fa-solid fa-print"></i> Imprimir / PDF
-            </button>
-            <button
-              type="button"
-              className="btn btn-success"
-              onClick={exportarReporteActualExcel}
-              style={{
-                background: '#10b981',
-                color: '#ffffff',
-                border: 'none',
-                fontWeight: 700,
-                padding: '7px 16px',
-                fontSize: '12.5px',
-                borderRadius: '6px',
-                boxShadow: '0 2px 6px rgba(16,185,129,0.3)',
-              }}
-            >
-              <i className="fa-solid fa-file-excel"></i> Exportar
-            </button>
-          </div>
-        </div>
-
-        {/* CONTROLES DE FILTRO */}
         <div
+          className="card-header-styled card-header-primary"
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '12px',
-            alignItems: 'flex-end',
-            background: '#f8fafc',
-            padding: '14px',
-            borderRadius: '10px',
-            border: '1px solid #e2e8f0',
+            padding: '12px 18px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'linear-gradient(135deg, #1e3a8a, #2563eb)',
+            color: '#ffffff',
+            borderRadius: '12px 12px 0 0',
           }}
         >
-          {/* Selector de Tipo de Reporte */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Tipo de Reporte:
-            </label>
-            <select
-              className="form-input form-select"
-              value={tipoReporte}
-              onChange={(e) => setTipoReporte(e.target.value as TipoReporteOficial)}
-              style={{ width: '100%', height: '38px', fontWeight: 700, color: '#1e293b' }}
-            >
-              {CATALOGO_REPORTES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Fecha Desde */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Desde:
-            </label>
-            <input
-              type="date"
-              className="form-input"
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              style={{ width: '100%', height: '38px', fontWeight: 600 }}
-            />
-          </div>
-
-          {/* Fecha Hasta */}
-          <div>
-            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Hasta:
-            </label>
-            <input
-              type="date"
-              className="form-input"
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              style={{ width: '100%', height: '38px', fontWeight: 600 }}
-            />
-          </div>
-
-          {/* Subfiltro dinámico: FINCA 1 y FINCA 2 (en Reporte Fincas) */}
-          {tipoReporte === 'FINCAS' && (
-            <>
-              <div>
-                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-                  Finca Principal:
-                </label>
-                <SearchableSelect
-                  options={fincasOptions}
-                  value={finca1Id}
-                  onChange={(val) => setFinca1Id(String(val || ''))}
-                  placeholder="Selecciona Finca 1..."
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#7c3aed', marginBottom: '4px', textTransform: 'uppercase' }}>
-                  <i className="fa-solid fa-code-compare"></i> Comparar / 2da Finca:
-                </label>
-                <SearchableSelect
-                  options={fincasOptions}
-                  value={finca2Id}
-                  onChange={(val) => setFinca2Id(String(val || ''))}
-                  placeholder="Opcional: Finca 2..."
-                />
-              </div>
-            </>
-          )}
-
-          {/* Subfiltro dinámico: RECEPTORIAS */}
-          {(tipoReporte === 'RECEPTORIAS' || tipoReporte === 'RELACION_PAGOS_COMPANIAS') && (
-            <div>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Receptoría / Planta:
-              </label>
-              <SearchableSelect
-                options={companiasOptions}
-                value={companiaId}
-                onChange={(val) => setCompaniaId(String(val || ''))}
-                placeholder="Todas las Plantas..."
-              />
-            </div>
-          )}
-
-          {/* Subfiltro dinámico: CHOFERES */}
-          {tipoReporte === 'CHOFERES' && (
-            <div>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Conductor:
-              </label>
-              <SearchableSelect
-                options={choferesOptions}
-                value={choferId}
-                onChange={(val) => setChoferId(String(val || ''))}
-                placeholder="Todos los Choferes..."
-              />
-            </div>
-          )}
-
-          {/* Subfiltro dinámico: BANCOS */}
-          {tipoReporte === 'BANCOS' && (
-            <div>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Banco:
-              </label>
-              <SearchableSelect
-                options={bancosOptions}
-                value={bancoId}
-                onChange={(val) => setBancoId(String(val || ''))}
-                placeholder="Todos los Bancos..."
-              />
-            </div>
-          )}
-
-          {/* Tasa BCV Manual */}
-          {(tipoReporte === 'FINCAS' ||
-            tipoReporte === 'RECEPTORIAS' ||
-            tipoReporte === 'BANCOS' ||
-            tipoReporte === 'RELACION_PAGOS_COMPANIAS') && (
-            <div>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#334155', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Tasa BCV (Bs/$):
-              </label>
-              <input
-                type="number"
-                step="0.0001"
-                className="form-input"
-                placeholder={`Hoy: ${tasaBcvActiva.toFixed(2)}`}
-                value={tasaManual}
-                onChange={(e) => setTasaManual(e.target.value)}
-                style={{ width: '100%', height: '38px', fontWeight: 700, color: '#b45309' }}
-              />
-            </div>
-          )}
-
-          {/* Botón Buscar */}
-          <div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => refetch()}
-              style={{ width: '100%', height: '38px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-            >
-              <i className="fa-solid fa-magnifying-glass"></i> Buscar
-            </button>
-          </div>
+          <span style={{ fontWeight: 800, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <i className="fa-solid fa-magnifying-glass"></i> PARÁMETROS DE BÚSQUEDA
+          </span>
+          <span
+            className="badge badge-info"
+            style={{
+              fontSize: '11.5px',
+              fontWeight: 700,
+              background: '#38bdf8',
+              color: '#0f172a',
+              padding: '4px 10px',
+              borderRadius: '6px',
+            }}
+          >
+            Semana Operativa: ({formatearFechaLocal(fechaInicio)} al {formatearFechaLocal(fechaFin)})
+          </span>
         </div>
 
-        {/* ACCIONES EXCLUSIVAS DE REPORTES FINCAS */}
-        {tipoReporte === 'FINCAS' && (
-          <div style={{ marginTop: '14px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setMostrarAdelanto(!mostrarAdelanto)}
-              className="btn"
-              style={{
-                background: mostrarAdelanto ? '#d97706' : '#ffffff',
-                color: mostrarAdelanto ? '#ffffff' : '#b45309',
-                border: '1.5px solid #d97706',
-                fontWeight: 800,
-                fontSize: '12px',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <i className="fa-solid fa-hand-holding-dollar"></i>
-              {mostrarAdelanto ? 'Adelanto: ACTIVADO' : 'Mostrar Adelanto (Opcional)'}
-            </button>
-
-            {finca1Id && finca2Id && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setMostrarConsolidadoManual(!mostrarConsolidadoManual)}
-                  className="btn btn-outline"
-                  style={{ fontWeight: 700, fontSize: '12px', padding: '6px 12px', borderRadius: '8px' }}
-                >
-                  <i className={`fa-solid ${mostrarConsolidadoManual ? 'fa-eye-slash' : 'fa-calculator'}`}></i>
-                  {mostrarConsolidadoManual ? 'Ocultar Suma' : 'Sumar Totales (Opcional)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="btn btn-outline"
-                  style={{ fontWeight: 700, fontSize: '12px', padding: '6px 12px', borderRadius: '8px' }}
-                >
-                  <i className="fa-solid fa-print"></i> Imprimir Ambas Tablas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => ejecutarCaptura(contenedorRef.current, `Consolidado_Fincas_${fechaInicio}_al_${fechaFin}`)}
-                  className="btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '12px',
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 6px rgba(37,99,235,0.3)',
-                  }}
-                >
-                  <i className="fa-solid fa-camera"></i> Capturar Imagen Ambas
-                </button>
-              </>
-            )}
+        <div style={{ padding: '18px' }}>
+          {/* FILA 1: DESDE, HASTA, TIPO, BOTÓN BUSCAR */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr)) 130px',
+              gap: '16px',
+              alignItems: 'flex-end',
+              marginBottom: '14px',
+            }}
+          >
+            <div>
+              <label style={{ fontSize: '13px', color: '#1e293b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Desde:
+              </label>
+              <input
+                type="date"
+                className="form-input"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%', borderRadius: '8px' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '13px', color: '#1e293b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Hasta:
+              </label>
+              <input
+                type="date"
+                className="form-input"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                style={{ height: '42px', fontSize: '14px', fontWeight: 600, color: '#0f172a', width: '100%', borderRadius: '8px' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '13px', color: '#1e293b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                Tipo de Reporte:
+              </label>
+              <select
+                className="form-input form-select"
+                value={tipoReporte}
+                onChange={(e) => setTipoReporte(e.target.value as TipoReporteOficial)}
+                style={{ height: '42px', fontWeight: 700, fontSize: '13.5px', color: '#0f172a', width: '100%', borderRadius: '8px' }}
+              >
+                {CATALOGO_REPORTES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => refetch()}
+                style={{
+                  height: '42px',
+                  width: '100%',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+                }}
+              >
+                <i className="fa-solid fa-magnifying-glass"></i> Buscar
+              </button>
+            </div>
           </div>
-        )}
+
+          {/* FILA 2: SUB-FILTROS DINÁMICOS CON BUSCADORES / COMBOBOXES (1:1 V2_3_11_26) */}
+          <div style={{ paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
+            {/* Subfiltro FINCAS: Finca 1 y Finca 2 */}
+            {tipoReporte === 'FINCAS' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '22px' }}>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-cow" style={{ color: '#2563eb' }}></i> Finca 1 (Buscar por nombre o dueño):
+                  </label>
+                  <SearchableSelect
+                    options={fincasOptions}
+                    value={finca1Id}
+                    onChange={(val) => setFinca1Id(String(val || ''))}
+                    placeholder="Escriba para buscar Finca 1..."
+                    searchPlaceholder="Buscar finca por nombre o productor..."
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-cow" style={{ color: '#10b981' }}></i> Finca 2 (Opcional - Comparar):
+                  </label>
+                  <SearchableSelect
+                    options={fincasOptions}
+                    value={finca2Id}
+                    onChange={(val) => setFinca2Id(String(val || ''))}
+                    placeholder="Escriba para buscar Finca 2..."
+                    searchPlaceholder="Buscar finca por nombre o productor..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Subfiltro RECEPTORIAS: Receptoría y Tipo de Servicio */}
+            {tipoReporte === 'RECEPTORIAS' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', alignItems: 'flex-end' }}>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-truck" style={{ color: '#10b981' }}></i> Receptoría / Planta:
+                  </label>
+                  <SearchableSelect
+                    options={companiasOptions}
+                    value={companiaId}
+                    onChange={(val) => setCompaniaId(String(val || ''))}
+                    placeholder="Escriba para buscar Receptoría / Planta..."
+                    searchPlaceholder="Buscar receptoría..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Subfiltro CHOFERES: Conductor y Finca */}
+            {tipoReporte === 'CHOFERES' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-id-badge" style={{ color: '#0284c7' }}></i> Conductor / Chofer (Opcional):
+                  </label>
+                  <SearchableSelect
+                    options={choferesOptions}
+                    value={choferId}
+                    onChange={(val) => setChoferId(String(val || ''))}
+                    placeholder="Todos los choferes o escriba para buscar..."
+                    searchPlaceholder="Buscar conductor..."
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-cow" style={{ color: '#2563eb' }}></i> Filtrar por Finca (Opcional):
+                  </label>
+                  <SearchableSelect
+                    options={fincasOptions}
+                    value={finca1Id}
+                    onChange={(val) => setFinca1Id(String(val || ''))}
+                    placeholder="Todas las fincas o escriba para buscar..."
+                    searchPlaceholder="Buscar finca..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Subfiltro BANCOS: Banco y Tasa BCV */}
+            {tipoReporte === 'BANCOS' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', alignItems: 'flex-end' }}>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-building-columns" style={{ color: '#d97706' }}></i> Filtrar por Banco:
+                  </label>
+                  <SearchableSelect
+                    options={bancosOptions}
+                    value={bancoId}
+                    onChange={(val) => setBancoId(String(val || ''))}
+                    placeholder="TODOS LOS BANCOS"
+                    searchPlaceholder="Buscar banco..."
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-coins" style={{ color: '#059669' }}></i> Tasa BCV (Bs/$):
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="form-input"
+                    placeholder={`Hoy: ${formatearNumero(bcvHoy?.tasaDolarBs || bcvHoy?.tasa || 889.5754, 2)}`}
+                    value={tasaManual}
+                    onChange={(e) => setTasaManual(e.target.value)}
+                    style={{ height: '42px', fontSize: '14px', fontWeight: 700, color: '#047857', width: '100%', borderRadius: '8px' }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Subfiltro RELACION DE PAGOS COMPAÑIAS: Compañía y Tasa BCV */}
+            {tipoReporte === 'RELACION_PAGOS_COMPANIAS' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', alignItems: 'flex-end' }}>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-building-wheat" style={{ color: '#9333ea' }}></i> Compañía / Planta:
+                  </label>
+                  <SearchableSelect
+                    options={companiasOptions}
+                    value={companiaId}
+                    onChange={(val) => setCompaniaId(String(val || ''))}
+                    placeholder="Todas las Compañías..."
+                    searchPlaceholder="Buscar compañía..."
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-coins" style={{ color: '#059669' }}></i> Tasa BCV (Bs/$):
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="form-input"
+                    placeholder={`Hoy: ${formatearNumero(bcvHoy?.tasaDolarBs || bcvHoy?.tasa || 889.5754, 2)}`}
+                    value={tasaManual}
+                    onChange={(e) => setTasaManual(e.target.value)}
+                    style={{ height: '42px', fontSize: '14px', fontWeight: 700, color: '#047857', width: '100%', borderRadius: '8px' }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Subfiltro RELACION CHOFER: Conductor */}
+            {tipoReporte === 'RELACION_CHOFER' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#1e293b', marginBottom: '6px', display: 'block', fontWeight: 700 }}>
+                    <i className="fa-solid fa-truck-arrow-right" style={{ color: '#ea580c' }}></i> Conductor / Chofer:
+                  </label>
+                  <SearchableSelect
+                    options={choferesOptions}
+                    value={choferId}
+                    onChange={(val) => setChoferId(String(val || ''))}
+                    placeholder="Seleccionar Chofer para ver Relación..."
+                    searchPlaceholder="Buscar chofer..."
+                  />
+                </div>
+              </div>
+            )}
+          {/* ACCIONES EXCLUSIVAS DE REPORTES FINCAS */}
+          {tipoReporte === 'FINCAS' && (
+            <div style={{ marginTop: '14px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setMostrarAdelanto(!mostrarAdelanto)}
+                className="btn"
+                style={{
+                  background: mostrarAdelanto ? '#d97706' : '#ffffff',
+                  color: mostrarAdelanto ? '#ffffff' : '#b45309',
+                  border: '1.5px solid #d97706',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-hand-holding-dollar"></i>
+                {mostrarAdelanto ? 'Adelanto: ACTIVADO' : 'Mostrar Adelanto (Opcional)'}
+              </button>
+
+              {finca1Id && finca2Id && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarConsolidadoManual(!mostrarConsolidadoManual)}
+                    className="btn btn-outline"
+                    style={{ fontWeight: 700, fontSize: '12px', padding: '6px 12px', borderRadius: '8px' }}
+                  >
+                    <i className={`fa-solid ${mostrarConsolidadoManual ? 'fa-eye-slash' : 'fa-calculator'}`}></i>
+                    {mostrarConsolidadoManual ? 'Ocultar Suma' : 'Sumar Totales (Opcional)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="btn btn-outline"
+                    style={{ fontWeight: 700, fontSize: '12px', padding: '6px 12px', borderRadius: '8px' }}
+                  >
+                    <i className="fa-solid fa-print"></i> Imprimir Ambas Tablas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => ejecutarCaptura(contenedorRef.current, `Consolidado_Fincas_${fechaInicio}_al_${fechaFin}`)}
+                    className="btn"
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 6px rgba(37,99,235,0.3)',
+                    }}
+                  >
+                    <i className="fa-solid fa-camera"></i> Capturar Imagen Ambas
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+    </div>
 
       {/* =======================================================================
           CONTENEDOR DE RESULTADOS SEGÚN EL REPORTE (1:1 V2_3_11_26)
