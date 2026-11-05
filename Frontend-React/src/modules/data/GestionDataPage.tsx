@@ -42,24 +42,25 @@ const CONFIG_ENTIDADES: Record<EntidadData, ConfigEntidad> = {
     columnasPreview: [
       { key: 'codigo', label: 'Código' },
       { key: 'nombre', label: 'Nombre de Finca' },
-      { key: 'propietario', label: 'Propietario' },
+      { key: 'propietario', label: 'Propietario / Productor' },
       { key: 'precioLitroUSD', label: 'Precio USD' },
       { key: 'tipoLeche', label: 'Tipo Leche' },
       { key: 'companiaNombre', label: 'Receptoría' },
     ],
     mapeo: {
-      codigo: ['CODIGO', 'COD', 'CODIGO_FINCA'],
-      nombre: ['NOMBRE_FINCA', 'NOMBRE', 'FINCA', 'NOMBRE FINCA'],
-      propietario: ['PROPIETARIO', 'PROPIETARIO_NOMBRE', 'DUEÑO', 'TITULAR'],
-      cedulaRIF: ['CEDULA_RIF', 'CEDULA', 'RIF', 'DOCUMENTO'],
-      telefono: ['TELEFONO', 'TLF', 'CELULAR'],
-      bancoNombre: ['BANCO', 'BANCO_NOMBRE'],
-      numeroCuenta: ['NUMERO_CUENTA', 'CUENTA', 'NRO_CUENTA'],
-      companiaNombre: ['COMPANIA_RECEPTORIA', 'COMPANIA', 'RECEPTORIA', 'PLANTA'],
-      precioLitroUSD: ['PRECIO_LITRO_USD', 'PRECIO_USD', 'PRECIO', 'PRECIO LITRO'],
-      precioLitroAcidaUSD: ['PRECIO_ACIDA_USD', 'PRECIO_MALA_USD'],
-      tipoLeche: ['TIPO_LECHE', 'TIPO', 'LECHE'],
-      tieneDosTiposLeche: ['TIENE_DOS_TIPOS_LECHE', 'DOS_TIPOS'],
+      codigo: ['CODIGO', 'COD', 'CODIGO_FINCA', 'ID_FINCA', 'NUMERO'],
+      nombre: ['NOMBRE_FINCA', 'NOMBRE', 'FINCA', 'NOMBRE_DE_LA_FINCA', 'NOMBRE_DE_FINCA'],
+      propietario: ['PROPIETARIO', 'PROPIETARIO_NOMBRE', 'PRODUCTOR', 'DUENO', 'TITULAR', 'NOMBRE_PROPIETARIO', 'NOMBRE_DEL_PRODUCTOR'],
+      cedulaRIF: ['CEDULA_RIF', 'CEDULA', 'RIF', 'DOCUMENTO', 'CI', 'DNI'],
+      telefono: ['TELEFONO', 'TLF', 'CELULAR', 'MOVIL'],
+      bancoNombre: ['BANCO', 'BANCO_NOMBRE', 'NOMBRE_BANCO', 'ENTIDAD_BANCARIA'],
+      numeroCuenta: ['NUMERO_CUENTA', 'CUENTA', 'NRO_CUENTA', 'NUMERO_DE_CUENTA', 'CUENTA_BANCARIA'],
+      companiaNombre: ['COMPANIA_RECEPTORIA', 'COMPANIA', 'RECEPTORIA', 'PLANTA', 'DESTINO', 'EMPRESA_RECEPTORA'],
+      precioLitroUSD: ['PRECIO_LITRO_USD', 'PRECIO_USD', 'PRECIO', 'PRECIO_LITRO', 'TARIFA_USD', 'PRECIO_VACA_USD'],
+      precioLitroAcidaUSD: ['PRECIO_ACIDA_USD', 'PRECIO_MALA_USD', 'PRECIO_LECHE_ACIDA', 'ACIDA_USD'],
+      precioBufalaLitroUSD: ['PRECIO_BUFALA_USD', 'PRECIO_BUFALA', 'BUFALA_USD', 'TARIFA_BUFALA'],
+      tipoLeche: ['TIPO_LECHE', 'TIPO', 'LECHE', 'ESPECIE'],
+      tieneDosTiposLeche: ['TIENE_DOS_TIPOS_LECHE', 'DOS_TIPOS', 'DOBLE_PROPOSITO', 'BUFALA_Y_VACA'],
     },
   },
   PROPIETARIOS: {
@@ -78,13 +79,13 @@ const CONFIG_ENTIDADES: Record<EntidadData, ConfigEntidad> = {
       { key: 'numeroCuenta', label: 'Cuenta' },
     ],
     mapeo: {
-      nombre: ['NOMBRE_COMPLETO', 'NOMBRE', 'PROPIETARIO', 'TITULAR'],
-      cedulaRIF: ['CEDULA_RIF', 'CEDULA', 'RIF', 'DOCUMENTO'],
-      telefono: ['TELEFONO', 'TLF', 'CELULAR'],
-      email: ['EMAIL', 'CORREO'],
-      bancoNombre: ['BANCO', 'BANCO_NOMBRE'],
-      numeroCuenta: ['NUMERO_CUENTA', 'CUENTA', 'NRO_CUENTA'],
-      observacion: ['OBSERVACION', 'NOTA'],
+      nombre: ['NOMBRE_COMPLETO', 'NOMBRE', 'PROPIETARIO', 'PRODUCTOR', 'TITULAR', 'NOMBRE_PROPIETARIO', 'NOMBRES_Y_APELLIDOS'],
+      cedulaRIF: ['CEDULA_RIF', 'CEDULA', 'RIF', 'DOCUMENTO', 'CI', 'DNI'],
+      telefono: ['TELEFONO', 'TLF', 'CELULAR', 'MOVIL'],
+      email: ['EMAIL', 'CORREO', 'CORREO_ELECTRONICO'],
+      bancoNombre: ['BANCO', 'BANCO_NOMBRE', 'NOMBRE_BANCO', 'ENTIDAD_BANCARIA'],
+      numeroCuenta: ['NUMERO_CUENTA', 'CUENTA', 'NRO_CUENTA', 'NUMERO_DE_CUENTA', 'CUENTA_BANCARIA'],
+      observacion: ['OBSERVACION', 'NOTA', 'OBSERVACIONES', 'COMENTARIOS'],
     },
   },
   COMPANIAS: {
@@ -102,13 +103,13 @@ const CONFIG_ENTIDADES: Record<EntidadData, ConfigEntidad> = {
       { key: 'precioBufalaLitroUSD', label: 'Precio Búfala' },
     ],
     mapeo: {
-      nombre: ['NOMBRE_COMPANIA', 'NOMBRE', 'COMPANIA', 'RECEPTORIA', 'PLANTA'],
-      encargado: ['ENCARGADO', 'RESPONSABLE', 'CONTACTO'],
-      telefono: ['TELEFONO', 'TLF'],
-      direccion: ['DIRECCION', 'UBICACION'],
-      precioCompraLitroUSD: ['PRECIO_COMPRA_USD', 'PRECIO_COMPRA', 'PRECIO_USD'],
-      precioBufalaLitroUSD: ['PRECIO_BUFALA_USD', 'PRECIO_BUFALA'],
-      precioAcidaLitroUSD: ['PRECIO_ACIDA_USD', 'PRECIO_ACIDA'],
+      nombre: ['NOMBRE_COMPANIA', 'NOMBRE', 'COMPANIA', 'RECEPTORIA', 'PLANTA', 'RAZON_SOCIAL', 'EMPRESA'],
+      encargado: ['ENCARGADO', 'RESPONSABLE', 'CONTACTO', 'REPRESENTANTE'],
+      telefono: ['TELEFONO', 'TLF', 'CELULAR', 'MOVIL'],
+      direccion: ['DIRECCION', 'UBICACION', 'SECTOR'],
+      precioCompraLitroUSD: ['PRECIO_COMPRA_USD', 'PRECIO_COMPRA', 'PRECIO_USD', 'PRECIO_LITRO', 'TARIFA_COMPRA'],
+      precioBufalaLitroUSD: ['PRECIO_BUFALA_USD', 'PRECIO_BUFALA', 'BUFALA_USD'],
+      precioAcidaLitroUSD: ['PRECIO_ACIDA_USD', 'PRECIO_ACIDA', 'ACIDA_USD'],
     },
   },
   BANCOS: {
@@ -123,8 +124,8 @@ const CONFIG_ENTIDADES: Record<EntidadData, ConfigEntidad> = {
       { key: 'nombre', label: 'Nombre del Banco' },
     ],
     mapeo: {
-      codigo: ['CODIGO_BANCO', 'CODIGO', 'COD'],
-      nombre: ['NOMBRE_BANCO', 'NOMBRE', 'BANCO'],
+      codigo: ['CODIGO_BANCO', 'CODIGO', 'COD', 'PREFIJO', 'CODIGO_4_DIGITOS'],
+      nombre: ['NOMBRE_BANCO', 'NOMBRE', 'BANCO', 'INSTITUCION', 'ENTIDAD_FINANCIERA'],
     },
   },
 };
@@ -164,21 +165,41 @@ export const GestionDataPage: React.FC = () => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        const jsonRaw = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+        // raw: false asegura conservar formato textual original (números de cuenta con ceros iniciales, teléfonos, etc.)
+        const jsonRaw = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '', raw: false });
 
         if (jsonRaw.length === 0) {
           toast.error('El archivo cargado está vacío.');
           return;
         }
 
+        // Helper para normalizar cabeceras eliminando acentos, caracteres especiales y espacios
+        const normalizarHeader = (str: string) =>
+          str
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
+
+        // Helper para parsear números decimales con punto o coma (ej: "0,40" o "$0.42")
+        const parseDecimal = (val: any) => {
+          if (val === undefined || val === null || val === '') return 0;
+          if (typeof val === 'number') return val;
+          const cleaned = String(val).replace(/[^0-9.,]/g, '').replace(',', '.');
+          const num = parseFloat(cleaned);
+          return isNaN(num) ? 0 : num;
+        };
+
         // Mapeo inteligente de columnas
         const filasMapeadas = jsonRaw.map((rawRow, idx) => {
           const rowNormalizado: Record<string, any> = { _filaIdx: idx + 2 };
 
-          // Normalizar encabezados en mayúsculas sin espacios
+          // Normalizar encabezados del archivo
           const rowClean: Record<string, any> = {};
           Object.keys(rawRow).forEach((k) => {
-            const cleanKey = k.trim().toUpperCase().replace(/\s+/g, '_');
+            const cleanKey = normalizarHeader(k);
             rowClean[cleanKey] = rawRow[k];
           });
 
@@ -187,19 +208,20 @@ export const GestionDataPage: React.FC = () => {
             const alias = config.mapeo[campo];
             let valorEncontrado = '';
             for (const col of alias) {
-              if (rowClean[col] !== undefined && rowClean[col] !== '') {
-                valorEncontrado = rowClean[col];
+              const normCol = normalizarHeader(col);
+              if (rowClean[normCol] !== undefined && rowClean[normCol] !== '') {
+                valorEncontrado = String(rowClean[normCol]).trim();
                 break;
               }
             }
             rowNormalizado[campo] = valorEncontrado;
           });
 
-          // Conversión de tipos numéricos
-          if (rowNormalizado.precioLitroUSD) rowNormalizado.precioLitroUSD = parseFloat(rowNormalizado.precioLitroUSD) || 0;
-          if (rowNormalizado.precioLitroAcidaUSD) rowNormalizado.precioLitroAcidaUSD = parseFloat(rowNormalizado.precioLitroAcidaUSD) || 0;
-          if (rowNormalizado.precioCompraLitroUSD) rowNormalizado.precioCompraLitroUSD = parseFloat(rowNormalizado.precioCompraLitroUSD) || 0;
-          if (rowNormalizado.precioBufalaLitroUSD) rowNormalizado.precioBufalaLitroUSD = parseFloat(rowNormalizado.precioBufalaLitroUSD) || 0;
+          // Conversión de tipos numéricos tolerante a formatos con comas o símbolos
+          if (rowNormalizado.precioLitroUSD) rowNormalizado.precioLitroUSD = parseDecimal(rowNormalizado.precioLitroUSD);
+          if (rowNormalizado.precioLitroAcidaUSD) rowNormalizado.precioLitroAcidaUSD = parseDecimal(rowNormalizado.precioLitroAcidaUSD);
+          if (rowNormalizado.precioCompraLitroUSD) rowNormalizado.precioCompraLitroUSD = parseDecimal(rowNormalizado.precioCompraLitroUSD);
+          if (rowNormalizado.precioBufalaLitroUSD) rowNormalizado.precioBufalaLitroUSD = parseDecimal(rowNormalizado.precioBufalaLitroUSD);
 
           // Booleano
           if (typeof rowNormalizado.tieneDosTiposLeche === 'string') {
