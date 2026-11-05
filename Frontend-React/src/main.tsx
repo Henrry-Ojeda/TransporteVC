@@ -1,3 +1,7 @@
+if (typeof window !== 'undefined' && window.location.hostname === 'campoverde-omega.vercel.app') {
+  window.location.replace('https://lacteos-campoverde.vercel.app' + window.location.pathname + window.location.search + window.location.hash);
+}
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
