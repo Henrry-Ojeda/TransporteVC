@@ -281,6 +281,7 @@ namespace Transporte.Infrastructure.Repositories
                     ISNULL(r.EsDiferido, 0) AS EsDiferido,
                     r.RecoleccionOrigenId AS RecoleccionOrigenId,
                     r.LitrosOriginales AS LitrosOriginales,
+                    r.CreatedAt AS CreatedAt,
                     CASE 
                         WHEN cr.Id IS NOT NULL AND (cr.Estado IN ('FINALIZADO', 'CERRADO') OR cr.ProcesoActualId = 4) THEN 0
                         WHEN @rol IN ('ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE') THEN 1
@@ -8542,6 +8543,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     ISNULL(r.PrecioLitroUSDAplicado, CASE WHEN r.EsAcida = 1 THEN f.PrecioLitroAcidaUSD ELSE f.PrecioLitroUSD END) AS PrecioLitroUSD,
                     r.Observacion AS Observacion,
                     r.ControlRutaId AS ControlRutaId,
+                    r.CreatedAt AS CreatedAt,
                     1 AS PuedeModificar
                 FROM TB_RUTAS_RECOLECCION r
                 INNER JOIN TB_FINCAS f ON r.FincaId = f.Id

@@ -130,6 +130,7 @@ namespace Transporte.Core.DTOs
         public bool EsDiferido { get; set; }
         public long? RecoleccionOrigenId { get; set; }
         public int? LitrosOriginales { get; set; }
+        public DateTime? CreatedAt { get; set; }
     }
 
     public class DiferirLitrosDto

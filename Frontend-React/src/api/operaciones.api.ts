@@ -306,6 +306,11 @@ export const operacionesApi = {
     return res.data;
   },
 
+  diferirLitros: async (rutaId: number, dto: { litrosDiferir: number; cicloDestinoId?: number; motivo?: string }): Promise<{ message: string }> => {
+    const res = await apiClient.post<{ message: string }>(`/rutas/${rutaId}/diferir-litros`, dto);
+    return res.data;
+  },
+
   // BALANCE LECHE / MERMAS
   getMermasHoy: async (fechaInicio?: string, fechaFin?: string, choferId?: number): Promise<BalanceVolumetricoResumenDto> => {
     const params: Record<string, any> = {};
