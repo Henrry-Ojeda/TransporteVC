@@ -16,7 +16,7 @@ namespace Transporte.Infrastructure.Repositories
         Task<IEnumerable<CombustibleHistorialDto>> ObtenerHistorialAsync(string? tipoCombustible = null, int? camionId = null, int top = 100);
         Task<bool> RegistrarCompraAsync(RegistrarCompraCombustibleDto dto, int? userId);
         Task<bool> RegistrarDespachoAsync(RegistrarDespachoCombustibleDto dto, int? userId);
-        Task<bool> AjustarStockAsync(string tipoCombustible, decimal nuevoStock, string motivo, int? userId);
+        Task<bool> AjustarStockAsync(string tipoCombustible, decimal nuevoStock, string motivo, int? userId, decimal? nuevaCapacidad = null);
     }
 
     public class CombustibleRepository : ICombustibleRepository
@@ -225,7 +225,7 @@ namespace Transporte.Infrastructure.Repositories
             }
         }
 
-        public async Task<bool> AjustarStockAsync(string tipoCombustible, decimal nuevoStock, string motivo, int? userId)
+        public async Task<bool> AjustarStockAsync(string tipoCombustible, decimal nuevoStock, string motivo, int? userId, decimal? nuevaCapacidad = null)
         {
             using var connection = CreateConnection();
             if (connection.State != ConnectionState.Open) connection.Open();
@@ -240,22 +240,27 @@ namespace Transporte.Infrastructure.Repositories
 
                 decimal stockAnterior = inv?.StockActualLitros ?? 0;
                 decimal diferencia = nuevoStock - stockAnterior;
+                decimal capacidadFinal = (nuevaCapacidad.HasValue && nuevaCapacidad.Value > 0) 
+                    ? nuevaCapacidad.Value 
+                    : (inv?.CapacidadTanqueAlmacen ?? 10000);
 
                 if (inv == null)
                 {
                     await connection.ExecuteAsync(
                         @"INSERT INTO TB_COMBUSTIBLE_INVENTARIO (TipoCombustible, StockActualLitros, CapacidadTanqueAlmacen, UpdatedAt)
-                          VALUES (@Tipo, @Stock, 10000, GETDATE())",
-                        new { Tipo = tipoCombustible, Stock = nuevoStock },
+                          VALUES (@Tipo, @Stock, @Capacidad, GETDATE())",
+                        new { Tipo = tipoCombustible, Stock = nuevoStock, Capacidad = capacidadFinal },
                         transaction: tx);
                 }
                 else
                 {
                     await connection.ExecuteAsync(
                         @"UPDATE TB_COMBUSTIBLE_INVENTARIO 
-                          SET StockActualLitros = @Stock, UpdatedAt = GETDATE() 
+                          SET StockActualLitros = @Stock,
+                              CapacidadTanqueAlmacen = @Capacidad,
+                              UpdatedAt = GETDATE() 
                           WHERE TipoCombustible = @Tipo",
-                        new { Stock = nuevoStock, Tipo = tipoCombustible },
+                        new { Stock = nuevoStock, Capacidad = capacidadFinal, Tipo = tipoCombustible },
                         transaction: tx);
                 }
 

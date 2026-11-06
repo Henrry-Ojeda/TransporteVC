@@ -12,6 +12,7 @@ interface AuthState {
   // Acciones
   login: (token: string, user: AuthUser) => void;
   logout: (message?: string) => void;
+  updateUser: (partial: Partial<AuthUser>) => void;
   clearExpiredMessage: () => void;
 
   // Verificaciones RBAC y Feature Flags SaaS
@@ -66,6 +67,18 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
+      },
+
+      updateUser: (partial: Partial<AuthUser>) => {
+        set((state) => {
+          if (!state.user) return state;
+          return {
+            user: {
+              ...state.user,
+              ...partial,
+            },
+          };
+        });
       },
 
       clearExpiredMessage: () => set({ sessionExpiredMessage: null }),

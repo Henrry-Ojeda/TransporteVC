@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/api/client';
@@ -27,6 +28,7 @@ interface CicloActivoResponse {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
   const [sincronizandoBcv, setSincronizandoBcv] = useState(false);
@@ -225,9 +227,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       </div>
 
       <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div className="user-profile" id="userProfileWidget">
-          <div className="user-avatar" id="userAvatar">
-            {userInitials || 'AD'}
+        <div className="user-profile" id="userProfileWidget" style={{ cursor: 'pointer' }} onClick={() => navigate('/perfil')} title="Ver y Editar Mi Perfil">
+          <div className="user-avatar" id="userAvatar" style={{ overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {user?.fotoUrl ? (
+              <img
+                src={user.fotoUrl}
+                alt={user.nombreCompleto}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              userInitials || 'AD'
+            )}
           </div>
           <div className="user-details">
             <span className="user-name" id="userNameLabel">
@@ -241,7 +251,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             className="btn-logout"
             id="btnLogout"
             title="Cerrar Sesión"
-            onClick={() => logout()}
+            onClick={(e) => {
+              e.stopPropagation();
+              logout();
+            }}
             style={{ cursor: 'pointer' }}
           >
             <i className="fa-solid fa-arrow-right-from-bracket"></i> <span>Salir</span>

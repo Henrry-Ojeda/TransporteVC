@@ -17,10 +17,42 @@ namespace Transporte.Core.DTOs
         public string Username { get; set; } = string.Empty;
         public string NombreCompleto { get; set; } = string.Empty;
         public string Rol { get; set; } = string.Empty;
+        public string? FotoUrl { get; set; }
         public IEnumerable<string> Permisos { get; set; } = Enumerable.Empty<string>();
         public IEnumerable<string> ModulosHabilitados { get; set; } = Enumerable.Empty<string>();
         public string EmpresaCodigo { get; set; } = string.Empty;
         public string EmpresaNombre { get; set; } = string.Empty;
+    }
+
+    public class PerfilUsuarioDto
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string NombreCompleto { get; set; } = string.Empty;
+        public string Rol { get; set; } = string.Empty;
+        public string? Cedula { get; set; }
+        public string? Telefono { get; set; }
+        public string? FotoUrl { get; set; }
+        public string? BancoNombre { get; set; }
+        public string? NumeroCuenta { get; set; }
+        public string? CedulaPagoMovil { get; set; }
+        public string? TelefonoPagoMovil { get; set; }
+        public string? VehiculoPlaca { get; set; }
+        public DateTime? CreatedAt { get; set; }
+    }
+
+    public class ActualizarPerfilDto
+    {
+        public string NombreCompleto { get; set; } = string.Empty;
+        public string? Cedula { get; set; }
+        public string? Telefono { get; set; }
+        public string? FotoUrl { get; set; }
+        public string? BancoNombre { get; set; }
+        public string? NumeroCuenta { get; set; }
+        public string? CedulaPagoMovil { get; set; }
+        public string? TelefonoPagoMovil { get; set; }
+        public string? PasswordActual { get; set; }
+        public string? NuevoPassword { get; set; }
     }
 
     public class HistorialBcvDto

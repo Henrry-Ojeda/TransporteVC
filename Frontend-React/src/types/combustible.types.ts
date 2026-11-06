@@ -2,11 +2,15 @@ export type TipoCombustible = 'GASOIL' | 'GASOLINA';
 export type TipoMovimientoCombustible = 'COMPRA_INGRESO' | 'DESPACHO_CAMION' | 'AJUSTE';
 
 export interface InventarioCombustibleDto {
+  id?: number;
   tipoCombustible: string;
   stockActualLitros: number;
+  capacidadTanqueAlmacen?: number;
   capacidadTanqueLitros?: number;
+  porcentajeOcupado?: number;
   porcentajeLlenado?: number;
   costoPromedioPorLitroUSD?: number;
+  updatedAt?: string;
 }
 
 export interface CombustibleHistorialDto {
@@ -51,6 +55,7 @@ export interface RegistrarCompraCombustibleDto {
 export interface AjustarStockCombustibleDto {
   tipoCombustible: string;
   nuevoStock: number;
+  nuevaCapacidad?: number;
   motivo: string;
 }
 

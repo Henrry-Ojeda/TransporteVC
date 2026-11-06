@@ -17,6 +17,8 @@ namespace Transporte.Infrastructure.Repositories
         Task<bool> EliminarUsuarioAsync(int id);
         Task<IEnumerable<RolDto>> ObtenerRolesAsync();
         Task<IEnumerable<ChoferDto>> ObtenerChoferesDisponiblesAsync();
+        Task<PerfilUsuarioDto?> ObtenerPerfilAsync(int userId);
+        Task<(bool success, string message)> ActualizarPerfilAsync(int userId, ActualizarPerfilDto dto);
 
         // Camiones
         Task<IEnumerable<CamionDto>> ObtenerCamionesAsync(bool soloActivos = false);
@@ -409,6 +411,103 @@ namespace Transporte.Infrastructure.Repositories
                 "UPDATE TB_USUARIOS SET IsDeleted = 1, Activo = 0 WHERE Id = @id",
                 new { id });
             return rows > 0;
+        }
+
+        public async Task<PerfilUsuarioDto?> ObtenerPerfilAsync(int userId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT 
+                    u.Id, 
+                    u.Username, 
+                    u.NombreCompleto, 
+                    u.Rol, 
+                    u.Cedula, 
+                    u.Telefono, 
+                    u.FotoUrl,
+                    u.BancoNombre, 
+                    u.NumeroCuenta, 
+                    u.CedulaPagoMovil, 
+                    u.TelefonoPagoMovil, 
+                    u.VehiculoPlaca, 
+                    u.CreatedAt
+                FROM TB_USUARIOS u
+                WHERE u.Id = @userId AND u.IsDeleted = 0";
+            return await connection.QueryFirstOrDefaultAsync<PerfilUsuarioDto>(sql, new { userId });
+        }
+
+        public async Task<(bool success, string message)> ActualizarPerfilAsync(int userId, ActualizarPerfilDto dto)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var user = await connection.QueryFirstOrDefaultAsync<dynamic>(
+                "SELECT Id, Username, PasswordHash FROM TB_USUARIOS WHERE Id = @userId AND IsDeleted = 0",
+                new { userId });
+
+            if (user == null)
+            {
+                return (false, "Usuario no encontrado.");
+            }
+
+            string? nuevoHash = null;
+            if (!string.IsNullOrWhiteSpace(dto.NuevoPassword))
+            {
+                if (string.IsNullOrWhiteSpace(dto.PasswordActual))
+                {
+                    return (false, "Debe ingresar su contraseña actual para confirmar el cambio.");
+                }
+
+                string hashActual = (string)user.PasswordHash;
+                bool passValida = false;
+                try
+                {
+                    passValida = BCrypt.Net.BCrypt.Verify(dto.PasswordActual, hashActual);
+                }
+                catch
+                {
+                    passValida = (dto.PasswordActual == hashActual);
+                }
+
+                if (!passValida)
+                {
+                    return (false, "La contraseña actual es incorrecta.");
+                }
+
+                if (dto.NuevoPassword.Trim().Length < 4)
+                {
+                    return (false, "La nueva contraseña debe tener al menos 4 caracteres.");
+                }
+
+                nuevoHash = BCrypt.Net.BCrypt.HashPassword(dto.NuevoPassword.Trim(), 11);
+            }
+
+            var sql = @"
+                UPDATE TB_USUARIOS
+                SET NombreCompleto = COALESCE(@NombreCompleto, NombreCompleto),
+                    Cedula = @Cedula,
+                    Telefono = @Telefono,
+                    FotoUrl = COALESCE(@FotoUrl, FotoUrl),
+                    BancoNombre = @BancoNombre,
+                    NumeroCuenta = @NumeroCuenta,
+                    CedulaPagoMovil = @CedulaPagoMovil,
+                    TelefonoPagoMovil = @TelefonoPagoMovil" +
+                    (nuevoHash != null ? ", PasswordHash = @nuevoHash" : "") + @"
+                WHERE Id = @userId AND IsDeleted = 0";
+
+            var rows = await connection.ExecuteAsync(sql, new
+            {
+                userId,
+                NombreCompleto = string.IsNullOrWhiteSpace(dto.NombreCompleto) ? null : dto.NombreCompleto.Trim(),
+                dto.Cedula,
+                dto.Telefono,
+                dto.FotoUrl,
+                dto.BancoNombre,
+                dto.NumeroCuenta,
+                dto.CedulaPagoMovil,
+                dto.TelefonoPagoMovil,
+                nuevoHash
+            });
+
+            return (rows > 0, rows > 0 ? "Perfil actualizado exitosamente." : "No se pudo actualizar el perfil.");
         }
 
         public async Task<IEnumerable<RolDto>> ObtenerRolesAsync()

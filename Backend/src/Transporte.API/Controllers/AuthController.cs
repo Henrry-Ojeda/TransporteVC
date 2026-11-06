@@ -20,15 +20,18 @@ namespace Transporte.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthRepository _authRepository;
+        private readonly IUsuariosRepository _usuariosRepository;
         private readonly IConfiguration _config;
         private readonly Transporte.Core.Interfaces.ITenantService _tenantService;
 
         public AuthController(
             IAuthRepository authRepository, 
+            IUsuariosRepository usuariosRepository,
             IConfiguration config,
             Transporte.Core.Interfaces.ITenantService tenantService)
         {
             _authRepository = authRepository;
+            _usuariosRepository = usuariosRepository;
             _config = config;
             _tenantService = tenantService;
         }
@@ -150,6 +153,32 @@ namespace Transporte.API.Controllers
                 empresaCodigo = _tenantService.GetTenantCode(),
                 empresaNombre = _tenantService.GetTenantName()
             });
+        }
+
+        [HttpGet("perfil")]
+        [Authorize]
+        public async Task<IActionResult> ObtenerMiPerfil()
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var perfil = await _usuariosRepository.ObtenerPerfilAsync(userId);
+            if (perfil == null) return NotFound(new { message = "Perfil de usuario no encontrado." });
+            return Ok(perfil);
+        }
+
+        [HttpPut("perfil")]
+        [Authorize]
+        public async Task<IActionResult> ActualizarMiPerfil([FromBody] ActualizarPerfilDto dto)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var (ok, msg) = await _usuariosRepository.ActualizarPerfilAsync(userId, dto);
+            if (!ok) return BadRequest(new { message = msg });
+
+            var perfilActualizado = await _usuariosRepository.ObtenerPerfilAsync(userId);
+            return Ok(new { success = true, message = msg, perfil = perfilActualizado });
         }
     }
 }

@@ -107,6 +107,7 @@ namespace Transporte.API.Controllers
         {
             public string TipoCombustible { get; set; } = "GASOIL";
             public decimal NuevoStock { get; set; }
+            public decimal? NuevaCapacidad { get; set; }
             public string Motivo { get; set; } = string.Empty;
         }
 
@@ -121,8 +122,8 @@ namespace Transporte.API.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var ok = await _repo.AjustarStockAsync(dto.TipoCombustible, dto.NuevoStock, dto.Motivo, userId);
-                return Ok(new { success = ok, message = "Ajuste de inventario aplicado exitosamente." });
+                var ok = await _repo.AjustarStockAsync(dto.TipoCombustible, dto.NuevoStock, dto.Motivo, userId, dto.NuevaCapacidad);
+                return Ok(new { success = ok, message = "Ajuste de inventario y capacidad aplicado exitosamente." });
             }
             catch (Exception ex)
             {

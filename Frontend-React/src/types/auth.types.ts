@@ -10,6 +10,7 @@ export interface AuthUser {
   username: string;
   nombreCompleto: string;
   rol: string;
+  fotoUrl?: string;
   permisos: string[];
   modulosHabilitados?: string[];
   empresaCodigo?: string;
@@ -22,9 +23,37 @@ export interface LoginResponseDto {
   username: string;
   nombreCompleto: string;
   rol: string;
+  fotoUrl?: string;
   permisos: string[];
   modulosHabilitados?: string[];
   empresaCodigo?: string;
   empresaNombre?: string;
+}
+
+export interface PerfilUsuarioDto {
+  id: number;
+  username: string;
+  nombreCompleto: string;
+  rol: string;
+  cedula?: string;
+  telefono?: string;
+  fotoUrl?: string;
+  bancoNombre?: string;
+  bancoCuenta?: string;
+  pagoMovilCedula?: string;
+  pagoMovilTelefono?: string;
+}
+
+export interface ActualizarPerfilDto {
+  nombreCompleto: string;
+  cedula?: string;
+  telefono?: string;
+  fotoUrl?: string;
+  bancoNombre?: string;
+  bancoCuenta?: string;
+  pagoMovilCedula?: string;
+  pagoMovilTelefono?: string;
+  passwordActual?: string;
+  nuevoPassword?: string;
 }
 

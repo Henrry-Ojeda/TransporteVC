@@ -56,6 +56,7 @@ import { ReportesPage } from '@/modules/sistema/ReportesPage';
 import { HistorialBcvPage } from '@/modules/sistema/HistorialBcvPage';
 import { GestionDataPage } from '@/modules/data/GestionDataPage';
 import { UsuariosPage } from '@/modules/sistema/UsuariosPage';
+import { PerfilPage } from '@/modules/sistema/PerfilPage';
 import { PermisosPage } from '@/modules/sistema/PermisosPage';
 import { ConfiguracionPage } from '@/modules/sistema/ConfiguracionPage';
 import { TiempoSesionPage } from '@/modules/sistema/TiempoSesionPage';
@@ -141,6 +142,7 @@ export const App: React.FC = () => {
             <Route path="/historial-bcv" element={<HistorialBcvPage />} />
 
             {/* Sistema */}
+            <Route path="/perfil" element={<PerfilPage />} />
             <Route path="/data" element={<GestionDataPage />} />
             <Route path="/gestion-data" element={<GestionDataPage />} />
             <Route path="/usuarios" element={<UsuariosPage />} />

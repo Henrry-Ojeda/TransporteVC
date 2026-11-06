@@ -170,6 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       groupIconClass: 'icon-sis',
       color: '#64748b',
       items: [
+        { name: 'Mi Perfil de Usuario', href: '/perfil', tabId: 'perfil', icon: 'fa-solid fa-id-badge', color: '#0ea5e9' },
         { name: 'Usuarios & Roles', href: '/usuarios', tabId: 'usuarios', icon: 'fa-solid fa-user-gear' },
         { name: 'Módulos & Permisos', href: '/permisos', tabId: 'permisos', icon: 'fa-solid fa-shield-halved', color: '#38bdf8' },
         { name: 'Parametrización Global', href: '/configuracion', tabId: 'configuracion-sistema', icon: 'fa-solid fa-sliders', color: '#a855f7' },
