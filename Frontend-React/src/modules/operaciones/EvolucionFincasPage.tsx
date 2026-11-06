@@ -19,13 +19,14 @@ import {
 } from 'lucide-react';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
+import { finanzasApi } from '@/api/finanzas.api';
 import { mantenimientoApi } from '@/api/mantenimiento.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { useAuthStore } from '@/stores/authStore';
-import type { FincaDto, CamionDto, RutaLogisticaDto, MantenimientoCamionDto, ControlRutaDto } from '@/types';
+import type { FincaDto, CamionDto, RutaLogisticaDto, MantenimientoCamionDto, ControlRutaDto, CicloSemanalDto } from '@/types';
 
-type ModoEvaluacion = 'MES_QUINCENAS' | 'PERSONALIZADO_15';
+type ModoEvaluacion = 'SEMANA_OPERATIVA' | 'MES_QUINCENAS' | 'PERSONALIZADO_15';
 type TemporadaTipo = 'LLUVIAS' | 'SEQUIA';
 
 interface FincaEvolucionRow {
@@ -50,9 +51,28 @@ export const EvolucionFincasPage: React.FC = () => {
   const rol = user?.rol?.toUpperCase() || '';
   const tienePermiso = ['SUPERVISOR', 'ADMINISTRADOR', 'ADMIN', 'GERENTE'].includes(rol);
 
-  // Modo de evaluación de 15 días: Mes dividido en Quincenas (1-15 vs 16-30/31) o Rango Personalizado de 15 días
-  const [modo, setModo] = useState<ModoEvaluacion>('MES_QUINCENAS');
+  // Modo de evaluación de 15 días: Desde Semana Operativa (hacia atrás), Mes en Quincenas o Rango Personalizado
+  const [modo, setModo] = useState<ModoEvaluacion>('SEMANA_OPERATIVA');
   
+  // Queries de Ciclos / Semanas Operativas
+  const { data: ciclos = [] } = useQuery<CicloSemanalDto[]>({
+    queryKey: ['ciclos-evolucion'],
+    queryFn: () => finanzasApi.getCiclos(),
+  });
+
+  const { data: cicloActivo } = useQuery<CicloSemanalDto>({
+    queryKey: ['ciclo-activo-evolucion'],
+    queryFn: () => finanzasApi.getCicloActivo(),
+  });
+
+  const [cicloSeleccionadoId, setCicloSeleccionadoId] = useState<string>('');
+
+  React.useEffect(() => {
+    if (cicloActivo?.id && !cicloSeleccionadoId) {
+      setCicloSeleccionadoId(String(cicloActivo.id));
+    }
+  }, [cicloActivo, cicloSeleccionadoId]);
+
   // Mes seleccionado en formato YYYY-MM (por defecto el mes actual: 2026-11)
   const hoyStr = new Date().toISOString().split('T')[0];
   const [mesSeleccionado, setMesSeleccionado] = useState<string>(() => hoyStr.substring(0, 7));
@@ -70,7 +90,45 @@ export const EvolucionFincasPage: React.FC = () => {
 
   // Cálculo de los dos rangos de 15 días para la comparativa
   const rangosEvaluacion = useMemo(() => {
-    if (modo === 'MES_QUINCENAS') {
+    if (modo === 'SEMANA_OPERATIVA') {
+      const cicloObj = ciclos.find((c) => String(c.id) === cicloSeleccionadoId) || cicloActivo;
+      let refDate = new Date();
+      if (cicloObj?.fechaFin) {
+        refDate = new Date(cicloObj.fechaFin.split('T')[0] + 'T23:59:59');
+      }
+
+      // 2da Quincena (Actual): 14 días finalizando en la fecha de cierre de la semana operativa (cubre las 2 últimas semanas operativas)
+      const p2FinDate = new Date(refDate);
+      const p2IniDate = new Date(refDate);
+      p2IniDate.setDate(p2FinDate.getDate() - 13);
+
+      // 1ra Quincena (Previa): 14 días inmediatamente anteriores a ese período (semanas operativas previas)
+      const p1FinDate = new Date(p2IniDate);
+      p1FinDate.setDate(p2IniDate.getDate() - 1);
+      const p1IniDate = new Date(p1FinDate);
+      p1IniDate.setDate(p1FinDate.getDate() - 13);
+
+      const p2Fin = p2FinDate.toISOString().split('T')[0];
+      const p2Inicio = p2IniDate.toISOString().split('T')[0];
+      const p1Fin = p1FinDate.toISOString().split('T')[0];
+      const p1Inicio = p1IniDate.toISOString().split('T')[0];
+
+      const fmtD = (s: string) => {
+        const parts = s.split('-');
+        return `${parts[2]}/${parts[1]}`;
+      };
+
+      return {
+        etiquetaP1: `1RA QUINCENA (${fmtD(p1Inicio)} al ${fmtD(p1Fin)})`,
+        etiquetaP2: `2DA QUINCENA (${fmtD(p2Inicio)} al ${fmtD(p2Fin)})`,
+        p1Inicio,
+        p1Fin,
+        p2Inicio,
+        p2Fin,
+        diasP1: 14,
+        diasP2: 14,
+      };
+    } else if (modo === 'MES_QUINCENAS') {
       const [yearStr, monthStr] = mesSeleccionado.split('-');
       const year = parseInt(yearStr, 10) || 2026;
       const month = parseInt(monthStr, 10) || 11;
@@ -119,7 +177,7 @@ export const EvolucionFincasPage: React.FC = () => {
         diasP2: diasPersonalizado,
       };
     }
-  }, [modo, mesSeleccionado, fechaFinCustom, diasPersonalizado]);
+  }, [modo, cicloSeleccionadoId, ciclos, cicloActivo, mesSeleccionado, fechaFinCustom, diasPersonalizado]);
 
   // Queries de datos
   const { data: fincas = [], isLoading: loadingFincas } = useQuery<FincaDto[]>({
@@ -586,7 +644,24 @@ export const EvolucionFincasPage: React.FC = () => {
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
               <Calendar className="w-3.5 h-3.5 inline text-blue-600 mr-1" /> Modo de Evaluación (15 Días):
             </label>
-            <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
+            <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: '8px', padding: '3px', flexWrap: 'wrap', gap: '2px' }}>
+              <button
+                type="button"
+                onClick={() => setModo('SEMANA_OPERATIVA')}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: modo === 'SEMANA_OPERATIVA' ? 800 : 600,
+                  background: modo === 'SEMANA_OPERATIVA' ? '#ffffff' : 'transparent',
+                  color: modo === 'SEMANA_OPERATIVA' ? '#2563eb' : '#64748b',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: modo === 'SEMANA_OPERATIVA' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                📅 Desde Semana Operativa (Recomendado)
+              </button>
               <button
                 type="button"
                 onClick={() => setModo('MES_QUINCENAS')}
@@ -602,7 +677,7 @@ export const EvolucionFincasPage: React.FC = () => {
                   boxShadow: modo === 'MES_QUINCENAS' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
-                📅 Quincenas del Mes (15 días c/u)
+                📆 Mes Calendario
               </button>
               <button
                 type="button"
@@ -619,13 +694,31 @@ export const EvolucionFincasPage: React.FC = () => {
                   boxShadow: modo === 'PERSONALIZADO_15' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
-                ⏱️ Rango Personalizado de 15 Días
+                ⏱️ Rango Libre
               </button>
             </div>
           </div>
 
-          {/* Selector de Mes o Fechas */}
-          {modo === 'MES_QUINCENAS' ? (
+          {/* Selector dependiente del modo */}
+          {modo === 'SEMANA_OPERATIVA' ? (
+            <div style={{ minWidth: '280px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
+                📆 Semana Operativa Evaluada:
+              </label>
+              <select
+                value={cicloSeleccionadoId}
+                onChange={(e) => setCicloSeleccionadoId(e.target.value)}
+                className="form-input"
+                style={{ height: '36px', fontWeight: 700, color: '#0f172a', padding: '0 12px', width: '100%', borderRadius: '8px' }}
+              >
+                {ciclos.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.codigo} {c.estado === 'ABIERTO' ? '⭐ (Activa)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : modo === 'MES_QUINCENAS' ? (
             <div>
               <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 📆 Mes a Evaluar:

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -29,6 +29,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { canAccessTab } = useAuthStore();
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
+  const [pinnedGroupId, setPinnedGroupId] = useState<string | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = (groupId: string) => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setHoveredGroupId(groupId);
+  };
+
+  const handleMouseLeave = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = setTimeout(() => {
+      setHoveredGroupId(null);
+    }, 400); // 400ms de tolerancia para mover el cursor sin que se cierre
+  };
+
+  // Cerrar submenú fijado al hacer clic fuera del sidebar
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const sidebar = document.getElementById('mainSidebar');
+      if (sidebar && !sidebar.contains(e.target as Node)) {
+        setPinnedGroupId(null);
+        setHoveredGroupId(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const groups: NavGroupDef[] = [
     {
@@ -221,7 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
               const active = isGroupActive(grp);
               const firstItem = visibleItems[0];
-              const isHovered = hoveredGroupId === grp.id;
+              const isMenuOpen = hoveredGroupId === grp.id || pinnedGroupId === grp.id;
               // Para los últimos grupos, alinear el popover hacia arriba para no salirse de pantalla
               const alignBottom = idx >= 4;
 
@@ -229,19 +261,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <div
                   key={grp.id}
                   className="relative group"
-                  onMouseEnter={() => setHoveredGroupId(grp.id)}
-                  onMouseLeave={() => setHoveredGroupId(null)}
+                  onMouseEnter={() => handleMouseEnter(grp.id)}
+                  onMouseLeave={handleMouseLeave}
                 >
-                  <NavLink
-                    to={firstItem?.href || '#'}
-                    onClick={() => {
-                      setHoveredGroupId(null);
-                      if (isOpen) onClose();
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPinnedGroupId(prev => (prev === grp.id ? null : grp.id));
+                      setHoveredGroupId(grp.id);
                     }}
-                    title={`${grp.title} (Clic para ir a ${firstItem?.name})`}
+                    title={`${grp.title} (Clic para fijar menú)`}
                     className={`w-[66px] h-[52px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 cursor-pointer ${
                       active
                         ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-500/25 border border-blue-500'
+                        : isMenuOpen
+                        ? 'bg-white text-blue-700 border-2 border-blue-500 shadow-md ring-2 ring-blue-100'
                         : 'bg-slate-50/90 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
                     }`}
                     style={{ textDecoration: 'none' }}
@@ -249,42 +285,51 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     <i
                       className={`${grp.iconClass} text-[16px] mb-1`}
                       style={{
-                        color: active ? '#ffffff' : grp.color,
+                        color: active ? '#ffffff' : (isMenuOpen ? '#2563eb' : grp.color),
                         filter: active ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : 'none',
                       }}
                     ></i>
                     <span
                       style={{
                         fontSize: '7.5px',
-                        fontWeight: active ? 800 : 700,
+                        fontWeight: active || isMenuOpen ? 800 : 700,
                         lineHeight: '9px',
                         textAlign: 'center',
                         letterSpacing: '0.015em',
                         whiteSpace: 'nowrap',
-                        color: active ? '#ffffff' : '#475569',
+                        color: active ? '#ffffff' : (isMenuOpen ? '#1d4ed8' : '#475569'),
                       }}
                     >
                       {grp.shortTitle}
                     </span>
-                  </NavLink>
+                  </button>
 
-                  {/* FLYOUT POPOVER: Despliega los submenús al pasar el mouse por encima */}
-                  {isHovered && (
+                  {/* FLYOUT POPOVER: Despliega los submenús al pasar el mouse por encima o al dar clic */}
+                  {isMenuOpen && (
                     <div
-                      className={`absolute left-[72px] w-60 bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-50 ${
+                      onMouseEnter={() => handleMouseEnter(grp.id)}
+                      onMouseLeave={handleMouseLeave}
+                      className={`absolute left-[64px] w-64 bg-white rounded-xl shadow-2xl border border-slate-200 p-2.5 z-50 before:content-[''] before:absolute before:-left-3 before:top-0 before:w-4 before:h-full ${
                         alignBottom ? 'bottom-0' : 'top-0'
                       }`}
                       style={{
-                        boxShadow: '0 12px 30px -4px rgba(15, 23, 42, 0.15), 0 4px 12px -2px rgba(15, 23, 42, 0.08)',
+                        boxShadow: '0 16px 36px -4px rgba(15, 23, 42, 0.18), 0 6px 16px -2px rgba(15, 23, 42, 0.1)',
                         animation: 'fadeInMenu 0.15s ease-out',
                       }}
                     >
                       {/* Cabecera del flyout */}
-                      <div className="flex items-center gap-2 px-2.5 py-1.5 mb-1.5 border-b border-slate-100 bg-slate-50/60 rounded-lg">
-                        <i className={`${grp.iconClass} text-sm`} style={{ color: grp.color }}></i>
-                        <span className="text-[11.5px] font-extrabold text-slate-800 uppercase tracking-wider">
-                          {grp.title}
-                        </span>
+                      <div className="flex items-center justify-between px-2.5 py-1.5 mb-1.5 border-b border-slate-100 bg-slate-50/70 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <i className={`${grp.iconClass} text-sm`} style={{ color: grp.color }}></i>
+                          <span className="text-[11.5px] font-extrabold text-slate-800 uppercase tracking-wider">
+                            {grp.title}
+                          </span>
+                        </div>
+                        {pinnedGroupId === grp.id && (
+                          <span className="text-[9.5px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">
+                            Fijado
+                          </span>
+                        )}
                       </div>
 
                       {/* Lista de enlaces directos */}
@@ -297,6 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                               to={item.href}
                               onClick={() => {
                                 setHoveredGroupId(null);
+                                setPinnedGroupId(null);
                                 if (isOpen) onClose();
                               }}
                               className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
