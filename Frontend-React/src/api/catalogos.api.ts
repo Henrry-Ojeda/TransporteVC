@@ -38,7 +38,7 @@ const saveFincaOverride = (id: number, data: Partial<FincaDto & { propietario?: 
 export const catalogosApi = {
   // FINCAS
   getFincas: async (soloActivos = true): Promise<FincaDto[]> => {
-    const res = await apiClient.get<FincaDto[]>('/catalogos/fincas', { params: { soloActivos: false } });
+    const res = await apiClient.get<FincaDto[]>('/catalogos/fincas', { params: { soloActivos } });
     const rawList = Array.isArray(res.data) ? res.data : [];
     const overrides = getFincasOverrides();
 

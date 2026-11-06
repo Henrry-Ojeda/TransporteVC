@@ -215,11 +215,20 @@ export const EvolucionFincasPage: React.FC = () => {
     ];
   }, [rutas]);
 
-  // Fincas filtradas por ruta
+  // Fincas estrictamente activas
+  const fincasActivas = useMemo(() => {
+    return fincas.filter((f) => {
+      const act = f.activo;
+      const actObj = (f as any).Activo;
+      return act === true || actObj === true || actObj === 1;
+    });
+  }, [fincas]);
+
+  // Fincas activas filtradas por ruta
   const fincasFiltradasPorRuta = useMemo(() => {
-    if (!rutaFiltroId) return fincas;
-    return fincas.filter((f) => f.rutaId === Number(rutaFiltroId));
-  }, [fincas, rutaFiltroId]);
+    if (!rutaFiltroId) return fincasActivas;
+    return fincasActivas.filter((f) => f.rutaId === Number(rutaFiltroId));
+  }, [fincasActivas, rutaFiltroId]);
 
   // Construcción de la tabla de evolución calculando promedios reales de 15 días
   const tablaEvolucion = useMemo<FincaEvolucionRow[]>(() => {
@@ -782,6 +791,29 @@ export const EvolucionFincasPage: React.FC = () => {
               style={{ width: '100%' }}
             />
           </div>
+
+          {/* Indicador de Fincas Activas */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+            <div
+              style={{
+                height: '36px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#ecfdf5',
+                border: '1.5px solid #a7f3d0',
+                borderRadius: '8px',
+                padding: '0 12px',
+                color: '#065f46',
+                fontWeight: 800,
+                fontSize: '12px',
+              }}
+              title="El sistema filtra y analiza exclusivamente las fincas en estado ACTIVO"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Solo Fincas Activas ({fincasActivas.length})</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -941,7 +973,7 @@ export const EvolucionFincasPage: React.FC = () => {
               Detalle Evolutivo por Finca Ganadera
             </h3>
             <span style={{ fontSize: '12px', color: '#64748b' }}>
-              Mostrando {tablaEvolucion.length} fincas en el circuito evaluado
+              Mostrando {tablaEvolucion.length} fincas ACTIVAS en el circuito evaluado
             </span>
           </div>
         </div>
