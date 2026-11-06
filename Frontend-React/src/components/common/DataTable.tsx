@@ -103,7 +103,7 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   return (
-    <div className="content-card" style={{ padding: '20px', marginBottom: '24px' }}>
+    <div className="content-card datatable-card" style={{ padding: '20px', marginBottom: '24px' }}>
       {/* Barra de Búsqueda y Acciones */}
       <div
         className="datatable-toolbar"
@@ -116,7 +116,7 @@ export function DataTable<T extends Record<string, any>>({
           marginBottom: '16px',
         }}
       >
-        <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+        <div className="datatable-search-box" style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
           <i
             className="fa-solid fa-magnifying-glass"
             style={{
@@ -146,7 +146,7 @@ export function DataTable<T extends Record<string, any>>({
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div className="datatable-actions-box" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {exportFileName && (
             <button
               type="button"
@@ -288,6 +288,7 @@ export function DataTable<T extends Record<string, any>>({
       {/* Paginación */}
       {!isLoading && sortedData.length > 0 && (
         <div
+          className="datatable-pagination"
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -301,7 +302,7 @@ export function DataTable<T extends Record<string, any>>({
             gap: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="datatable-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>
               Mostrando {Math.min(sortedData.length, (currentPage - 1) * pageSize + 1)} a{' '}
               {Math.min(sortedData.length, currentPage * pageSize)} de {sortedData.length} registros
@@ -322,7 +323,7 @@ export function DataTable<T extends Record<string, any>>({
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="datatable-pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}

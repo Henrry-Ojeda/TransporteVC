@@ -742,3 +742,4 @@ export const DatosBancariosPage: React.FC = () => {
 };
 
 export default DatosBancariosPage;
+

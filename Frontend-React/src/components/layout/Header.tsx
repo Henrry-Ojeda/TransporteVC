@@ -230,6 +230,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         {/* WIDGET PERFIL USUARIO PROFESIONAL (ESTILO EXECUTIVE SAAS) */}
         <div
           id="userProfileWidget"
+          className="header-user-widget"
           style={{
             background: '#ffffff',
             border: '1px solid #e2e8f0',
@@ -246,6 +247,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           <div
             onClick={() => navigate('/perfil')}
             title="Ir a Mi Perfil de Usuario"
+            className="header-user-trigger"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -257,7 +259,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             }}
           >
             {/* Avatar con anillo y badge en línea */}
-            <div style={{ position: 'relative' }}>
+            <div className="header-user-avatar-wrap" style={{ position: 'relative' }}>
               <div
                 id="userAvatar"
                 style={{
@@ -302,10 +304,11 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
               />
             </div>
 
-            {/* Detalles de Usuario Tipografía Ejecutiva */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+            {/* Detalles de Usuario Tipografía Ejecutiva (se ocultan en móvil para no desbordar) */}
+            <div className="header-user-info" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
               <span
                 id="userNameLabel"
+                className="header-user-name"
                 style={{
                   fontSize: '13px',
                   fontWeight: 800,
@@ -320,7 +323,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
               >
                 {user?.nombreCompleto || user?.username || 'Administrador'}
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+              <div className="header-user-badge-wrap" style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
                 <span
                   id="userRoleBadge"
                   style={{
@@ -342,16 +345,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
               </div>
             </div>
 
-            <i className="fa-solid fa-angle-right" style={{ fontSize: '11px', color: '#94a3b8', margin: '0 2px' }}></i>
+            <i className="fa-solid fa-angle-right header-user-arrow" style={{ fontSize: '11px', color: '#94a3b8', margin: '0 2px' }}></i>
           </div>
 
           {/* Separador vertical sutil */}
-          <div style={{ width: '1px', height: '24px', background: '#e2e8f0' }} />
+          <div className="header-user-divider" style={{ width: '1px', height: '24px', background: '#e2e8f0' }} />
 
           {/* Botón Salir / Logout Ejecutivo */}
           <button
             type="button"
             id="btnLogout"
+            className="header-user-logout"
             title="Cerrar Sesión Segura"
             onClick={(e) => {
               e.stopPropagation();

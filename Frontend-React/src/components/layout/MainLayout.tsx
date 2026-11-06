@@ -30,29 +30,10 @@ export const MainLayout: React.FC = () => {
       )}
 
       {/* Contenedor Principal: Sidebar + Main Content */}
-      <div
-        className="main-layout"
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          width: '100%',
-          height: 'calc(100vh - 65px)',
-          overflow: 'hidden',
-        }}
-      >
+      <div className="main-layout" id="mainLayoutWrapper">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <main
-          className="content-area main-content"
-          id="mainContainer"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: '100%',
-            overflowY: 'auto',
-            padding: '24px 32px',
-          }}
-        >
+        <main className="content-area main-content" id="mainContainer">
           <Outlet />
         </main>
       </div>
