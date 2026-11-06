@@ -251,9 +251,16 @@ export function DataTable<T extends Record<string, any>>({
                           }}
                         >
                           {col.cell
-                            ? col.cell(row)
+                            ? (() => {
+                                try {
+                                  return col.cell(row);
+                                } catch (e) {
+                                  console.error('Error renderizando celda en DataTable:', e);
+                                  return null;
+                                }
+                              })()
                             : col.accessorKey
-                            ? String(row[col.accessorKey as string] ?? '')
+                            ? String((row && (row as any)[col.accessorKey as string]) ?? '')
                             : null}
                         </td>
                       ))}

@@ -59,6 +59,10 @@ namespace Transporte.API.Multitenancy
                 connStr = connStr.Replace("127.0.0.1", "sql_instancia");
                 connStr = connStr.Replace("localhost", "sql_instancia");
             }
+            else if (OperatingSystem.IsLinux())
+            {
+                connStr = connStr.Replace("84.247.178.194", "127.0.0.1");
+            }
 
             // Forzar protocolo TCP directo para eliminar el bloqueo de 15s de Named Pipes/Shared Memory
             if (!connStr.Contains("tcp:", StringComparison.OrdinalIgnoreCase))
@@ -67,10 +71,16 @@ namespace Transporte.API.Multitenancy
                 connStr = connStr.Replace("Data Source=", "Data Source=tcp:", StringComparison.OrdinalIgnoreCase);
             }
 
+            // En Linux desactivar Encrypt para evitar cuelgues del SSL Provider
+            if (!connStr.Contains("Encrypt", StringComparison.OrdinalIgnoreCase))
+            {
+                connStr += ";Encrypt=False;";
+            }
+
             // Asegurar Connect Timeout rápido
             if (!connStr.Contains("Connect Timeout", StringComparison.OrdinalIgnoreCase) && !connStr.Contains("Connection Timeout", StringComparison.OrdinalIgnoreCase))
             {
-                connStr += ";Connect Timeout=5;";
+                connStr += ";Connect Timeout=3;";
             }
 
             if (!connStr.Contains("Pooling", StringComparison.OrdinalIgnoreCase))
@@ -131,8 +141,8 @@ namespace Transporte.API.Multitenancy
 
             try
             {
-                string sqlHost = IsRunningInDocker ? "sql_instancia" : "84.247.178.194";
-                string masterConn = $"Server=tcp:{sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Connect Timeout=5;Pooling=true;";
+                string sqlHost = IsRunningInDocker ? "sql_instancia" : (OperatingSystem.IsLinux() ? "127.0.0.1" : "84.247.178.194");
+                string masterConn = $"Server=tcp:{sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;Connect Timeout=3;Pooling=true;";
                 using var db = new SqlConnection(masterConn);
                 
                 var emp = db.QueryFirstOrDefault<dynamic>(
