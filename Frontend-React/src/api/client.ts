@@ -42,10 +42,22 @@ apiClient.interceptors.response.use(
       const url = error.config?.url || '';
       // Si el 401 no proviene de intentar loguearse
       if (!url.includes('/auth/login')) {
-        console.warn('⚠️ Sesión expirada o token inválido (401).');
+        // 1. Limpiar credenciales y sesión inmediatamente
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem('transporte_last_activity');
+
+        // 2. Notificar al store de autenticación
         if (onSessionExpiredHandler) {
-          onSessionExpiredHandler('Tu sesión ha expirado en el servidor. Por favor inicia sesión nuevamente.');
+          onSessionExpiredHandler('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
         }
+
+        // 3. Redirigir de inmediato a la pantalla de Login sin mostrar errores en cascada
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+
+        // 4. Retornar promesa en suspensión silenciosa para no saturar la vista con errores ni banners
+        return new Promise(() => {});
       }
     }
 

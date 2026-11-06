@@ -63,6 +63,9 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           sessionExpiredMessage: message || null,
         });
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       },
 
       clearExpiredMessage: () => set({ sessionExpiredMessage: null }),
