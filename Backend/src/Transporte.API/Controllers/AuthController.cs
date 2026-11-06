@@ -78,10 +78,12 @@ namespace Transporte.API.Controllers
 
             if (!passwordValida)
             {
-                return Unauthorized(new { message = "Usuario o contraseÃ±a invÃ¡lidos." });
+                return Unauthorized(new { message = "Usuario o contraseña inválidos." });
             }
 
-            var permisos = await _authRepository.ObtenerPermisosUsuarioAsync(user.Id);
+            var permisos = user.Rol == "ADMIN"
+                ? new[] { "DASHBOARD", "RUTAS_ALL", "MERMAS", "SEMANAS", "LIQUIDACION", "CATALOGOS", "BCV" }
+                : (await _authRepository.ObtenerPermisosUsuarioAsync(user.Id));
 
             var tokenHandler = new JwtSecurityTokenHandler();
             var secretKey = _config["Jwt:SecretKey"] ?? _config["Jwt:Key"] ?? "ClaveSecretaSuperSeguraParaRutasDeLeche2026_JWT_Token_Key_MuyLargaParaHmacSha256!";

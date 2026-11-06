@@ -9,12 +9,16 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
   const { login, sessionExpiredMessage, clearExpiredMessage, isAuthenticated } = useAuthStore();
 
+  const defaultNombre = typeof window !== 'undefined' && window.location.hostname.includes('campoverde')
+    ? 'Productos Lácteos Campo Verde, C.A.'
+    : (typeof window !== 'undefined' && window.location.hostname.includes('vergel') ? 'Transporte Vergel & Carrillo' : 'Sistema de Transporte');
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [empresaNombre, setEmpresaNombre] = useState<string>('Sistema de Transporte');
+  const [empresaNombre, setEmpresaNombre] = useState<string>(defaultNombre);
 
   // Resolución 100% dinámica de la empresa desde SaaS Master (cero datos duros)
   useEffect(() => {
