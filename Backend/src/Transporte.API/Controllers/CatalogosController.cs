@@ -403,5 +403,22 @@ namespace Transporte.API.Controllers
 
             return Ok(new { mensaje = "Información de la empresa actualizada exitosamente.", data = dto });
         }
+
+        [HttpPut("licencia")]
+        [HttpPut("/api/empresa/licencia")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> ActualizarLicencia([FromBody] ActualizarLicenciaDto dto)
+        {
+            if (dto.FechaVencimiento.Date < DateTime.UtcNow.Date)
+            {
+                return BadRequest(new { mensaje = "La fecha de vencimiento debe ser igual o posterior a hoy." });
+            }
+
+            var ok = await _catalogosRepository.ActualizarLicenciaAsync(dto.FechaVencimiento);
+            if (!ok) return BadRequest(new { mensaje = "No se pudo actualizar la fecha de vencimiento de la licencia." });
+
+            Transporte.API.Multitenancy.TenantService.InvalidateCache();
+            return Ok(new { mensaje = "Fecha de vencimiento de licencia renovada exitosamente.", fechaVencimiento = dto.FechaVencimiento });
+        }
     }
 }

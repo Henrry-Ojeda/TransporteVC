@@ -956,6 +956,7 @@ namespace Transporte.Infrastructure.Repositories
         Task<IEnumerable<dynamic>> ObtenerLogsPagosLiquidacionAsync(int? fincaId = null, int? cicloId = null);
         Task<EmpresaConfigDto> ObtenerEmpresaConfigAsync();
         Task<bool> GuardarEmpresaConfigAsync(EmpresaConfigDto dto);
+        Task<bool> ActualizarLicenciaAsync(DateTime fechaVencimiento);
     }
 
     public class CatalogosRepository : ICatalogosRepository
@@ -3291,7 +3292,8 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var sql = @"
                 SELECT TOP 1 
-                    Id, Nombre, Rif, Direccion, Telefono, Email, LogoUrl, FechaActualizacion
+                    Id, Nombre, Rif, Direccion, Telefono, Email, LogoUrl, FechaActualizacion,
+                    FechaVencimientoLicencia, ModulosHabilitados
                 FROM TB_EMPRESA_CONFIG
                 ORDER BY Id ASC";
             var config = await connection.QueryFirstOrDefaultAsync<EmpresaConfigDto>(sql);
@@ -3306,14 +3308,54 @@ namespace Transporte.Infrastructure.Repositories
                     Direccion = "",
                     Telefono = "",
                     Email = "",
-                    LogoUrl = ""
+                    LogoUrl = "",
+                    FechaVencimientoLicencia = DateTime.UtcNow.AddYears(1)
                 };
             }
             else
             {
                 config.NombreEmpresa = config.Nombre;
+                if (!config.FechaVencimientoLicencia.HasValue)
+                {
+                    config.FechaVencimientoLicencia = DateTime.UtcNow.AddYears(1);
+                }
             }
             return config;
+        }
+
+        public async Task<bool> ActualizarLicenciaAsync(DateTime fechaVencimiento)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                IF EXISTS (SELECT 1 FROM TB_EMPRESA_CONFIG WHERE Id = 1)
+                BEGIN
+                    UPDATE TB_EMPRESA_CONFIG
+                    SET FechaVencimientoLicencia = @fechaVencimiento,
+                        FechaActualizacion = GETDATE()
+                    WHERE Id = 1;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO TB_EMPRESA_CONFIG (Nombre, FechaVencimientoLicencia, FechaActualizacion)
+                    VALUES ('Empresa', @fechaVencimiento, GETDATE());
+                END";
+            var rows = await connection.ExecuteAsync(sql, new { fechaVencimiento });
+
+            try
+            {
+                string tenantCode = _tenantService?.GetTenantCode() ?? "";
+                if (!string.IsNullOrWhiteSpace(tenantCode))
+                {
+                    string masterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;";
+                    using var masterDb = new SqlConnection(masterConn);
+                    await masterDb.ExecuteAsync(
+                        "UPDATE TB_EMPRESAS SET FechaVencimientoLicencia = @fechaVencimiento WHERE Codigo = @tenantCode",
+                        new { fechaVencimiento, tenantCode });
+                }
+            }
+            catch { }
+
+            return rows > 0;
         }
 
         public async Task<bool> GuardarEmpresaConfigAsync(EmpresaConfigDto dto)

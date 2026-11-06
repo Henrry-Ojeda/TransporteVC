@@ -1884,6 +1884,13 @@ namespace Transporte.Core.DTOs
         public string? Email { get; set; } = "";
         public string? LogoUrl { get; set; } = "";
         public DateTime? FechaActualizacion { get; set; }
+        public DateTime? FechaVencimientoLicencia { get; set; }
+        public string? ModulosHabilitados { get; set; }
+    }
+
+    public class ActualizarLicenciaDto
+    {
+        public DateTime FechaVencimiento { get; set; }
     }
 
     // =========================================================================

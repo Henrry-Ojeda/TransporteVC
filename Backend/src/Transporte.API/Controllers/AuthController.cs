@@ -81,7 +81,7 @@ namespace Transporte.API.Controllers
                 return Unauthorized(new { message = "Usuario o contraseña inválidos." });
             }
 
-            var permisos = user.Rol == "ADMIN"
+            var permisos = (user.Rol == "ADMIN" || user.Rol == "SUPERADMIN")
                 ? new[] { "DASHBOARD", "RUTAS_ALL", "MERMAS", "SEMANAS", "LIQUIDACION", "CATALOGOS", "BCV" }
                 : (await _authRepository.ObtenerPermisosUsuarioAsync(user.Id));
 

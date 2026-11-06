@@ -5,10 +5,13 @@ import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
+import { useAuthStore } from '@/stores/authStore';
 import type { UsuarioDto, GuardarUsuarioDto, CamionDto } from '@/types';
 
 export const UsuariosPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
+  const currentUser = useAuthStore((state) => state.user);
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modoEdicionId, setModoEdicionId] = useState<number | null>(null);
@@ -113,6 +116,11 @@ export const UsuariosPage: React.FC = () => {
   };
 
   const abrirModalEditar = (item: any) => {
+    const rolItem = (item.rol || '').toUpperCase();
+    if (rolItem === 'SUPERADMIN' && !isSuperAdmin) {
+      toast.error('Acceso denegado: Solo el SuperAdmin puede modificar los datos del usuario principal.');
+      return;
+    }
     setModoEdicionId(item.id);
     setForm({
       nombreUsuario: item.nombreUsuario || item.username || '',
@@ -221,11 +229,35 @@ export const UsuariosPage: React.FC = () => {
       sortable: true,
       cell: (row) => {
         const rol = (row.rol || '').toUpperCase();
+        if (rol === 'SUPERADMIN') {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
+                color: '#ffffff',
+                border: '1px solid #4338ca',
+                fontWeight: 800,
+                fontSize: '11px',
+                letterSpacing: '0.04em',
+                padding: '4px 9px',
+                borderRadius: '6px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: '0 2px 6px rgba(49, 46, 129, 0.25)',
+              }}
+            >
+              <i className="fa-solid fa-crown" style={{ color: '#fbbf24', fontSize: '10px' }}></i> SUPERADMIN
+            </span>
+          );
+        }
+
         let bg = '#f1f5f9';
         let color = '#475569';
         let border = '#e2e8f0';
 
-        if (rol.includes('ADMIN') || rol === 'SUPERADMIN') {
+        if (rol.includes('ADMIN')) {
           bg = '#eff6ff';
           color = '#1d4ed8';
           border = '#bfdbfe';
@@ -300,45 +332,78 @@ export const UsuariosPage: React.FC = () => {
     {
       header: 'Acciones',
       className: 'text-right',
-      cell: (row) => (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setUsuarioSeleccionado(row);
-              setFormPass({ passwordActual: '', nuevoPassword: '' });
-              setModalPassword(true);
-            }}
-            className="btn btn-sm btn-outline"
-            style={{ height: '30px', padding: '0 8px', color: '#f59e0b', borderColor: '#fde68a' }}
-            title="Cambiar Contraseña"
-          >
-            <i className="fa-solid fa-key"></i>
-          </button>
-          <button
-            type="button"
-            onClick={() => abrirModalEditar(row)}
-            className="btn btn-sm btn-outline"
-            style={{ height: '30px', padding: '0 8px', color: '#2563eb', borderColor: '#bfdbfe' }}
-            title="Editar Usuario"
-          >
-            <i className="fa-solid fa-pen-to-square"></i>
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              if (await confirmDeleteOrDeactivate('Desactivar al usuario', row.nombreCompleto || row.nombreUsuario)) {
-                eliminarMutation.mutate(row.id);
-              }
-            }}
-            className="btn btn-sm btn-outline"
-            style={{ height: '30px', padding: '0 8px', color: '#dc2626', borderColor: '#fecaca' }}
-            title="Desactivar Usuario"
-          >
-            <i className="fa-solid fa-user-slash"></i>
-          </button>
-        </div>
-      ),
+      cell: (row) => {
+        const esRowSuperAdmin = (row.rol || '').toUpperCase() === 'SUPERADMIN';
+
+        // Si el usuario en la fila es SuperAdmin y quien consulta NO es SuperAdmin: protegido
+        if (esRowSuperAdmin && !isSuperAdmin) {
+          return (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <span
+                className="badge"
+                style={{
+                  background: '#f8fafc',
+                  color: '#475569',
+                  border: '1.5px solid #cbd5e1',
+                  fontWeight: 700,
+                  fontSize: '11px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+                title="Usuario SuperAdmin / Dueño del Sistema. Inmune a modificaciones por otros roles."
+              >
+                <i className="fa-solid fa-shield-halved" style={{ color: '#6366f1' }}></i> Protegido
+              </span>
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setUsuarioSeleccionado(row);
+                setFormPass({ passwordActual: '', nuevoPassword: '' });
+                setModalPassword(true);
+              }}
+              className="btn btn-sm btn-outline"
+              style={{ height: '30px', padding: '0 8px', color: '#f59e0b', borderColor: '#fde68a' }}
+              title="Cambiar Contraseña"
+            >
+              <i className="fa-solid fa-key"></i>
+            </button>
+            <button
+              type="button"
+              onClick={() => abrirModalEditar(row)}
+              className="btn btn-sm btn-outline"
+              style={{ height: '30px', padding: '0 8px', color: '#2563eb', borderColor: '#bfdbfe' }}
+              title="Editar Usuario"
+            >
+              <i className="fa-solid fa-pen-to-square"></i>
+            </button>
+            {/* El usuario SuperAdmin nunca puede ser desactivado ni eliminado */}
+            {!esRowSuperAdmin && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (await confirmDeleteOrDeactivate('Desactivar al usuario', row.nombreCompleto || row.nombreUsuario)) {
+                    eliminarMutation.mutate(row.id);
+                  }
+                }}
+                className="btn btn-sm btn-outline"
+                style={{ height: '30px', padding: '0 8px', color: '#dc2626', borderColor: '#fecaca' }}
+                title="Desactivar Usuario"
+              >
+                <i className="fa-solid fa-user-slash"></i>
+              </button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -693,7 +758,9 @@ export const UsuariosPage: React.FC = () => {
                         padding: '0 12px',
                       }}
                     >
-                      <option value="SUPERADMIN">SUPERADMIN (Super Administrador)</option>
+                      {isSuperAdmin && (
+                        <option value="SUPERADMIN">SUPERADMIN (Super Administrador / Propietario)</option>
+                      )}
                       <option value="ADMIN">ADMIN (Administrador)</option>
                       <option value="SUPERVISOR">SUPERVISOR (Supervisor)</option>
                       <option value="OPERADOR">OPERADOR (Operador)</option>

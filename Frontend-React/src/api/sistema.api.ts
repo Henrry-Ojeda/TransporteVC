@@ -94,6 +94,17 @@ export const sistemaApi = {
     return res.data;
   },
 
+  // LICENCIA Y EMPRESA (SISTEMA TENANT)
+  getEmpresaConfig: async (): Promise<any> => {
+    const res = await apiClient.get('/empresa');
+    return res.data;
+  },
+
+  actualizarLicencia: async (fechaVencimiento: string): Promise<{ mensaje: string; fechaVencimiento: string }> => {
+    const res = await apiClient.put('/empresa/licencia', { fechaVencimiento });
+    return res.data;
+  },
+
   // REPORTES INTEGRALES (8 REPORTES OFICIALES)
   getDashboardAvanzado: async (semanas = 8): Promise<any> => {
     const res = await apiClient.get('/reportes/dashboard-avanzado', { params: { semanas } });

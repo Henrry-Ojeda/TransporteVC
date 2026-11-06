@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +11,7 @@ namespace Transporte.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN")]
+    [Authorize(Roles = "ADMIN,SUPERADMIN")]
     public class UsuariosController : ControllerBase
     {
         private readonly IUsuariosRepository _usuariosRepository;
@@ -16,6 +19,12 @@ namespace Transporte.API.Controllers
         public UsuariosController(IUsuariosRepository usuariosRepository)
         {
             _usuariosRepository = usuariosRepository;
+        }
+
+        private bool IsCallerSuperAdmin()
+        {
+            var rol = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "";
+            return rol.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase);
         }
 
         [HttpGet]
@@ -37,6 +46,11 @@ namespace Transporte.API.Controllers
         public async Task<IActionResult> ObtenerRoles()
         {
             var roles = await _usuariosRepository.ObtenerRolesAsync();
+            if (!IsCallerSuperAdmin())
+            {
+                // El rol Administrador no puede ver ni asignar el rol SUPERADMIN
+                roles = roles.Where(r => !r.Codigo.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase));
+            }
             return Ok(roles);
         }
 
@@ -56,6 +70,12 @@ namespace Transporte.API.Controllers
             if (string.IsNullOrWhiteSpace(dto.NombreCompleto))
                 return BadRequest(new { message = "El nombre completo es obligatorio." });
 
+            // Solo el SuperAdmin puede asignar el rol SUPERADMIN
+            if (dto.Rol?.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase) == true && !IsCallerSuperAdmin())
+            {
+                return StatusCode(403, new { message = "Acceso denegado: El rol Administrador no tiene autorización para crear ni asignar usuarios con el rol SuperAdmin." });
+            }
+
             try
             {
                 var id = await _usuariosRepository.CrearUsuarioAsync(dto);
@@ -72,6 +92,21 @@ namespace Transporte.API.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> ActualizarUsuario([FromRoute] int id, [FromBody] EditarUsuarioDto dto)
         {
+            var target = await _usuariosRepository.ObtenerUsuarioPorIdAsync(id);
+            if (target == null) return NotFound(new { message = "Usuario no encontrado." });
+
+            // El Administrador no puede editar al SuperAdmin
+            if (target.Rol?.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase) == true && !IsCallerSuperAdmin())
+            {
+                return StatusCode(403, new { message = "Acceso denegado: Solo el SuperAdmin puede modificar datos del usuario SuperAdmin principal." });
+            }
+
+            // El Administrador no puede elevar a un usuario al rol SUPERADMIN
+            if (dto.Rol?.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase) == true && !IsCallerSuperAdmin())
+            {
+                return StatusCode(403, new { message = "Acceso denegado: El rol Administrador no tiene autorización para asignar el rol SuperAdmin." });
+            }
+
             var ok = await _usuariosRepository.ActualizarUsuarioAsync(id, dto);
             if (!ok) return NotFound(new { message = "Usuario no encontrado o no modificado." });
             return Ok(new { message = "Usuario actualizado exitosamente." });
@@ -83,6 +118,15 @@ namespace Transporte.API.Controllers
             if (string.IsNullOrWhiteSpace(dto.NuevaPassword) || dto.NuevaPassword.Length < 6)
                 return BadRequest(new { message = "La nueva contraseña debe tener al menos 6 caracteres." });
 
+            var target = await _usuariosRepository.ObtenerUsuarioPorIdAsync(id);
+            if (target == null) return NotFound(new { message = "Usuario no encontrado." });
+
+            // El Administrador no puede cambiar la contraseña del SuperAdmin
+            if (target.Rol?.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase) == true && !IsCallerSuperAdmin())
+            {
+                return StatusCode(403, new { message = "Acceso denegado: Solo el SuperAdmin puede cambiar la contraseña del usuario SuperAdmin principal." });
+            }
+
             var ok = await _usuariosRepository.ActualizarPasswordAsync(id, dto.NuevaPassword);
             if (!ok) return NotFound(new { message = "Usuario no encontrado." });
             return Ok(new { message = "Contraseña actualizada exitosamente." });
@@ -91,6 +135,15 @@ namespace Transporte.API.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> EliminarUsuario([FromRoute] int id)
         {
+            var target = await _usuariosRepository.ObtenerUsuarioPorIdAsync(id);
+            if (target == null) return NotFound(new { message = "Usuario no encontrado." });
+
+            // El SuperAdmin es intocable
+            if (target.Rol?.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return StatusCode(403, new { message = "Acceso denegado: El usuario SuperAdmin es único e inmune y no puede ser eliminado ni desactivado." });
+            }
+
             var ok = await _usuariosRepository.EliminarUsuarioAsync(id);
             if (!ok) return NotFound(new { message = "Usuario no encontrado." });
             return Ok(new { message = "Usuario eliminado exitosamente." });

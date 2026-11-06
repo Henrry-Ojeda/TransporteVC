@@ -94,6 +94,17 @@ namespace Transporte.API.Controllers
         [HttpPut("tipos-leche/{id}/toggle")]
         public async Task<IActionResult> ToggleTipoLeche([FromRoute] int id, [FromBody] bool activo)
         {
+            var tipo = await _configRepo.ObtenerTipoLechePorIdAsync(id);
+            if (tipo == null) return NotFound(new { message = "Tipo de leche no encontrado." });
+
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "";
+            var isSuperAdmin = currentUserRole.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+
+            if (tipo.Codigo.Equals("BUFALA", StringComparison.OrdinalIgnoreCase) && !isSuperAdmin)
+            {
+                return StatusCode(403, new { message = "Acceso denegado: La activación o desactivación de Búfala está licenciada y requiere permisos de SuperAdmin." });
+            }
+
             var ok = await _configRepo.ToggleTipoLecheAsync(id, activo);
             if (!ok) return NotFound(new { message = "Tipo de leche no encontrado." });
             return Ok(new { message = $"Tipo de leche {(activo ? "activado" : "desactivado")} exitosamente." });
@@ -142,6 +153,14 @@ namespace Transporte.API.Controllers
         [HttpPut("modulos/{id}/toggle")]
         public async Task<IActionResult> ToggleModulo([FromRoute] int id, [FromBody] bool activo)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "";
+            var isSuperAdmin = currentUserRole.Equals("SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+
+            if (!isSuperAdmin)
+            {
+                return StatusCode(403, new { message = "Acceso denegado: Solo el SuperAdmin tiene permisos para activar o desactivar módulos del sistema." });
+            }
+
             var ok = await _configRepo.ToggleModuloMenuAsync(id, activo);
             if (!ok) return NotFound(new { message = "Módulo no encontrado." });
             return Ok(new { message = $"Módulo {(activo ? "activado" : "desactivado")} exitosamente." });

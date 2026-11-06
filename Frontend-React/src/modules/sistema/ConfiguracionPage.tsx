@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Swal from 'sweetalert2';
 import { sistemaApi } from '@/api/sistema.api';
+import { useAuthStore } from '@/stores/authStore';
 
 export const ConfiguracionPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
 
   const [toleranciaMerma, setToleranciaMerma] = useState<string>('1.50');
   const [diaCorteSemana, setDiaCorteSemana] = useState<string>('DOMINGO');
   const [alertaCombustibleMin, setAlertaCombustibleMin] = useState<string>('500');
   const [alertaKmSugerido, setAlertaKmSugerido] = useState<string>('500');
-  const [subTab, setSubTab] = useState<'parametros' | 'tiposLeche' | 'navegacion'>('parametros');
+  const [subTab, setSubTab] = useState<'parametros' | 'tiposLeche' | 'navegacion' | 'licencia'>('parametros');
 
   // Consulta de parámetros
   const { data: parametros = [], isLoading, refetch } = useQuery<any[]>({
@@ -30,6 +32,44 @@ export const ConfiguracionPage: React.FC = () => {
     queryKey: ['configuracion-modulos-admin'],
     queryFn: () => sistemaApi.getModulosAdmin(),
     enabled: subTab === 'navegacion',
+  });
+
+  // Consulta de información de empresa y licencia
+  const { data: empresaConfig, refetch: refetchEmpresa } = useQuery<any>({
+    queryKey: ['empresa-config'],
+    queryFn: () => sistemaApi.getEmpresaConfig(),
+  });
+
+  const [fechaLicencia, setFechaLicencia] = useState<string>('');
+
+  useEffect(() => {
+    if (empresaConfig?.fechaVencimientoLicencia) {
+      const d = new Date(empresaConfig.fechaVencimientoLicencia);
+      if (!isNaN(d.getTime())) {
+        setFechaLicencia(d.toISOString().split('T')[0]);
+      }
+    }
+  }, [empresaConfig]);
+
+  const renovarLicenciaMutation = useMutation({
+    mutationFn: (nuevaFecha: string) => sistemaApi.actualizarLicencia(nuevaFecha),
+    onSuccess: () => {
+      Swal.fire({
+        icon: 'success',
+        title: 'Licencia Actualizada',
+        text: 'La fecha de vencimiento de la licencia ha sido renovada exitosamente.',
+        confirmButtonColor: '#7c3aed',
+      });
+      queryClient.invalidateQueries({ queryKey: ['empresa-config'] });
+    },
+    onError: (err: any) => {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Renovar',
+        text: err.response?.data?.mensaje || err.response?.data?.message || 'No se pudo actualizar la licencia.',
+        confirmButtonColor: '#ef4444',
+      });
+    },
   });
 
   // Cargar valores iniciales desde la base de datos
@@ -208,6 +248,23 @@ export const ConfiguracionPage: React.FC = () => {
           }}
         >
           <i className="fa-solid fa-folder-tree" style={{ marginRight: '6px' }}></i> Módulos de Navegación
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab('licencia')}
+          className={`filter-pill ${subTab === 'licencia' ? 'active' : ''}`}
+          style={{
+            borderRadius: '8px',
+            fontWeight: 700,
+            padding: '8px 16px',
+            fontSize: '13px',
+            border: 'none',
+            background: subTab === 'licencia' ? '#4f46e5' : 'transparent',
+            color: subTab === 'licencia' ? '#ffffff' : '#475569',
+            cursor: 'pointer',
+          }}
+        >
+          <i className="fa-solid fa-certificate" style={{ marginRight: '6px' }}></i> Licencia & Suscripción
         </button>
       </div>
 
@@ -458,22 +515,46 @@ export const ConfiguracionPage: React.FC = () => {
                       {Number(t.factorPrecio || t.FactorPrecio || 1).toFixed(2)}x
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => toggleTipoMutation.mutate({ id: t.id, activo: !t.activo })}
-                        className={`badge ${t.activo ? 'badge-success' : 'badge-danger'}`}
-                        style={{
-                          cursor: 'pointer',
-                          border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontWeight: 700,
-                          background: t.activo ? '#ecfdf5' : '#fef2f2',
-                          color: t.activo ? '#059669' : '#dc2626',
-                        }}
-                      >
-                        {t.activo ? '✓ Activo' : '✕ Inactivo'}
-                      </button>
+                      {(t.codigo || t.Codigo) === 'BUFALA' && !isSuperAdmin ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="badge"
+                          style={{
+                            cursor: 'not-allowed',
+                            border: '1.5px solid #cbd5e1',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            background: '#f1f5f9',
+                            color: '#64748b',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                          title="El módulo de Búfala está bajo suscripción autorizada por el SuperAdmin."
+                        >
+                          <i className="fa-solid fa-lock" style={{ fontSize: '10px' }}></i>
+                          {t.activo ? '✓ Licenciado' : '✕ Bloqueado'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => toggleTipoMutation.mutate({ id: t.id, activo: !t.activo })}
+                          className={`badge ${t.activo ? 'badge-success' : 'badge-danger'}`}
+                          style={{
+                            cursor: 'pointer',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            background: t.activo ? '#ecfdf5' : '#fef2f2',
+                            color: t.activo ? '#059669' : '#dc2626',
+                          }}
+                        >
+                          {t.activo ? '✓ Activo' : '✕ Inactivo'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -486,13 +567,35 @@ export const ConfiguracionPage: React.FC = () => {
       {/* SUB-TAB 3: MÓDULOS DE NAVEGACIÓN */}
       {subTab === 'navegacion' && (
         <div className="content-card" style={{ padding: '24px', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="fa-solid fa-folder-tree" style={{ color: '#059669' }}></i> Módulos y Navegación del Sistema
-            </h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-              Controla la visibilidad de las opciones en la barra de menú lateral
-            </p>
+          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-folder-tree" style={{ color: '#059669' }}></i> Módulos y Navegación del Sistema
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                {isSuperAdmin
+                  ? 'Active o desactive los módulos conmutables de la plataforma para este cliente'
+                  : 'Visibilidad de los módulos en la barra de menú lateral (Los módulos contratados son gestionados por el SuperAdmin)'}
+              </p>
+            </div>
+            {!isSuperAdmin && (
+              <span
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#475569',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <i className="fa-solid fa-lock text-amber-500"></i> Control Maestro por SuperAdmin
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
@@ -538,25 +641,204 @@ export const ConfiguracionPage: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => toggleModuloMutation.mutate({ id: mod.id, activo: !mod.activo })}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontWeight: 700,
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    border: 'none',
-                    background: mod.activo ? '#ecfdf5' : '#fef2f2',
-                    color: mod.activo ? '#059669' : '#dc2626',
-                  }}
-                >
-                  {mod.activo ? 'Visible' : 'Oculto'}
-                </button>
+                {!isSuperAdmin ? (
+                  <button
+                    type="button"
+                    disabled
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'not-allowed',
+                      border: '1.5px solid #cbd5e1',
+                      background: '#f1f5f9',
+                      color: '#64748b',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                    title="Solo el SuperAdmin puede activar o desactivar módulos del sistema."
+                  >
+                    <i className="fa-solid fa-lock" style={{ fontSize: '10px' }}></i>
+                    {mod.activo ? 'Habilitado' : 'Deshabilitado'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => toggleModuloMutation.mutate({ id: mod.id, activo: !mod.activo })}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: mod.activo ? '#ecfdf5' : '#fef2f2',
+                      color: mod.activo ? '#059669' : '#dc2626',
+                    }}
+                  >
+                    {mod.activo ? 'Visible' : 'Oculto'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: LICENCIA & SUSCRIPCIÓN DEL SISTEMA */}
+      {subTab === 'licencia' && (
+        <div className="content-card" style={{ padding: '28px', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>📜</span>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  Licencia & Estado de Suscripción del Sistema
+                </h3>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                Control de vigencia operativa, validez de licencia y parámetros de acceso de este cliente
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  background: '#ecfdf5',
+                  color: '#059669',
+                  border: '1.5px solid #a7f3d0',
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                LICENCIA ACTIVA & AUTORIZADA
+              </span>
+            </div>
+          </div>
+
+          {/* Grid de Estado */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', marginBottom: '24px' }}>
+            {/* Empresa */}
+            <div style={{ padding: '18px', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>
+                Empresa Titular
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                {empresaConfig?.nombre || 'Productos Lácteos Campo Verde, C.A.'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace', marginTop: '4px' }}>
+                RIF: {empresaConfig?.rif || 'J-12345678-9'}
+              </div>
+            </div>
+
+            {/* Fecha de Vencimiento */}
+            <div style={{ padding: '18px', borderRadius: '12px', background: '#f5f3ff', border: '1.5px solid #ddd6fe' }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '6px' }}>
+                Fecha de Vencimiento
+              </div>
+              <div style={{ fontSize: '17px', fontWeight: 800, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-calendar-check" style={{ color: '#7c3aed' }}></i>
+                {empresaConfig?.fechaVencimientoLicencia 
+                  ? new Date(empresaConfig.fechaVencimientoLicencia).toLocaleDateString('es-VE', { year: 'numeric', month: 'long', day: 'numeric' })
+                  : '31 de diciembre de 2027'}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#6d28d9', marginTop: '4px' }}>
+                {isSuperAdmin ? 'Editable por SuperAdmin' : 'Solo lectura (Consulte a Soporte/SuperAdmin)'}
+              </div>
+            </div>
+
+            {/* Nivel de Operador Actual */}
+            <div style={{ padding: '18px', borderRadius: '12px', background: isSuperAdmin ? '#fdf4ff' : '#eff6ff', border: `1.5px solid ${isSuperAdmin ? '#f5d0fe' : '#bfdbfe'}` }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: isSuperAdmin ? '#c026d3' : '#1d4ed8', textTransform: 'uppercase', marginBottom: '6px' }}>
+                Tu Rol Actual en Sistema
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: isSuperAdmin ? '#86198f' : '#1e40af', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <i className={`fa-solid ${isSuperAdmin ? 'fa-crown text-amber-500' : 'fa-user-shield text-blue-600'}`}></i>
+                {isSuperAdmin ? 'Super Administrador (Dueño)' : 'Administrador del Cliente'}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
+                {isSuperAdmin ? 'Permiso total de actualización de licencias' : 'Permiso de visualización de vencimiento'}
+              </div>
+            </div>
+          </div>
+
+          {/* Panel de Actualización / Renovación */}
+          {isSuperAdmin ? (
+            <div style={{ padding: '20px', borderRadius: '12px', background: '#faf5ff', border: '1.5px solid #e9d5ff', marginTop: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <i className="fa-solid fa-key" style={{ color: '#7c3aed', fontSize: '16px' }}></i>
+                <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: 800, color: '#4c1d95' }}>
+                  Renovación / Modificación de Licencia (Acceso Exclusivo SuperAdmin)
+                </h4>
+              </div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '12.5px', color: '#6b21a8' }}>
+                Establezca la nueva fecha límite de expiración para la base de datos de este cliente.
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="date"
+                  value={fechaLicencia}
+                  onChange={(e) => setFechaLicencia(e.target.value)}
+                  className="form-input"
+                  style={{
+                    height: '42px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    border: '1.5px solid #c084fc',
+                    background: '#ffffff',
+                    padding: '0 12px',
+                    color: '#0f172a',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!fechaLicencia) {
+                      Swal.fire('Atención', 'Seleccione una fecha válida.', 'warning');
+                      return;
+                    }
+                    renovarLicenciaMutation.mutate(fechaLicencia);
+                  }}
+                  disabled={renovarLicenciaMutation.isPending}
+                  style={{
+                    height: '42px',
+                    padding: '0 20px',
+                    borderRadius: '8px',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-floppy-disk"></i>
+                  {renovarLicenciaMutation.isPending ? 'Actualizando...' : 'Guardar Nueva Fecha de Licencia'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '16px 20px', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #cbd5e1', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <i className="fa-solid fa-circle-info" style={{ color: '#0284c7', fontSize: '20px' }}></i>
+              <div style={{ fontSize: '12.5px', color: '#334155' }}>
+                <strong>Vigencia Informativa:</strong> Como Administrador puedes consultar la fecha de vencimiento. Para renovar, ampliar cuotas o solicitar nuevos módulos licenciados, contacte a la administración general del servicio.
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
