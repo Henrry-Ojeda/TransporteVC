@@ -134,10 +134,12 @@ namespace Transporte.Infrastructure.Repositories
                     rolCodigo = rolDb.Codigo;
                 }
 
-                // Generar hash de contraseña seguro
-                string passwordHash = !string.IsNullOrWhiteSpace(dto.Password)
-                    ? BCrypt.Net.BCrypt.HashPassword(dto.Password, 11)
-                    : BCrypt.Net.BCrypt.HashPassword("123456", 11);
+                // Generar hash de contraseña seguro con BCrypt
+                if (string.IsNullOrWhiteSpace(dto.Password))
+                {
+                    throw new ArgumentException("La contraseña inicial es requerida para registrar el usuario.");
+                }
+                string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password, 11);
 
                 var sqlUsuario = @"
                     INSERT INTO TB_USUARIOS 

@@ -58,22 +58,19 @@ namespace Transporte.API.Controllers
             bool passwordValida = false;
             try
             {
-                if (dto.Password == "1234" || dto.Password == "admin123" || dto.Password == "123456" || dto.Password == "admin")
-                {
-                    passwordValida = true;
-                }
-                else if (!string.IsNullOrEmpty(user.PasswordHash) && (user.PasswordHash.StartsWith("$2a$") || user.PasswordHash.StartsWith("$2b$")))
+                if (!string.IsNullOrEmpty(user.PasswordHash) && 
+                    (user.PasswordHash.StartsWith("$2a$") || user.PasswordHash.StartsWith("$2b$") || user.PasswordHash.StartsWith("$2y$")))
                 {
                     passwordValida = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
                 }
                 else
                 {
-                    passwordValida = (dto.Password == user.PasswordHash);
+                    passwordValida = (!string.IsNullOrEmpty(dto.Password) && dto.Password == user.PasswordHash);
                 }
             }
             catch
             {
-                passwordValida = (dto.Password == "1234" || dto.Password == "admin123" || dto.Password == "123456" || dto.Password == "admin");
+                passwordValida = false;
             }
 
             if (!passwordValida)

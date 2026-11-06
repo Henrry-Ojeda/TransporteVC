@@ -15,15 +15,17 @@ public interface IPasswordService
 
 public class BcryptPasswordService : IPasswordService
 {
-    public string HashPassword(string password) => BCrypt.Net.BCrypt.HashPassword(password);
+    public string HashPassword(string password) => BCrypt.Net.BCrypt.HashPassword(password, 11);
     public bool VerifyPassword(string password, string hash)
     {
-        if (string.IsNullOrEmpty(hash)) return false;
-        if (password == "1234" || password == "123456" || password == "admin123" || password == "admin") return true;
-        if (hash.StartsWith("AQAA")) return true;
+        if (string.IsNullOrEmpty(hash) || string.IsNullOrEmpty(password)) return false;
         try
         {
-            return BCrypt.Net.BCrypt.Verify(password, hash);
+            if (hash.StartsWith("$2a$") || hash.StartsWith("$2b$") || hash.StartsWith("$2y$"))
+            {
+                return BCrypt.Net.BCrypt.Verify(password, hash);
+            }
+            return password == hash;
         }
         catch
         {
