@@ -39,6 +39,7 @@ export const RecoleccionRutasPage: React.FC = () => {
   const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const rol = user?.rol?.toUpperCase() || '';
   const esAdminOSup = ['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE'].includes(rol);
+  const esChofer = rol === 'CHOFER';
 
   const hoyStr = new Date().toISOString().split('T')[0];
 
@@ -418,6 +419,16 @@ export const RecoleccionRutasPage: React.FC = () => {
   // =========================================================================
   const viajesFiltrados = useMemo(() => {
     let list = viajes;
+    // Si el usuario es CHOFER, solo puede ver sus propios viajes
+    if (esChofer && user) {
+      list = list.filter(
+        (v) =>
+          v.choferId === user.id ||
+          (v as any).conductorId === user.id ||
+          ((user as any).camionId && v.camionId === (user as any).camionId) ||
+          (v.choferNombre && v.choferNombre.toLowerCase().includes((user.nombreCompleto || '').toLowerCase()))
+      );
+    }
     if (filtroEstadoTicket === 'activos') {
       list = list.filter((v) => {
         const est = (v.estado || '').toUpperCase();
@@ -435,10 +446,20 @@ export const RecoleccionRutasPage: React.FC = () => {
       });
     }
     return list;
-  }, [viajes, filtroEstadoTicket]);
+  }, [viajes, filtroEstadoTicket, esChofer, user]);
 
   const despachosFiltrados = useMemo(() => {
     let list = despachos;
+    // Si el usuario es CHOFER, solo puede ver los despachos que se le asignaron
+    if (esChofer && user) {
+      list = list.filter(
+        (d) =>
+          (d as any).choferId === user.id ||
+          (d as any).conductorId === user.id ||
+          ((user as any).camionId && d.camionId === (user as any).camionId) ||
+          (d.choferNombre && d.choferNombre.toLowerCase().includes((user.nombreCompleto || '').toLowerCase()))
+      );
+    }
     if (filtroEstadoTicket === 'activos') {
       list = list.filter((d) => {
         const est = (d.estado || '').toUpperCase();
@@ -455,7 +476,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       });
     }
     return list;
-  }, [despachos, filtroEstadoTicket]);
+  }, [despachos, filtroEstadoTicket, esChofer, user]);
 
   const ticketsCombinados = useMemo(() => {
     const normRutas = viajesFiltrados.map((v) => ({
@@ -515,6 +536,18 @@ export const RecoleccionRutasPage: React.FC = () => {
   // Lista filtrada para Detalle por Fincas (Filtros por Chofer y Finca)
   const recoleccionesFiltradas = useMemo(() => {
     return recolecciones.filter((r: any) => {
+      // Si el usuario es CHOFER, solo ve sus propias paradas
+      if (esChofer && user) {
+        const itemChoferId = Number(r.conductorId ?? r.ConductorId ?? r.usuarioId ?? r.UsuarioId ?? 0);
+        const nomChoferItem = (r.conductorNombre || r.ConductorNombre || '').toLowerCase().trim();
+        const miNombre = (user.nombreCompleto || '').toLowerCase().trim();
+        if (itemChoferId > 0) {
+          if (itemChoferId !== user.id) return false;
+        } else if (nomChoferItem && miNombre) {
+          if (!nomChoferItem.includes(miNombre) && !miNombre.includes(nomChoferItem)) return false;
+        }
+      }
+
       // 1. Filtro por Finca Ganadera
       if (filtroDetalleFincaId && filtroDetalleFincaId > 0) {
         const itemFincaId = Number(r.fincaId ?? r.FincaId ?? 0);

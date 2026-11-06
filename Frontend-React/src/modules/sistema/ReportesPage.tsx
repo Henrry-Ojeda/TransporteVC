@@ -50,7 +50,18 @@ function formatearFechaLocal(fechaStr: string | undefined | null): string {
 
 export const ReportesPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const currentUser = useAuthStore((state) => state.user);
+  const esChofer = (currentUser?.rol || '').toUpperCase() === 'CHOFER';
   const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
+
+  const catalogosDisponibles = useMemo(() => {
+    if (esChofer) {
+      return CATALOGO_REPORTES.filter((r) =>
+        ['DIARIOS', 'RECEPTORIAS', 'FINCAS', 'CHOFERES', 'RELACION_CHOFER'].includes(r.value)
+      );
+    }
+    return CATALOGO_REPORTES;
+  }, [esChofer]);
 
   // Ciclo Operativo Activo (1:1 V2_3_11_26)
   const { data: cicloActivo } = useQuery({
@@ -95,7 +106,7 @@ export const ReportesPage: React.FC = () => {
   const [finca1Id, setFinca1Id] = useState<string>('');
   const [finca2Id, setFinca2Id] = useState<string>('');
   const [companiaId, setCompaniaId] = useState<string>('');
-  const [choferId, setChoferId] = useState<string>('');
+  const [choferId, setChoferId] = useState<string>(() => (esChofer && currentUser?.id ? String(currentUser.id) : ''));
   const [bancoId, setBancoId] = useState<string>('');
 
   // Estados interactivos para Reporte Fincas
@@ -186,14 +197,18 @@ export const ReportesPage: React.FC = () => {
 
   const choferesOptions = useMemo(() => {
     const opts: SelectOption[] = [];
-    choferes.forEach((ch: any) => {
+    let list = choferes;
+    if (esChofer && currentUser?.id) {
+      list = list.filter((ch: any) => Number(ch.id || ch.Id) === currentUser.id);
+    }
+    list.forEach((ch: any) => {
       opts.push({
         value: String(ch.id || ch.Id),
         label: `${ch.nombreCompleto || ch.nombre || ch.Nombre || `Chofer #${ch.id}`}`,
       });
     });
     return opts;
-  }, [choferes]);
+  }, [choferes, esChofer, currentUser]);
 
   const bancosOptions = useMemo(() => {
     const opts: SelectOption[] = [];
@@ -225,9 +240,10 @@ export const ReportesPage: React.FC = () => {
       tasaBcvActiva,
     ],
     queryFn: async () => {
+      const idChoferEfectivo = esChofer && currentUser?.id ? currentUser.id : (choferId ? Number(choferId) : undefined);
       switch (tipoReporte) {
         case 'DIARIOS':
-          return await sistemaApi.getReporteDiarios(fechaInicio, fechaFin, choferId ? Number(choferId) : undefined);
+          return await sistemaApi.getReporteDiarios(fechaInicio, fechaFin, idChoferEfectivo);
         case 'RECEPTORIAS':
           return await sistemaApi.getReporteReceptorias(fechaInicio, fechaFin, companiaId ? Number(companiaId) : undefined);
         case 'FINCAS': {
@@ -236,7 +252,7 @@ export const ReportesPage: React.FC = () => {
           return await sistemaApi.getReporteFincas(fechaInicio, fechaFin, fIdsStr);
         }
         case 'CHOFERES':
-          return await sistemaApi.getReporteChoferes(fechaInicio, fechaFin, choferId ? Number(choferId) : undefined);
+          return await sistemaApi.getReporteChoferes(fechaInicio, fechaFin, idChoferEfectivo);
         case 'BANCOS':
           return await sistemaApi.getReporteBancos(
             fechaInicio,
@@ -255,8 +271,8 @@ export const ReportesPage: React.FC = () => {
           );
         case 'RELACION_CHOFER': {
           const res = await sistemaApi.getReporteRelacionChoferes(fechaInicio, fechaFin);
-          if (choferId) {
-            return (res || []).filter((r: any) => String(r.usuarioId || r.UsuarioId) === String(choferId));
+          if (idChoferEfectivo) {
+            return (res || []).filter((r: any) => String(r.usuarioId || r.UsuarioId) === String(idChoferEfectivo));
           }
           return res;
         }
@@ -269,8 +285,8 @@ export const ReportesPage: React.FC = () => {
       tipoReporte === 'DIARIOS' ||
       (tipoReporte === 'FINCAS' && Boolean(finca1Id || finca2Id)) ||
       (tipoReporte === 'RECEPTORIAS' && Boolean(companiaId)) ||
-      (tipoReporte === 'CHOFERES' && Boolean(choferId)) ||
-      (tipoReporte === 'RELACION_CHOFER' && Boolean(choferId)) ||
+      (tipoReporte === 'CHOFERES' && Boolean(esChofer ? currentUser?.id : choferId)) ||
+      (tipoReporte === 'RELACION_CHOFER' && Boolean(esChofer ? currentUser?.id : choferId)) ||
       (tipoReporte === 'BANCOS' && Boolean(bancoId)) ||
       (tipoReporte === 'RELACION_PAGOS_COMPANIAS' && Boolean(companiaId)),
   });
@@ -774,7 +790,7 @@ export const ReportesPage: React.FC = () => {
                 }}
                 style={{ height: '42px', fontWeight: 700, fontSize: '13.5px', color: '#0f172a', width: '100%', borderRadius: '8px' }}
               >
-                {CATALOGO_REPORTES.map((r) => (
+                {catalogosDisponibles.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>

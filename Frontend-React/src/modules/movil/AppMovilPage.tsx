@@ -4,7 +4,8 @@ import { AUTH_TOKEN_KEY } from '@/api/client';
 import { authApi } from '@/api/auth.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
-import type { FincaDto } from '@/types';
+import { sistemaApi } from '@/api/sistema.api';
+import type { FincaDto, DespachoCompaniaDto } from '@/types';
 
 interface DispositivoMovilData {
   token: string;
@@ -38,7 +39,20 @@ interface CargaOffline {
   serverTicketId?: number;
 }
 
+type TabMovil = 'principal' | 'recoleccion' | 'entregas' | 'reportes' | 'perfil';
+
+const REPORTES_CHOFER = [
+  { value: 'DIARIOS', label: '1. DIARIOS (Recolección Diaria)', icon: 'fa-calendar-days' },
+  { value: 'RECEPTORIAS', label: '2. RECEPTORÍAS (Entregas y Mermas)', icon: 'fa-warehouse' },
+  { value: 'FINCAS', label: '3. FINCAS (Detalle por Productor)', icon: 'fa-cow' },
+  { value: 'CHOFERES', label: '4. CHOFERES (Resumen Operativo)', icon: 'fa-user-tie' },
+  { value: 'RELACION_CHOFER', label: '7. RELACIÓN CHOFER (Liquidación de Viajes)', icon: 'fa-truck-arrow-right' },
+];
+
 export const AppMovilPage: React.FC = () => {
+  // Navegación de Pestañas Móviles
+  const [tabActiva, setTabActiva] = useState<TabMovil>('principal');
+
   // Estado de Red (Online / Offline)
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
@@ -72,6 +86,10 @@ export const AppMovilPage: React.FC = () => {
     }
   });
 
+  // Despachos / Entregas Asignadas
+  const [entregas, setEntregas] = useState<DespachoCompaniaDto[]>([]);
+  const [cargandoEntregas, setCargandoEntregas] = useState(false);
+
   // Estado para la pantalla de Vinculación
   const [codigoInput, setCodigoInput] = useState('');
   const [vinculando, setVinculando] = useState(false);
@@ -99,6 +117,108 @@ export const AppMovilPage: React.FC = () => {
   });
   const [mostrarGuiaIos, setMostrarGuiaIos] = useState(false);
 
+  // Estado de Reportes Móvil
+  const [tipoReporte, setTipoReporte] = useState<string>('DIARIOS');
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const [repFechaInicio, setRepFechaInicio] = useState<string>(hoyStr);
+  const [repFechaFin, setRepFechaFin] = useState<string>(hoyStr);
+  const [cargandoReporte, setCargandoReporte] = useState(false);
+  const [datosReporte, setDatosReporte] = useState<any>(null);
+
+  // Estado de Perfil
+  const [perfilForm, setPerfilForm] = useState({
+    nombreCompleto: dispositivo?.nombreCompleto || '',
+    telefono: '',
+    telefonoPagoMovil: '',
+    cedula: '',
+    passwordActual: '',
+    nuevoPassword: '',
+    confirmarPassword: '',
+  });
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+
+  // Detectar cambios de conectividad
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success('🟢 Conexión a Internet restablecida');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning('🟠 Modo Sin Conexión (Offline). Puedes seguir registrando cargas normalmente.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Guardar cargas en LocalStorage cada vez que cambian
+  useEffect(() => {
+    localStorage.setItem('movil_cargas_local', JSON.stringify(cargas));
+  }, [cargas]);
+
+  // Si estamos en línea y hay conexión, refrescar lista de fincas y perfil
+  useEffect(() => {
+    if (dispositivo && isOnline) {
+      cargarFincasServidor();
+      cargarEntregasChofer();
+      cargarPerfilServidor();
+    }
+  }, [dispositivo, isOnline]);
+
+  const cargarFincasServidor = async () => {
+    try {
+      const list = await catalogosApi.getFincas();
+      if (Array.isArray(list) && list.length > 0) {
+        setFincas(list);
+        localStorage.setItem('movil_fincas_cache', JSON.stringify(list));
+      }
+    } catch {
+      console.warn('Usando catálogo local de fincas offline.');
+    }
+  };
+
+  const cargarEntregasChofer = async () => {
+    if (!dispositivo?.id) return;
+    setCargandoEntregas(true);
+    try {
+      const allDespachos = await operacionesApi.getDespachosCompanias();
+      const misDespachos = (allDespachos || []).filter(
+        (d: any) =>
+          d.choferId === dispositivo.id ||
+          d.conductorId === dispositivo.id ||
+          (dispositivo.camionId && d.camionId === dispositivo.camionId) ||
+          (d.choferNombre && d.choferNombre.toLowerCase().includes((dispositivo.nombreCompleto || '').toLowerCase()))
+      );
+      setEntregas(misDespachos);
+    } catch (err) {
+      console.warn('No se pudieron obtener entregas del servidor:', err);
+    } finally {
+      setCargandoEntregas(false);
+    }
+  };
+
+  const cargarPerfilServidor = async () => {
+    try {
+      const p = await authApi.getPerfil();
+      if (p) {
+        setPerfilForm((prev) => ({
+          ...prev,
+          nombreCompleto: p.nombreCompleto || prev.nombreCompleto,
+          telefono: p.telefono || '',
+          telefonoPagoMovil: p.telefonoPagoMovil || '',
+          cedula: p.cedula || '',
+        }));
+      }
+    } catch {}
+  };
+
+  // Capturar evento PWA install
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
@@ -137,50 +257,6 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
-  // Detectar cambios de conectividad
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success('🟢 Conexión a Internet restablecida');
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.warning('🟠 Modo Sin Conexión (Offline) activado. Puedes seguir registrando cargas normalmente.');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Guardar cargas en LocalStorage cada vez que cambian
-  useEffect(() => {
-    localStorage.setItem('movil_cargas_local', JSON.stringify(cargas));
-  }, [cargas]);
-
-  // Si estamos en línea y hay conexión, refrescar lista de fincas para caché
-  useEffect(() => {
-    if (dispositivo && isOnline) {
-      cargarFincasServidor();
-    }
-  }, [dispositivo, isOnline]);
-
-  const cargarFincasServidor = async () => {
-    try {
-      const list = await catalogosApi.getFincas();
-      if (Array.isArray(list) && list.length > 0) {
-        setFincas(list);
-        localStorage.setItem('movil_fincas_cache', JSON.stringify(list));
-      }
-    } catch (err) {
-      console.warn('No se pudo refrescar lista de fincas del servidor, usando caché local.');
-    }
-  };
-
   // Acción: Vincular dispositivo con código de 6 dígitos
   const handleVincular = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,7 +273,6 @@ export const AppMovilPage: React.FC = () => {
         deviceInfo: `${navigator.userAgent} (${navigator.platform})`,
       });
 
-      // Guardar token en localStorage para que apiClient lo use
       localStorage.setItem(AUTH_TOKEN_KEY, res.token);
       localStorage.setItem('token', res.token);
       localStorage.setItem('auth-storage', JSON.stringify({
@@ -231,19 +306,15 @@ export const AppMovilPage: React.FC = () => {
 
       setDispositivo(dispData);
       localStorage.setItem('movil_device_info', JSON.stringify(dispData));
-
       toast.success(`¡Dispositivo Vinculado con Éxito! Bienvenido ${res.nombreCompleto}`);
 
-      // Descargar catálogo de fincas para modo offline
       try {
         const fincasData = await catalogosApi.getFincas();
         if (Array.isArray(fincasData)) {
           setFincas(fincasData);
           localStorage.setItem('movil_fincas_cache', JSON.stringify(fincasData));
         }
-      } catch {
-        // En caso de que falle la descarga inicial
-      }
+      } catch {}
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Código inválido o expirado. Consulta con tu administrador.');
     } finally {
@@ -263,8 +334,72 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
-  // Calcular litros recolectados hoy
-  const hoyStr = new Date().toISOString().split('T')[0];
+  // Guardar cambios en el Perfil
+  const handleGuardarPerfil = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (perfilForm.nuevoPassword && perfilForm.nuevoPassword !== perfilForm.confirmarPassword) {
+      toast.error('Las contraseñas nuevas no coinciden');
+      return;
+    }
+
+    setGuardandoPerfil(true);
+    try {
+      await authApi.updatePerfil({
+        nombreCompleto: perfilForm.nombreCompleto,
+        telefono: perfilForm.telefono,
+        telefonoPagoMovil: perfilForm.telefonoPagoMovil,
+        cedula: perfilForm.cedula,
+        passwordActual: perfilForm.passwordActual || undefined,
+        nuevoPassword: perfilForm.nuevoPassword || undefined,
+      });
+      toast.success('¡Perfil actualizado exitosamente!');
+      setPerfilForm((prev) => ({
+        ...prev,
+        passwordActual: '',
+        nuevoPassword: '',
+        confirmarPassword: '',
+      }));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al actualizar perfil');
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  };
+
+  // Consultar Reporte
+  const handleConsultarReporte = async () => {
+    if (!isOnline) {
+      toast.warning('Se requiere conexión a internet para consultar reportes.');
+      return;
+    }
+    setCargandoReporte(true);
+    setDatosReporte(null);
+    try {
+      let res: any = null;
+      const choferNumId = dispositivo?.id;
+
+      if (tipoReporte === 'DIARIOS') {
+        res = await sistemaApi.getReporteDiarios(repFechaInicio, repFechaFin, choferNumId);
+      } else if (tipoReporte === 'RECEPTORIAS') {
+        res = await sistemaApi.getReporteReceptorias(repFechaInicio, repFechaFin);
+      } else if (tipoReporte === 'FINCAS') {
+        res = await sistemaApi.getReporteFincas(repFechaInicio, repFechaFin);
+      } else if (tipoReporte === 'CHOFERES') {
+        res = await sistemaApi.getReporteChoferes(repFechaInicio, repFechaFin, choferNumId);
+      } else if (tipoReporte === 'RELACION_CHOFER') {
+        const raw = await sistemaApi.getReporteRelacionChoferes(repFechaInicio, repFechaFin);
+        res = (raw || []).filter((r: any) => Number(r.usuarioId || r.UsuarioId) === choferNumId);
+      }
+      setDatosReporte(res);
+      toast.success('Reporte generado exitosamente');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al generar reporte');
+    } finally {
+      setCargandoReporte(false);
+    }
+  };
+
+  // Cálculos de Cargas
   const cargasHoy = useMemo(() => {
     return cargas.filter((c) => c.fecha === hoyStr);
   }, [cargas, hoyStr]);
@@ -280,7 +415,6 @@ export const AppMovilPage: React.FC = () => {
     return cargas.filter((c) => !c.synced);
   }, [cargas]);
 
-  // Fincas filtradas en el modal
   const fincasFiltradas = useMemo(() => {
     if (!busquedaFinca.trim()) return fincas;
     const term = busquedaFinca.toLowerCase();
@@ -339,13 +473,12 @@ export const AppMovilPage: React.FC = () => {
 
     toast.success(`Carga de ${litrosNum.toLocaleString()} L guardada en el teléfono`);
 
-    // Intentar sincronizar inmediatamente si hay internet
     if (isOnline) {
       setTimeout(() => sincronizarCargas(nuevasCargas), 500);
     }
   };
 
-  // Sincronizar cargas pendientes con el servidor
+  // Sincronizar cargas con servidor
   const sincronizarCargas = async (cargasParaSync = cargas) => {
     if (!isOnline) {
       toast.warning('No hay conexión a internet disponible para sincronizar.');
@@ -361,7 +494,6 @@ export const AppMovilPage: React.FC = () => {
     let sincronizadasCount = 0;
 
     try {
-      // 1. Obtener viajes de hoy para ver si hay un viaje activo para este chofer/camión
       const viajes = await operacionesApi.getControles(hoyStr);
       const viajeExistente = viajes.find(
         (v: any) =>
@@ -383,7 +515,6 @@ export const AppMovilPage: React.FC = () => {
         idViaje = viajeIniciado.id;
       }
 
-      // 2. Enviar cada carga pendiente
       const actualizadas = [...cargasParaSync];
       for (const carga of pendientes) {
         try {
@@ -398,7 +529,6 @@ export const AppMovilPage: React.FC = () => {
             temperatura: carga.temperatura,
           });
 
-          // Marcar como sincronizada
           const idx = actualizadas.findIndex((c) => c.localId === carga.localId);
           if (idx !== -1) {
             actualizadas[idx] = {
@@ -426,7 +556,7 @@ export const AppMovilPage: React.FC = () => {
   };
 
   // =========================================================================
-  // VISTA 1: DISPOSITIVO NO VINCULADO (PANTALLA DE ACTIVACIÓN NEUTRA)
+  // VISTA 1: DISPOSITIVO NO VINCULADO (ACTIVACIÓN NEUTRA)
   // =========================================================================
   if (!dispositivo) {
     return (
@@ -456,7 +586,6 @@ export const AppMovilPage: React.FC = () => {
             textAlign: 'center',
           }}
         >
-          {/* Icono Principal */}
           <div
             style={{
               width: '76px',
@@ -561,7 +690,6 @@ export const AppMovilPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Botón de Descarga / Instalación en Teléfono */}
           {!esInstalada && (
             <div style={{ marginTop: '16px' }}>
               <button
@@ -581,7 +709,6 @@ export const AppMovilPage: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  transition: 'all 0.2s',
                 }}
               >
                 <i className="fa-solid fa-download"></i>
@@ -590,7 +717,6 @@ export const AppMovilPage: React.FC = () => {
             </div>
           )}
 
-          {/* Guía Modal para iOS */}
           {mostrarGuiaIos && (
             <div
               style={{
@@ -630,18 +756,15 @@ export const AppMovilPage: React.FC = () => {
                   </button>
                 </div>
                 <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
-                  <p style={{ margin: '0 0 10px 0' }}>
-                    Para tener la aplicación con su icono en tu pantalla de inicio:
-                  </p>
                   <ol style={{ paddingLeft: '20px', margin: 0 }}>
                     <li style={{ marginBottom: '8px' }}>
-                      Toca el botón <strong>Compartir</strong> <i className="fa-solid fa-arrow-up-from-bracket text-sky-400"></i> en la barra inferior de Safari.
+                      Toca el botón <strong>Compartir</strong> <i className="fa-solid fa-arrow-up-from-bracket text-sky-400"></i> en la barra de Safari.
                     </li>
                     <li style={{ marginBottom: '8px' }}>
-                      Baja y selecciona <strong>«Agregar a la pantalla de inicio»</strong> <i className="fa-solid fa-square-plus text-emerald-400"></i>.
+                      Baja y pulsa <strong>«Agregar a la pantalla de inicio»</strong> <i className="fa-solid fa-square-plus text-emerald-400"></i>.
                     </li>
                     <li>
-                      Pulsa <strong>«Agregar»</strong> en la esquina superior derecha.
+                      Pulsa <strong>«Agregar»</strong> arriba a la derecha.
                     </li>
                   </ol>
                 </div>
@@ -665,53 +788,33 @@ export const AppMovilPage: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* Información del Modo Offline */}
-          <div
-            style={{
-              marginTop: '28px',
-              padding: '14px',
-              borderRadius: '14px',
-              background: 'rgba(15, 23, 42, 0.6)',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
-              fontSize: '12px',
-              color: '#64748b',
-              textAlign: 'left',
-              lineHeight: '1.4',
-            }}
-          >
-            <div style={{ color: '#94a3b8', fontWeight: 700, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <i className="fa-solid fa-cloud-slash text-sky-400"></i> Diseñado para trabajar sin señal
-            </div>
-            Al vincular tu teléfono, la app memoriza tu cisterna y las fincas para que puedas registrar leche en el campo 100% offline.
-          </div>
         </div>
       </div>
     );
   }
 
   // =========================================================================
-  // VISTA 2: TERMINAL MÓVIL VINCULADO (CONDUCTOR / RECOLECCIÓN OFFLINE)
+  // VISTA 2: TERMINAL MÓVIL VINCULADO CON 5 PESTAÑAS (ROL CHOFER)
   // =========================================================================
   return (
     <div
       style={{
         minHeight: '100vh',
-        background: '#f1f5f9',
+        background: '#f8fafc',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         paddingBottom: '90px',
       }}
     >
-      {/* Barra Superior Móvil */}
+      {/* Header Fijo Superior */}
       <header
         style={{
           background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
           color: '#ffffff',
-          padding: '16px 18px',
+          padding: '14px 16px',
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          boxShadow: '0 4px 15px rgba(15, 23, 42, 0.2)',
+          boxShadow: '0 4px 15px rgba(15, 23, 42, 0.25)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
@@ -721,12 +824,12 @@ export const AppMovilPage: React.FC = () => {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '4px',
                   background: isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.25)',
                   color: isOnline ? '#34d399' : '#fbbf24',
-                  padding: '3px 8px',
+                  padding: '2px 8px',
                   borderRadius: '20px',
-                  fontSize: '11px',
+                  fontSize: '10.5px',
                   fontWeight: 800,
                   border: isOnline ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
                 }}
@@ -734,24 +837,24 @@ export const AppMovilPage: React.FC = () => {
                 <i className={`fa-solid ${isOnline ? 'fa-signal' : 'fa-plane'}`}></i>
                 {isOnline ? 'En Línea' : 'Offline'}
               </span>
-              <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                 {dispositivo.empresaNombre}
               </span>
             </div>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '4px 0 0 0', color: '#ffffff' }}>
+            <h2 style={{ fontSize: '15.5px', fontWeight: 800, margin: '3px 0 0 0', color: '#ffffff' }}>
               {dispositivo.nombreCompleto}
             </h2>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {dispositivo.placaCamion && (
               <span
                 style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(255, 255, 255, 0.12)',
                   color: '#e2e8f0',
-                  padding: '6px 10px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
+                  padding: '5px 9px',
+                  borderRadius: '8px',
+                  fontSize: '11.5px',
                   fontWeight: 800,
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                 }}
@@ -768,9 +871,9 @@ export const AppMovilPage: React.FC = () => {
                 background: 'rgba(239, 68, 68, 0.2)',
                 border: '1px solid rgba(239, 68, 68, 0.4)',
                 color: '#f87171',
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -783,22 +886,21 @@ export const AppMovilPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Barra de Instalación si aún no está instalada como PWA */}
+      {/* Barra de Instalación si no es PWA */}
       {!esInstalada && (
         <div
           style={{
             background: 'linear-gradient(90deg, #065f46, #047857)',
-            padding: '9px 16px',
+            padding: '8px 16px',
             color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            fontSize: '12px',
+            fontSize: '11.5px',
             fontWeight: 700,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <i className="fa-solid fa-mobile-screen text-emerald-300"></i>
             <span>Instala la app en tu pantalla para abrirla directo</span>
           </div>
@@ -809,214 +911,160 @@ export const AppMovilPage: React.FC = () => {
               background: '#ffffff',
               color: '#065f46',
               border: 'none',
-              padding: '4px 12px',
-              borderRadius: '8px',
+              padding: '3px 10px',
+              borderRadius: '6px',
               fontSize: '11px',
               fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
             }}
           >
-            📥 Instalar
+            Instalar
           </button>
         </div>
       )}
 
-      {/* Contenedor Principal */}
+      {/* CONTENIDO SEGÚN LA PESTAÑA ACTIVA */}
       <main style={{ padding: '16px', maxWidth: '600px', margin: '0 auto' }}>
-        {/* Widget del Tanque del Camión */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '20px',
-            padding: '20px',
-            marginBottom: '16px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
-              <i className="fa-solid fa-gas-pump mr-2 text-blue-600"></i>
-              Capacidad de Cisterna
-            </div>
-            <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#2563eb' }}>
-              {porcentajeLlenado}% Lleno
-            </div>
-          </div>
-
-          {/* Barra de Progreso Visual */}
-          <div
-            style={{
-              width: '100%',
-              height: '14px',
-              background: '#e2e8f0',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              marginBottom: '12px',
-            }}
-          >
+        
+        {/* ===================================================================
+            PESTAÑA 1: PRINCIPAL / INICIO (SOLO SUS VIAJES Y TANQUE)
+           =================================================================== */}
+        {tabActiva === 'principal' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Widget Tanque */}
             <div
               style={{
-                width: `${porcentajeLlenado}%`,
-                height: '100%',
-                background:
-                  porcentajeLlenado > 90
-                    ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
-                    : 'linear-gradient(90deg, #0284c7, #2563eb)',
-                borderRadius: '10px',
-                transition: 'width 0.5s ease',
+                background: '#ffffff',
+                borderRadius: '18px',
+                padding: '18px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+                border: '1px solid #e2e8f0',
               }}
-            ></div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: '#64748b' }}>
-            <span>
-              Recolectado Hoy: <strong style={{ color: '#0f172a' }}>{totalLitrosHoy.toLocaleString()} L</strong>
-            </span>
-            <span>
-              Capacidad Máxima: <strong>{capacidad.toLocaleString()} L</strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Banner de Sincronización Pendiente */}
-        {pendientesSync.length > 0 && (
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
-              border: '1px solid #fde68a',
-              borderRadius: '16px',
-              padding: '16px',
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400e' }}>
-                <i className="fa-solid fa-clock-rotate-left mr-1.5"></i>
-                {pendientesSync.length} carga(s) por enviar
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
+                  <i className="fa-solid fa-gas-pump mr-2 text-blue-600"></i>
+                  Capacidad de Cisterna
+                </div>
+                <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#2563eb' }}>
+                  {porcentajeLlenado}% Lleno
+                </div>
               </div>
-              <div style={{ fontSize: '11.5px', color: '#b45309', marginTop: '2px' }}>
-                {isOnline ? 'Conexión disponible para enviar' : 'Se sincronizarán al recuperar señal'}
+
+              <div
+                style={{
+                  width: '100%',
+                  height: '14px',
+                  background: '#e2e8f0',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  marginBottom: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${porcentajeLlenado}%`,
+                    height: '100%',
+                    background:
+                      porcentajeLlenado > 90
+                        ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                        : 'linear-gradient(90deg, #0284c7, #2563eb)',
+                    borderRadius: '10px',
+                    transition: 'width 0.5s ease',
+                  }}
+                ></div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+                <span>Recolectado Hoy: <strong style={{ color: '#0f172a' }}>{totalLitrosHoy.toLocaleString()} L</strong></span>
+                <span>Capacidad: <strong>{capacidad.toLocaleString()} L</strong></span>
               </div>
             </div>
 
+            {/* Resumen de Mis Viajes de Hoy */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>
+                  Paradas en Fincas
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
+                  {cargasHoy.length}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  {totalLitrosHoy.toLocaleString()} L recolectados
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#9333ea', textTransform: 'uppercase' }}>
+                  Mis Entregas Asignadas
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
+                  {entregas.length}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  Hacia Receptoría / Planta
+                </div>
+              </div>
+            </div>
+
+            {/* Botón Acción Rápida: Ir a Recolección */}
             <button
               type="button"
-              onClick={() => sincronizarCargas()}
-              disabled={sincronizando || !isOnline}
+              onClick={() => setTabActiva('recoleccion')}
               style={{
-                background: isOnline ? '#d97706' : '#cbd5e1',
+                width: '100%',
+                height: '56px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
                 color: '#ffffff',
                 border: 'none',
-                borderRadius: '10px',
-                padding: '8px 14px',
-                fontSize: '12px',
-                fontWeight: 800,
-                cursor: isOnline ? 'pointer' : 'not-allowed',
+                fontSize: '15px',
+                fontWeight: 900,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                flexShrink: 0,
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 6px 20px rgba(16, 185, 129, 0.3)',
+                cursor: 'pointer',
               }}
             >
-              {sincronizando ? (
-                <>
-                  <i className="fa-solid fa-spinner fa-spin"></i> Enviando...
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-rotate"></i> Sincronizar
-                </>
-              )}
+              <i className="fa-solid fa-faucet-drip text-lg"></i>
+              <span>Ir a Recolección de Leche</span>
             </button>
           </div>
         )}
 
-        {/* BOTÓN GIGANTE: REGISTRAR CARGA EN FINCA */}
-        <button
-          type="button"
-          onClick={() => setModalRegistro(true)}
-          style={{
-            width: '100%',
-            height: '62px',
-            borderRadius: '18px',
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            color: '#ffffff',
-            border: 'none',
-            fontSize: '17px',
-            fontWeight: 900,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '12px',
-            boxShadow: '0 8px 25px rgba(16, 185, 129, 0.35)',
-            cursor: 'pointer',
-            marginBottom: '22px',
-          }}
-        >
-          <div
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
-            }}
-          >
-            <i className="fa-solid fa-plus"></i>
-          </div>
-          <span>Registrar Carga en Finca</span>
-        </button>
-
-        {/* Historial de Cargas Registradas Hoy */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', margin: 0 }}>
-            Cargas de Hoy ({cargasHoy.length})
-          </h3>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>
-            Total: <strong>{totalLitrosHoy.toLocaleString()} L</strong>
-          </span>
-        </div>
-
-        {cargasHoy.length === 0 ? (
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '18px',
-              padding: '36px 20px',
-              textAlign: 'center',
-              border: '1.5px dashed #cbd5e1',
-              color: '#94a3b8',
-            }}
-          >
-            <i className="fa-solid fa-clipboard-list text-3xl mb-2 text-slate-300"></i>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#64748b' }}>
-              No hay cargas registradas hoy
-            </div>
-            <p style={{ fontSize: '12px', margin: '4px 0 0 0' }}>
-              Pulsa el botón verde para agregar la primera recolección de la ruta.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {cargasHoy.map((c) => (
+        {/* ===================================================================
+            PESTAÑA 2: RECOLECCIÓN (SOLO SUS VIAJES Y CARGAS EN FINCAS)
+           =================================================================== */}
+        {tabActiva === 'recoleccion' && (
+          <div>
+            {/* Banner Sync si hay cargas pendientes */}
+            {pendientesSync.length > 0 && (
               <div
-                key={c.localId}
                 style={{
-                  background: '#ffffff',
-                  borderRadius: '16px',
-                  padding: '14px 16px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  background: '#fef3c7',
+                  border: '1px solid #fde68a',
+                  borderRadius: '14px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1024,72 +1072,780 @@ export const AppMovilPage: React.FC = () => {
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>
-                      {c.fincaNombre}
-                    </span>
-                    {c.tipoLeche === 'BUFALA' && (
-                      <span
-                        style={{
-                          background: '#fed7aa',
-                          color: '#9a3412',
-                          fontSize: '10px',
-                          fontWeight: 800,
-                          padding: '1px 6px',
-                          borderRadius: '6px',
-                        }}
-                      >
-                        BÚFALA
-                      </span>
-                    )}
+                  <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#92400e' }}>
+                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>
+                    {pendientesSync.length} carga(s) en teléfono
                   </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                    <i className="fa-regular fa-clock mr-1 text-slate-400"></i>
-                    {c.hora}
-                    {c.temperatura ? ` • ${c.temperatura}°C` : ''}
-                    {c.esAcida && ' • ⚠️ Ácida'}
+                  <div style={{ fontSize: '11px', color: '#b45309' }}>
+                    {isOnline ? 'Listo para enviar a la central' : 'Se enviarán al tener señal'}
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => sincronizarCargas()}
+                  disabled={sincronizando || !isOnline}
+                  style={{
+                    background: isOnline ? '#d97706' : '#cbd5e1',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '7px 12px',
+                    fontSize: '11.5px',
+                    fontWeight: 800,
+                    cursor: isOnline ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {sincronizando ? 'Enviando...' : 'Sincronizar'}
+                </button>
+              </div>
+            )}
 
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#2563eb' }}>
-                    {c.litros.toLocaleString()} L
+            {/* BOTÓN REGISTRAR CARGA EN FINCA */}
+            <button
+              type="button"
+              onClick={() => setModalRegistro(true)}
+              style={{
+                width: '100%',
+                height: '60px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 8px 22px rgba(16, 185, 129, 0.35)',
+                cursor: 'pointer',
+                marginBottom: '18px',
+              }}
+            >
+              <i className="fa-solid fa-plus text-xl"></i>
+              <span>Registrar Carga en Finca</span>
+            </button>
+
+            {/* Historial de Cargas de Hoy */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <h3 style={{ fontSize: '14.5px', fontWeight: 800, color: '#1e293b', margin: 0 }}>
+                Mis Cargas de Hoy ({cargasHoy.length})
+              </h3>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                Total: <strong>{totalLitrosHoy.toLocaleString()} L</strong>
+              </span>
+            </div>
+
+            {cargasHoy.length === 0 ? (
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '32px 16px',
+                  textAlign: 'center',
+                  border: '1.5px dashed #cbd5e1',
+                  color: '#94a3b8',
+                }}
+              >
+                <i className="fa-solid fa-clipboard-list text-3xl mb-2 text-slate-300"></i>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#64748b' }}>
+                  No hay cargas registradas hoy
+                </div>
+                <p style={{ fontSize: '11.5px', margin: '4px 0 0 0' }}>
+                  Pulsa el botón verde para registrar una recolección en finca.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {cargasHoy.map((c) => (
+                  <div
+                    key={c.localId}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                          {c.fincaNombre}
+                        </span>
+                        {c.tipoLeche === 'BUFALA' && (
+                          <span style={{ background: '#fed7aa', color: '#9a3412', fontSize: '10px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px' }}>
+                            BÚFALA
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                        <i className="fa-regular fa-clock mr-1 text-slate-400"></i>
+                        {c.hora}
+                        {c.temperatura ? ` • ${c.temperatura}°C` : ''}
+                        {c.esAcida && ' • ⚠️ Ácida'}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '15px', fontWeight: 900, color: '#2563eb' }}>
+                        {c.litros.toLocaleString()} L
+                      </div>
+                      <div style={{ marginTop: '2px' }}>
+                        {c.synced ? (
+                          <span style={{ fontSize: '10.5px', color: '#059669', fontWeight: 700 }}>
+                            <i className="fa-solid fa-circle-check mr-1"></i>Enviado
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10.5px', color: '#d97706', fontWeight: 700 }}>
+                            <i className="fa-solid fa-mobile mr-1"></i>En Teléfono
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ marginTop: '2px' }}>
-                    {c.synced ? (
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: '#059669',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                        }}
-                      >
-                        <i className="fa-solid fa-circle-check"></i> Enviado
-                      </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================================================================
+            PESTAÑA 3: ENTREGAS (RECEPTORÍAS / SALIDAS ASIGNADAS AL CHOFER)
+           =================================================================== */}
+        {tabActiva === 'entregas' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', margin: 0 }}>
+                  Mis Entregas y Despachos
+                </h3>
+                <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>
+                  Viajes asignados a receptoría o planta
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cargarEntregasChofer}
+                disabled={cargandoEntregas || !isOnline}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#334155',
+                  cursor: 'pointer',
+                }}
+              >
+                <i className={`fa-solid fa-rotate mr-1 ${cargandoEntregas ? 'fa-spin' : ''}`}></i>
+                Actualizar
+              </button>
+            </div>
+
+            {cargandoEntregas ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                <i className="fa-solid fa-spinner fa-spin text-2xl mb-2 text-purple-600"></i>
+                <div style={{ fontSize: '12.5px', fontWeight: 700 }}>Cargando tus despachos...</div>
+              </div>
+            ) : entregas.length === 0 ? (
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '36px 16px',
+                  textAlign: 'center',
+                  border: '1.5px dashed #cbd5e1',
+                  color: '#94a3b8',
+                }}
+              >
+                <i className="fa-solid fa-warehouse text-3xl mb-2 text-purple-300"></i>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#64748b' }}>
+                  No tienes entregas a receptoría asignadas
+                </div>
+                <p style={{ fontSize: '11.5px', margin: '4px 0 0 0' }}>
+                  Cuando el administrador asigne un despacho a tu camión, aparecerá aquí.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {entregas.map((d: any) => {
+                  const desp = Number(d.litrosDespachados || 0);
+                  const rec = Number(d.litrosRecibidosCompania || d.litrosConfirmados || 0);
+                  const merma = rec > 0 ? rec - desp : 0;
+                  const est = (d.estado || 'En Ruta').toUpperCase();
+
+                  return (
+                    <div
+                      key={d.id}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#7e22ce' }}>
+                          Ticket #{d.id} • Receptoría
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10.5px',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: est === 'FINALIZADO' || est === 'ENTREGADO' ? '#dcfce7' : '#fef3c7',
+                            color: est === 'FINALIZADO' || est === 'ENTREGADO' ? '#15803d' : '#b45309',
+                          }}
+                        >
+                          {d.estado || 'EN RUTA'}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+                        <i className="fa-solid fa-building-wheat mr-1.5 text-purple-600"></i>
+                        Destino: {d.nombreCompania || d.companiaNombre || 'Receptoría Principal'}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f8fafc', padding: '10px', borderRadius: '10px' }}>
+                        <div>
+                          <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>Despachados:</span>
+                          <strong style={{ fontSize: '14px', color: '#0369a1' }}>{desp.toLocaleString()} L</strong>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>En Planta:</span>
+                          <strong style={{ fontSize: '14px', color: '#15803d' }}>
+                            {rec > 0 ? `${rec.toLocaleString()} L` : 'Pendiente'}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {merma !== 0 && (
+                        <div style={{ marginTop: '8px', fontSize: '11.5px', color: merma < 0 ? '#dc2626' : '#15803d', fontWeight: 700 }}>
+                          Merma: {merma > 0 ? `+${merma.toLocaleString()} L` : `${merma.toLocaleString()} L`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================================================================
+            PESTAÑA 4: REPORTES (SOLO NÚMEROS 1, 2, 3, 4 Y 7)
+           =================================================================== */}
+        {tabActiva === 'reportes' && (
+          <div>
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '16px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '16px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+              }}
+            >
+              <h3 style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a', margin: '0 0 12px 0' }}>
+                <i className="fa-solid fa-file-invoice text-blue-600 mr-2"></i>
+                Consulta de Reportes Chofer
+              </h3>
+
+              {/* Rango de Fechas */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                    Desde:
+                  </label>
+                  <input
+                    type="date"
+                    value={repFechaInicio}
+                    onChange={(e) => setRepFechaInicio(e.target.value)}
+                    style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '12.5px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                    Hasta:
+                  </label>
+                  <input
+                    type="date"
+                    value={repFechaFin}
+                    onChange={(e) => setRepFechaFin(e.target.value)}
+                    style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '12.5px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Selector de Reportes Autorizados (1, 2, 3, 4 y 7) */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                  Seleccione Reporte:
+                </label>
+                <select
+                  value={tipoReporte}
+                  onChange={(e) => setTipoReporte(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #2563eb',
+                    background: '#eff6ff',
+                    padding: '0 10px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#1d4ed8',
+                  }}
+                >
+                  {REPORTES_CHOFER.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConsultarReporte}
+                disabled={cargandoReporte || !isOnline}
+                style={{
+                  width: '100%',
+                  height: '44px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: isOnline ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                {cargandoReporte ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin"></i> Generando...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-magnifying-glass"></i> Consultar Reporte
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Vista de Datos del Reporte */}
+            {datosReporte && (
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', marginBottom: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  Resultados del Reporte ({Array.isArray(datosReporte) ? datosReporte.length : 1} registros)
+                </div>
+
+                {Array.isArray(datosReporte) && datosReporte.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>
+                    No se encontraron registros para este rango de fechas.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {Array.isArray(datosReporte) ? (
+                      datosReporte.slice(0, 30).map((row: any, idx: number) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: '#f8fafc',
+                            borderRadius: '10px',
+                            padding: '10px 12px',
+                            border: '1px solid #e2e8f0',
+                            fontSize: '12px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#1e293b' }}>
+                            <span>{row.nombre || row.fincaNombre || row.choferNombre || row.companiaNombre || `Registro #${idx + 1}`}</span>
+                            <span style={{ color: '#2563eb' }}>
+                              {(row.totalLitros || row.litros || row.litrosDespachados || 0).toLocaleString()} L
+                            </span>
+                          </div>
+                          {row.fecha && (
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              Fecha: {String(row.fecha).split('T')[0]}
+                            </div>
+                          )}
+                        </div>
+                      ))
                     ) : (
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: '#d97706',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                        }}
-                      >
-                        <i className="fa-solid fa-mobile"></i> En Teléfono
-                      </span>
+                      <div style={{ fontSize: '12px', color: '#334155' }}>
+                        <div style={{ fontWeight: 700, marginBottom: '4px' }}>Resumen General:</div>
+                        <div>Total Litros Recolectados: <strong>{(datosReporte.totalLitros || 0).toLocaleString()} L</strong></div>
+                      </div>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================================================================
+            PESTAÑA 5: MI PERFIL (DATOS Y CAMBIO DE CLAVE)
+           =================================================================== */}
+        {tabActiva === 'perfil' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Tarjeta de Identidad */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                borderRadius: '18px',
+                padding: '20px',
+                color: '#ffffff',
+                boxShadow: '0 6px 20px rgba(15, 23, 42, 0.2)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '52px',
+                    height: '52px',
+                    borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                    fontWeight: 900,
+                  }}
+                >
+                  {dispositivo.nombreCompleto.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>
+                    {dispositivo.nombreCompleto}
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#38bdf8', marginTop: '2px' }}>
+                    @{dispositivo.username} • <span style={{ textTransform: 'uppercase' }}>{dispositivo.rol}</span>
+                  </div>
+                  {dispositivo.placaCamion && (
+                    <div style={{ fontSize: '12px', color: '#34d399', marginTop: '2px', fontWeight: 700 }}>
+                      <i className="fa-solid fa-truck mr-1"></i> Cisterna: {dispositivo.placaCamion} ({capacidad.toLocaleString()} L)
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Formulario de Actualización */}
+            <form
+              onSubmit={handleGuardarPerfil}
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '18px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+              }}
+            >
+              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', margin: '0 0 14px 0' }}>
+                <i className="fa-solid fa-user-pen mr-2 text-blue-600"></i>
+                Datos Personales & Contacto
+              </h4>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                  Nombre Completo
+                </label>
+                <input
+                  type="text"
+                  value={perfilForm.nombreCompleto}
+                  onChange={(e) => setPerfilForm({ ...perfilForm, nombreCompleto: e.target.value })}
+                  style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                    Teléfono Móvil
+                  </label>
+                  <input
+                    type="text"
+                    value={perfilForm.telefono}
+                    onChange={(e) => setPerfilForm({ ...perfilForm, telefono: e.target.value })}
+                    placeholder="0412-1234567"
+                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                    Cédula / Documento
+                  </label>
+                  <input
+                    type="text"
+                    value={perfilForm.cedula}
+                    onChange={(e) => setPerfilForm({ ...perfilForm, cedula: e.target.value })}
+                    placeholder="V-12345678"
+                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px', marginTop: '14px' }}>
+                <h5 style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', margin: '0 0 10px 0' }}>
+                  <i className="fa-solid fa-lock mr-1.5 text-amber-500"></i>
+                  Cambiar Contraseña (Opcional)
+                </h5>
+
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '3px' }}>
+                    Contraseña Actual
+                  </label>
+                  <input
+                    type="password"
+                    value={perfilForm.passwordActual}
+                    onChange={(e) => setPerfilForm({ ...perfilForm, passwordActual: e.target.value })}
+                    placeholder="••••••••"
+                    style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '3px' }}>
+                      Nueva Contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={perfilForm.nuevoPassword}
+                      onChange={(e) => setPerfilForm({ ...perfilForm, nuevoPassword: e.target.value })}
+                      placeholder="Mínimo 6 caracteres"
+                      style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '3px' }}>
+                      Confirmar
+                    </label>
+                    <input
+                      type="password"
+                      value={perfilForm.confirmarPassword}
+                      onChange={(e) => setPerfilForm({ ...perfilForm, confirmarPassword: e.target.value })}
+                      placeholder="Repetir clave"
+                      style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
+                    />
                   </div>
                 </div>
               </div>
-            ))}
+
+              <button
+                type="submit"
+                disabled={guardandoPerfil || !isOnline}
+                style={{
+                  width: '100%',
+                  height: '44px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: isOnline ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                {guardandoPerfil ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </form>
+
+            <button
+              type="button"
+              onClick={handleDesvincular}
+              style={{
+                width: '100%',
+                height: '44px',
+                borderRadius: '10px',
+                background: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #fecaca',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+            >
+              <i className="fa-solid fa-arrow-right-from-bracket"></i>
+              Desvincular Dispositivo y Salir
+            </button>
           </div>
         )}
       </main>
+
+      {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL (BOTTOM NAVIGATION BAR) */}
+      <nav
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '66px',
+          background: '#ffffff',
+          borderTop: '1px solid #e2e8f0',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, 1fr)',
+          alignItems: 'center',
+          zIndex: 1000,
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setTabActiva('principal')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: tabActiva === 'principal' ? '#2563eb' : '#64748b',
+            cursor: 'pointer',
+            padding: '6px 0',
+          }}
+        >
+          <i className="fa-solid fa-house" style={{ fontSize: '18px' }}></i>
+          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'principal' ? 800 : 600 }}>
+            Inicio
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTabActiva('recoleccion')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: tabActiva === 'recoleccion' ? '#10b981' : '#64748b',
+            cursor: 'pointer',
+            padding: '6px 0',
+            position: 'relative',
+          }}
+        >
+          <i className="fa-solid fa-faucet-drip" style={{ fontSize: '18px' }}></i>
+          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'recoleccion' ? 800 : 600 }}>
+            Recolección
+          </span>
+          {pendientesSync.length > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '4px',
+                right: '16px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#f59e0b',
+              }}
+            ></span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTabActiva('entregas')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: tabActiva === 'entregas' ? '#9333ea' : '#64748b',
+            cursor: 'pointer',
+            padding: '6px 0',
+          }}
+        >
+          <i className="fa-solid fa-warehouse" style={{ fontSize: '18px' }}></i>
+          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'entregas' ? 800 : 600 }}>
+            Entregas
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTabActiva('reportes')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: tabActiva === 'reportes' ? '#0284c7' : '#64748b',
+            cursor: 'pointer',
+            padding: '6px 0',
+          }}
+        >
+          <i className="fa-solid fa-chart-pie" style={{ fontSize: '18px' }}></i>
+          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'reportes' ? 800 : 600 }}>
+            Reportes
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTabActiva('perfil')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: tabActiva === 'perfil' ? '#0f172a' : '#64748b',
+            cursor: 'pointer',
+            padding: '6px 0',
+          }}
+        >
+          <i className="fa-solid fa-user-gear" style={{ fontSize: '18px' }}></i>
+          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'perfil' ? 800 : 600 }}>
+            Perfil
+          </span>
+        </button>
+      </nav>
 
       {/* MODAL REGISTRAR CARGA EN FINCA */}
       {modalRegistro && (
@@ -1118,7 +1874,6 @@ export const AppMovilPage: React.FC = () => {
               padding: '24px 20px',
             }}
           >
-            {/* Header del Modal */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div
@@ -1141,7 +1896,7 @@ export const AppMovilPage: React.FC = () => {
                     Nueva Carga en Finca
                   </h3>
                   <p style={{ margin: '1px 0 0 0', fontSize: '11.5px', color: '#64748b' }}>
-                    Registro rápido para modo offline
+                    Registro rápido offline
                   </p>
                 </div>
               </div>
@@ -1164,7 +1919,7 @@ export const AppMovilPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleGuardarCarga}>
-              {/* Seleccionar Finca con Buscador Integrado */}
+              {/* Finca con buscador integrado */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
                   Finca Productora <span style={{ color: '#ef4444' }}>*</span>
@@ -1211,7 +1966,7 @@ export const AppMovilPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Litros Recolectados (Entrada Táctil Gigante) */}
+              {/* Litros Entrada Táctil */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
                   Litros Recolectados <span style={{ color: '#ef4444' }}>*</span>
@@ -1254,7 +2009,7 @@ export const AppMovilPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tipo de Leche (Segmented Switch) */}
+              {/* Tipo de Leche */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
                   Tipo de Leche
@@ -1295,7 +2050,7 @@ export const AppMovilPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Parámetros de Calidad y Observaciones */}
+              {/* Calidad y Temperatura */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
@@ -1307,14 +2062,7 @@ export const AppMovilPage: React.FC = () => {
                     placeholder="Ej. 4.5"
                     value={formCarga.temperatura}
                     onChange={(e) => setFormCarga({ ...formCarga, temperatura: e.target.value })}
-                    style={{
-                      width: '100%',
-                      height: '40px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #cbd5e1',
-                      padding: '0 10px',
-                      fontSize: '13px',
-                    }}
+                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: '13px' }}
                   />
                 </div>
                 <div>
@@ -1346,7 +2094,6 @@ export const AppMovilPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Botones de Acción */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button
                   type="button"
