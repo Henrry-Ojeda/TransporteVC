@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { sistemaApi } from '@/api/sistema.api';
+import { authApi } from '@/api/auth.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
@@ -17,6 +18,42 @@ export const UsuariosPage: React.FC = () => {
   const [modoEdicionId, setModoEdicionId] = useState<number | null>(null);
   const [modalPassword, setModalPassword] = useState(false);
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<UsuarioDto | null>(null);
+
+  // Modal de Vinculación Móvil (Código Seguro para Chofer / Usuario)
+  const [modalVinculacion, setModalVinculacion] = useState(false);
+  const [cargandoVinculacion, setCargandoVinculacion] = useState(false);
+  const [datosVinculacion, setDatosVinculacion] = useState<{
+    codigo: string;
+    fechaExpiracion: string;
+    nombreCompleto: string;
+    username: string;
+    rol: string;
+    empresaCodigo: string;
+    empresaNombre: string;
+    camionInfo?: string;
+    telefono?: string;
+  } | null>(null);
+
+  const abrirModalVinculacion = async (item: UsuarioDto) => {
+    setCargandoVinculacion(true);
+    setUsuarioSeleccionado(item);
+    try {
+      const res = await authApi.generarVinculacion(item.id);
+      const camionInfo = item.camion?.placa
+        ? `${item.camion.placa} (${(item.camion.capacidadLitros || 0).toLocaleString()} L)`
+        : undefined;
+      setDatosVinculacion({
+        ...res,
+        camionInfo,
+        telefono: item.telefono || item.telefonoPagoMovil || '',
+      });
+      setModalVinculacion(true);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al generar código de vinculación móvil.');
+    } finally {
+      setCargandoVinculacion(false);
+    }
+  };
 
   // Formulario de Usuario
   const initialForm: GuardarUsuarioDto = {
@@ -363,6 +400,21 @@ export const UsuariosPage: React.FC = () => {
 
         return (
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => abrirModalVinculacion(row)}
+              className="btn btn-sm btn-outline"
+              style={{
+                height: '30px',
+                padding: '0 8px',
+                color: '#059669',
+                borderColor: '#a7f3d0',
+                background: '#ecfdf5',
+              }}
+              title="Vincular Dispositivo Móvil (Generar Código de Acceso Chofer)"
+            >
+              <i className="fa-solid fa-mobile-screen-button"></i>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1296,6 +1348,285 @@ export const UsuariosPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VINCULACIÓN MÓVIL SEGURA (CÓDIGO DE DISPOSITIVO) */}
+      {modalVinculacion && datosVinculacion && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            className="content-card"
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              padding: '0',
+              overflow: 'hidden',
+              borderRadius: '20px',
+              background: '#ffffff',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              border: '1px solid rgba(226, 232, 240, 0.8)',
+            }}
+          >
+            {/* Header Oscuro Profesional */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                padding: '18px 22px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                  }}
+                >
+                  <i className="fa-solid fa-mobile-screen-button"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
+                    Vinculación Móvil Segura
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#94a3b8' }}>
+                    Código de acceso rápido para app móvil offline
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalVinculacion(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: '26px',
+                  lineHeight: '1',
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Contenido */}
+            <div style={{ padding: '22px', background: '#f8fafc' }}>
+              {/* Tarjeta de Destinatario */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '12px',
+                  padding: '14px 16px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#1e293b' }}>
+                    {datosVinculacion.nombreCompleto}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                    Usuario: <span style={{ fontWeight: 600, color: '#0284c7' }}>@{datosVinculacion.username}</span>
+                  </div>
+                  {datosVinculacion.camionInfo && (
+                    <div style={{ fontSize: '12px', color: '#059669', marginTop: '3px', fontWeight: 700 }}>
+                      <i className="fa-solid fa-truck-moving mr-1"></i> Cisterna: {datosVinculacion.camionInfo}
+                    </div>
+                  )}
+                </div>
+                <span
+                  style={{
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    border: '1px solid #cbd5e1',
+                  }}
+                >
+                  {datosVinculacion.rol}
+                </span>
+              </div>
+
+              {/* Tarjeta del Código de 6 Dígitos */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #1e293b 0%, #090d16 100%)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: '#ffffff',
+                  marginBottom: '16px',
+                  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                <div style={{ fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8', fontWeight: 700 }}>
+                  Código de Activación Único
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'monospace, ui-monospace, sans-serif',
+                    fontSize: '38px',
+                    fontWeight: 900,
+                    letterSpacing: '8px',
+                    color: '#38bdf8',
+                    textShadow: '0 0 20px rgba(56, 189, 248, 0.4)',
+                    margin: '10px 0',
+                  }}
+                >
+                  {datosVinculacion.codigo.slice(0, 3)} - {datosVinculacion.codigo.slice(3)}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#cbd5e1' }}>
+                  <i className="fa-regular fa-clock mr-1 text-amber-400"></i> Válido por 48 horas (un solo uso)
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(datosVinculacion.codigo);
+                      toast.success('Código copiado al portapapeles');
+                    }}
+                    style={{
+                      background: 'rgba(255,255,255,0.15)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <i className="fa-regular fa-copy"></i> Copiar Código
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const linkApp = `${window.location.origin}/app`;
+                      navigator.clipboard.writeText(linkApp);
+                      toast.success('Enlace de la app copiado');
+                    }}
+                    style={{
+                      background: 'rgba(56, 189, 248, 0.2)',
+                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      color: '#7dd3fc',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <i className="fa-solid fa-link"></i> Copiar Link App
+                  </button>
+                </div>
+              </div>
+
+              {/* Botón Compartir por WhatsApp */}
+              <button
+                type="button"
+                onClick={() => {
+                  const linkApp = `${window.location.origin}/app`;
+                  const msg = `🚚 *Acceso Móvil - Control de Rutas*\n\nHola *${datosVinculacion.nombreCompleto}*, para ingresar a la App Móvil desde tu teléfono:\n\n1️⃣ Abre este enlace en el navegador de tu teléfono:\n👉 ${linkApp}\n\n2️⃣ Escribe tu Código de Activación:\n🔑 *${datosVinculacion.codigo}*\n\n_Tu teléfono quedará configurado automáticamente para trabajar con o sin señal (Offline)._`;
+                  const cleanTel = (datosVinculacion.telefono || '').replace(/\D/g, '');
+                  const waUrl = cleanTel
+                    ? `https://wa.me/${cleanTel.startsWith('58') ? cleanTel : '58' + cleanTel.replace(/^0/, '')}?text=${encodeURIComponent(msg)}`
+                    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                  window.open(waUrl, '_blank');
+                }}
+                style={{
+                  width: '100%',
+                  background: '#25D366',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)',
+                  marginBottom: '14px',
+                }}
+              >
+                <i className="fa-brands fa-whatsapp text-lg"></i>
+                Enviar Instrucciones y Código por WhatsApp
+              </button>
+
+              {/* Guía Rápida */}
+              <div
+                style={{
+                  background: '#eff6ff',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  border: '1px solid #bfdbfe',
+                  fontSize: '12px',
+                  color: '#1e40af',
+                }}
+              >
+                <div style={{ fontWeight: 800, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-circle-info"></i> ¿Cómo funciona el acceso móvil?
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: '1.5' }}>
+                  <li>El chofer no necesita escribir correos, contraseñas ni elegir la empresa.</li>
+                  <li>Al pegar este código, la app descarga las fincas y el camión automáticamente.</li>
+                  <li>Funciona 100% sin internet durante los recorridos por el campo.</li>
+                </ul>
+              </div>
+
+              {/* Botón Cerrar */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '18px' }}>
+                <button
+                  type="button"
+                  onClick={() => setModalVinculacion(false)}
+                  className="btn btn-outline"
+                  style={{ height: '38px', padding: '0 20px', borderRadius: '8px', fontWeight: 700 }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

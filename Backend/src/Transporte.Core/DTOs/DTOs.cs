@@ -1894,6 +1894,50 @@ namespace Transporte.Core.DTOs
     }
 
     // =========================================================================
+    // DTOs PARA VINCULACIÓN SEGURA DE DISPOSITIVOS MÓVILES
+    // =========================================================================
+
+    public class GenerarCodigoVinculacionDto
+    {
+        public int UsuarioId { get; set; }
+    }
+
+    public class CodigoVinculacionResponseDto
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public DateTime FechaExpiracion { get; set; }
+        public string NombreCompleto { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Rol { get; set; } = string.Empty;
+        public string EmpresaCodigo { get; set; } = string.Empty;
+        public string EmpresaNombre { get; set; } = string.Empty;
+    }
+
+    public class VincularDispositivoDto
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public string? DeviceId { get; set; }
+        public string? DeviceInfo { get; set; }
+    }
+
+    public class VincularDispositivoResponseDto
+    {
+        public string Token { get; set; } = string.Empty;
+        public string EmpresaCodigo { get; set; } = string.Empty;
+        public string EmpresaNombre { get; set; } = string.Empty;
+        public string? EmpresaLogo { get; set; }
+        public int Id { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string NombreCompleto { get; set; } = string.Empty;
+        public string Rol { get; set; } = string.Empty;
+        public int? CamionId { get; set; }
+        public string? PlacaCamion { get; set; }
+        public decimal CapacidadTanqueLitros { get; set; }
+        public IEnumerable<string> Permisos { get; set; } = Enumerable.Empty<string>();
+        public IEnumerable<string> ModulosHabilitados { get; set; } = Enumerable.Empty<string>();
+    }
+
+    // =========================================================================
     // DTOs PARA PARAMETRIZACIÓN Y CONFIGURACIÓN DINÁMICA
     // =========================================================================
 

@@ -26,5 +26,37 @@ export const authApi = {
     const response = await apiClient.put<{ success: boolean; message: string }>('/auth/perfil', dto);
     return response.data;
   },
+
+  generarVinculacion: async (usuarioId: number): Promise<{
+    codigo: string;
+    fechaExpiracion: string;
+    nombreCompleto: string;
+    username: string;
+    rol: string;
+    empresaCodigo: string;
+    empresaNombre: string;
+  }> => {
+    const response = await apiClient.post('/auth/generar-vinculacion', { usuarioId });
+    return response.data;
+  },
+
+  vincularDispositivo: async (dto: { codigo: string; deviceId?: string; deviceInfo?: string }): Promise<{
+    token: string;
+    empresaCodigo: string;
+    empresaNombre: string;
+    empresaLogo?: string;
+    id: number;
+    username: string;
+    nombreCompleto: string;
+    rol: string;
+    camionId?: number;
+    placaCamion?: string;
+    capacidadTanqueLitros: number;
+    permisos: string[];
+    modulosHabilitados: string[];
+  }> => {
+    const response = await apiClient.post('/auth/vincular-dispositivo', dto);
+    return response.data;
+  },
 };
 

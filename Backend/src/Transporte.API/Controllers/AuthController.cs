@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Transporte.Core.DTOs;
 using Transporte.Infrastructure.Repositories;
+using Transporte.API.Multitenancy;
 
 namespace Transporte.API.Controllers
 {
@@ -179,6 +180,162 @@ namespace Transporte.API.Controllers
 
             var perfilActualizado = await _usuariosRepository.ObtenerPerfilAsync(userId);
             return Ok(new { success = true, message = msg, perfil = perfilActualizado });
+        }
+
+        // =========================================================================
+        // VINCULACIÓN SEGURA DE DISPOSITIVOS MÓVILES (DEVICE PAIRING CODE)
+        // =========================================================================
+
+        [HttpPost("generar-vinculacion")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN")]
+        public async Task<IActionResult> GenerarCodigoVinculacion([FromBody] GenerarCodigoVinculacionDto dto)
+        {
+            var user = await _usuariosRepository.ObtenerUsuarioPorIdAsync(dto.UsuarioId);
+            if (user == null) return NotFound(new { message = "Usuario no encontrado." });
+
+            string tenantCode = _tenantService.GetTenantCode();
+            string tenantName = _tenantService.GetTenantName();
+
+            // Generar código único de 6 dígitos numéricos (ej. 849215)
+            var random = new Random();
+            string codigo = random.Next(100000, 999999).ToString();
+
+            // Guardar en DB_SAAS_MASTER para resolución ciega e inmediata
+            string rawMasterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;";
+            string masterConn = TenantService.AdjustConnectionStringForEnvironment(rawMasterConn);
+            using var db = new Microsoft.Data.SqlClient.SqlConnection(masterConn);
+            
+            // Vigencia de 48 horas
+            var expira = DateTime.UtcNow.AddHours(48);
+
+            await db.ExecuteAsync(@"
+                INSERT INTO TB_DISPOSITIVOS_VINCULACION 
+                (CodigoVinculacion, EmpresaCodigo, UsuarioId, Username, NombreCompleto, Rol, CamionId, PlacaCamion, CapacidadLitros, Usado, FechaExpiracion, CreatedAt)
+                VALUES 
+                (@codigo, @tenantCode, @UsuarioId, @Username, @NombreCompleto, @Rol, @CamionId, @Placa, @CapacidadLitros, 0, @expira, GETDATE())",
+                new
+                {
+                    codigo,
+                    tenantCode,
+                    UsuarioId = user.Id,
+                    Username = user.Username,
+                    NombreCompleto = user.NombreCompleto,
+                    Rol = user.Rol,
+                    CamionId = user.Camion?.Id,
+                    Placa = user.Camion?.Placa,
+                    CapacidadLitros = user.Camion?.CapacidadLitros ?? 0,
+                    expira
+                });
+
+            return Ok(new CodigoVinculacionResponseDto
+            {
+                Codigo = codigo,
+                FechaExpiracion = expira,
+                NombreCompleto = user.NombreCompleto,
+                Username = user.Username,
+                Rol = user.Rol,
+                EmpresaCodigo = tenantCode,
+                EmpresaNombre = tenantName
+            });
+        }
+
+        [HttpPost("vincular-dispositivo")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VincularDispositivo([FromBody] VincularDispositivoDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Codigo))
+                return BadRequest(new { message = "El código de vinculación es requerido." });
+
+            string cleanCode = dto.Codigo.Trim().Replace("-", "").Replace(" ", "");
+
+            string rawMasterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;";
+            string masterConn = TenantService.AdjustConnectionStringForEnvironment(rawMasterConn);
+            using var db = new Microsoft.Data.SqlClient.SqlConnection(masterConn);
+
+            var registro = await db.QueryFirstOrDefaultAsync<dynamic>(@"
+                SELECT TOP 1 * FROM TB_DISPOSITIVOS_VINCULACION 
+                WHERE CodigoVinculacion = @cleanCode AND Usado = 0 AND FechaExpiracion >= GETDATE()",
+                new { cleanCode });
+
+            if (registro == null)
+            {
+                return BadRequest(new { message = "Código de vinculación inválido, expirado o ya utilizado." });
+            }
+
+            int vincId = (int)registro.Id;
+            string tenantCode = (string)registro.EmpresaCodigo;
+            int usuarioId = (int)registro.UsuarioId;
+            string username = (string)registro.Username;
+            string nombreCompleto = (string)registro.NombreCompleto;
+            string rol = (string)registro.Rol;
+            int? camionId = (int?)registro.CamionId;
+            string? placaCamion = (string?)registro.PlacaCamion;
+            decimal capacidadTanqueLitros = Convert.ToDecimal(registro.CapacidadLitros ?? 0);
+
+            // Marcar código como usado
+            await db.ExecuteAsync(@"
+                UPDATE TB_DISPOSITIVOS_VINCULACION 
+                SET Usado = 1, DeviceId = @DeviceId, FechaVinculacion = GETDATE()
+                WHERE Id = @vincId",
+                new { vincId, DeviceId = dto.DeviceId ?? "App Móvil" });
+
+            // Obtener nombre comercial
+            var empresa = await db.QueryFirstOrDefaultAsync<dynamic>(
+                "SELECT NombreComercial FROM TB_EMPRESAS WHERE Codigo = @tenantCode",
+                new { tenantCode });
+            string empresaNombre = empresa?.NombreComercial ?? tenantCode;
+
+            // Generar JWT firmado
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var secretKey = _config["Jwt:SecretKey"] ?? _config["Jwt:Key"] ?? "ClaveSecretaSuperSeguraParaRutasDeLeche2026_JWT_Token_Key_MuyLargaParaHmacSha256!";
+            var key = Encoding.UTF8.GetBytes(secretKey);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString()),
+                new Claim(ClaimTypes.Name, username),
+                new Claim(ClaimTypes.Role, rol),
+                new Claim("empresa_codigo", tenantCode),
+                new Claim("dispositivo_movil", "true")
+            };
+
+            var permisos = rol == "ADMIN" || rol == "SUPERADMIN"
+                ? new[] { "DASHBOARD", "RUTAS_ALL", "MERMAS", "SEMANAS", "LIQUIDACION", "CATALOGOS", "BCV" }
+                : (rol == "CHOFER" ? new[] { "RUTAS_CAPTURAR", "RUTAS_VER" } : new[] { "RUTAS_VER" });
+
+            foreach (var perm in permisos)
+            {
+                claims.Add(new Claim("permiso", perm));
+            }
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddDays(365), // Sesión móvil permanente
+                Issuer = _config["Jwt:Issuer"] ?? "TransporteAPI",
+                Audience = _config["Jwt:Audience"] ?? "TransporteApp",
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            return Ok(new VincularDispositivoResponseDto
+            {
+                Token = tokenString,
+                EmpresaCodigo = tenantCode,
+                EmpresaNombre = empresaNombre,
+                EmpresaLogo = null,
+                Id = usuarioId,
+                Username = username,
+                NombreCompleto = nombreCompleto,
+                Rol = rol,
+                CamionId = camionId,
+                PlacaCamion = placaCamion,
+                CapacidadTanqueLitros = capacidadTanqueLitros,
+                Permisos = permisos,
+                ModulosHabilitados = new[] { "MOD_LOGISTICA_RUTAS" }
+            });
         }
     }
 }

@@ -61,6 +61,7 @@ import { DatosBancariosPage } from '@/modules/sistema/DatosBancariosPage';
 import { PermisosPage } from '@/modules/sistema/PermisosPage';
 import { ConfiguracionPage } from '@/modules/sistema/ConfiguracionPage';
 import { TiempoSesionPage } from '@/modules/sistema/TiempoSesionPage';
+import { AppMovilPage } from '@/modules/movil/AppMovilPage';
 import { setOnLogoutListener } from '@/stores/authStore';
 
 const queryClient = new QueryClient({
@@ -86,6 +87,9 @@ export const App: React.FC = () => {
         <Routes>
           {/* Ruta Pública de Login */}
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Terminal / App Móvil Offline para Conductores y Dispositivos Vinculados */}
+          <Route path="/app" element={<AppMovilPage />} />
 
           {/* Rutas Protegidas dentro de MainLayout */}
           <Route

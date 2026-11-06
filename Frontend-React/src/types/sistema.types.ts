@@ -9,6 +9,16 @@ export interface UsuarioDto {
   cedula?: string;
   ultimoAcceso?: string;
   createdAt: string;
+  camion?: {
+    id?: number;
+    placa?: string;
+    capacidadLitros?: number;
+  };
+  camionId?: number;
+  bancoNombre?: string;
+  numeroCuenta?: string;
+  cedulaPagoMovil?: string;
+  telefonoPagoMovil?: string;
 }
 
 export interface GuardarUsuarioDto {
