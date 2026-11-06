@@ -1738,6 +1738,22 @@ namespace Transporte.Infrastructure.Repositories
         }
 
         // --- PROPIETARIOS Y CONSOLIDACIÓN ---
+        private class PropietarioDbRow
+        {
+            public int Id { get; set; }
+            public string? Nombre { get; set; }
+            public string? CedulaRIF { get; set; }
+            public string? Telefono { get; set; }
+            public string? Email { get; set; }
+            public int? BancoId { get; set; }
+            public string? BancoNombre { get; set; }
+            public string? NumeroCuenta { get; set; }
+            public string? Observacion { get; set; }
+            public string? Estado { get; set; }
+            public int TotalFincas { get; set; }
+            public string? FincasNombres { get; set; }
+        }
+
         public async Task<IEnumerable<PropietarioDto>> ObtenerPropietariosAsync()
         {
             using var connection = new SqlConnection(_connectionString);
@@ -1754,29 +1770,30 @@ namespace Transporte.Infrastructure.Repositories
                 GROUP BY p.Id, p.Nombre, p.CedulaRIF, p.Telefono, p.Email, p.BancoId, b.Nombre, p.NumeroCuenta, p.Observacion, p.Estado
                 ORDER BY p.Nombre";
 
-            var rows = await connection.QueryAsync<dynamic>(sql);
+            var rows = await connection.QueryAsync<PropietarioDbRow>(sql);
             var list = new List<PropietarioDto>();
 
             foreach (var r in rows)
             {
-                string fincasStr = (string)(r.FincasNombres ?? "");
-                var fn = string.IsNullOrWhiteSpace(fincasStr) ? new List<string>() : fincasStr.Split(',').Select(x => x.Trim()).ToList();
+                var fn = string.IsNullOrWhiteSpace(r.FincasNombres) 
+                    ? new List<string>() 
+                    : r.FincasNombres.Split(',').Select(x => x.Trim()).ToList();
 
                 list.Add(new PropietarioDto
                 {
-                    Id = (int)r.Id,
-                    Nombre = string.IsNullOrWhiteSpace((string?)r.Nombre) 
-                        ? (string.IsNullOrWhiteSpace((string?)r.CedulaRIF) ? $"Ganadero #{(int)r.Id}" : $"Ganadero ({(string)r.CedulaRIF})") 
-                        : (string)r.Nombre,
-                    CedulaRIF = (string?)r.CedulaRIF,
-                    Telefono = (string?)r.Telefono,
-                    Email = (string?)r.Email,
-                    BancoId = (int?)r.BancoId,
-                    BancoNombre = (string)(r.BancoNombre ?? ""),
-                    NumeroCuenta = (string?)r.NumeroCuenta,
-                    Observacion = (string?)r.Observacion,
-                    Estado = (string)(r.Estado ?? "ACTIVO"),
-                    TotalFincas = (int)r.TotalFincas,
+                    Id = r.Id,
+                    Nombre = string.IsNullOrWhiteSpace(r.Nombre) 
+                        ? (string.IsNullOrWhiteSpace(r.CedulaRIF) ? $"Ganadero #{r.Id}" : $"Ganadero ({r.CedulaRIF})") 
+                        : r.Nombre,
+                    CedulaRIF = r.CedulaRIF,
+                    Telefono = r.Telefono,
+                    Email = r.Email,
+                    BancoId = r.BancoId,
+                    BancoNombre = r.BancoNombre ?? "",
+                    NumeroCuenta = r.NumeroCuenta,
+                    Observacion = r.Observacion,
+                    Estado = r.Estado ?? "ACTIVO",
+                    TotalFincas = r.TotalFincas,
                     FincasNombres = fn
                 });
             }
