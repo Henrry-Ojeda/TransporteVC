@@ -245,10 +245,17 @@ export const operacionesApi = {
 
   // CONTROL DIARIO DE TANQUES / SILOS
   getControlTanquesDiario: async (fecha?: string): Promise<ControlTanquesDiarioDto | null> => {
-    const params: Record<string, any> = {};
-    if (fecha) params.fecha = fecha;
-    const res = await apiClient.get<ControlTanquesDiarioDto>('/receptoria/control-tanques-diario', { params });
-    return res.data;
+    try {
+      const params: Record<string, any> = {};
+      if (fecha) params.fecha = fecha;
+      const res = await apiClient.get<ControlTanquesDiarioDto>('/receptoria/control-tanques-diario', { params });
+      return res.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        return null;
+      }
+      throw err;
+    }
   },
 
   guardarControlTanquesDiario: async (dto: ControlTanquesDiarioDto): Promise<{ id: number; message: string }> => {
