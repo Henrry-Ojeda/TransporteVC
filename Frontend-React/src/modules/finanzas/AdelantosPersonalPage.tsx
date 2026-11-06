@@ -225,7 +225,7 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'nombre',
       header: 'BENEFICIARIO',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div>
           <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.nombre}</div>
           <span style={{ fontSize: '11px', color: '#64748b' }}>Adelanto #{row.id}</span>
@@ -235,7 +235,7 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'rol',
       header: 'ROL',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'center' }}>
           <span
             style={{
@@ -255,7 +255,7 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'fechaSolicitud',
       header: 'FECHA SOLICITUD',
-      cell: ({ row }) => (
+      cell: (row) => (
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>
           {row.fechaSolicitud}
         </span>
@@ -264,16 +264,16 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'montoTotalUSD',
       header: 'MONTO TOTAL ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>
-          $ {row.montoTotalUSD.toFixed(2)}
+          $ {(Number(row.montoTotalUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'numeroCuotas',
       header: 'CUOTAS',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'center', fontWeight: 800 }}>
           {row.numeroCuotas}
         </div>
@@ -282,26 +282,26 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'cuotaUSD',
       header: 'CUOTA ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
-          $ {row.cuotaUSD.toFixed(2)}
+          $ {(Number(row.cuotaUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'montoPagadoUSD',
       header: 'AMORTIZADO ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
-          $ {row.montoPagadoUSD.toFixed(2)}
+          $ {(Number(row.montoPagadoUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'montoPendienteUSD',
       header: 'PENDIENTE ($)',
-      cell: ({ row }) => {
-        const pend = row.montoPendienteUSD;
+      cell: (row) => {
+        const pend = Number(row.montoPendienteUSD) || 0;
         return (
           <div
             style={{
@@ -318,8 +318,9 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'estado',
       header: 'ESTADO',
-      cell: ({ row }) => {
-        const isPagado = row.montoPendienteUSD <= 0.001 || row.estado === 'PAGADO';
+      cell: (row) => {
+        const pend = Number(row.montoPendienteUSD) || 0;
+        const isPagado = pend <= 0.001 || row.estado === 'PAGADO';
         return (
           <div style={{ textAlign: 'center' }}>
             <span
@@ -343,7 +344,7 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       accessorKey: 'observacion',
       header: 'MOTIVO / OBSERVACIÓN',
-      cell: ({ row }) => (
+      cell: (row) => (
         <span style={{ fontSize: '11.5px', color: '#64748b' }}>
           {row.observacion || '-'}
         </span>
@@ -352,8 +353,8 @@ export const AdelantosPersonalPage: React.FC = () => {
     {
       id: 'acciones',
       header: 'ACCIONES',
-      cell: ({ row }) => {
-        const isPagado = row.montoPendienteUSD <= 0.001;
+      cell: (row) => {
+        const isPagado = (Number(row.montoPendienteUSD) || 0) <= 0.001;
         return (
           <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
             {!isPagado && (

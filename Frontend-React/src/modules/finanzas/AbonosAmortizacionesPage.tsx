@@ -208,7 +208,7 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'fecha',
       header: 'Fecha Cobro',
-      cell: ({ row }) => (
+      cell: (row) => (
         <span style={{ fontWeight: 700, color: '#334155', fontSize: '12px' }}>
           {row.fecha}
         </span>
@@ -217,7 +217,7 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'semanaCodigo',
       header: 'Semana',
-      cell: ({ row }) => (
+      cell: (row) => (
         <span style={{ fontWeight: 700, color: '#0369a1', fontSize: '11.5px' }}>
           {row.semanaCodigo}
         </span>
@@ -226,7 +226,7 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'entidadNombre',
       header: 'Entidad / Finca',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div>
           <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.entidadNombre}</div>
           <span style={{ fontSize: '10.5px', color: '#64748b' }}>{row.tipoEntidad}</span>
@@ -236,7 +236,7 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'adelantoId',
       header: 'Adelanto #',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'center', fontWeight: 800, color: '#475569' }}>
           #{row.adelantoId}
         </div>
@@ -245,7 +245,7 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'numeroCuota',
       header: 'Cuota #',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'center', fontWeight: 800, color: '#2563eb' }}>
           {row.numeroCuota}
         </div>
@@ -254,43 +254,43 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'montoUSD',
       header: 'Monto USD',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 900, color: '#059669' }}>
-          $ {row.montoUSD.toFixed(2)}
+          $ {(Number(row.montoUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'tasaBCV',
       header: 'Tasa BCV',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', color: '#64748b', fontSize: '11px' }}>
-          Bs. {row.tasaBCV > 0 ? row.tasaBCV.toFixed(2) : '-'}
+          Bs. {Number(row.tasaBCV) > 0 ? (Number(row.tasaBCV) || 0).toFixed(2) : '-'}
         </div>
       ),
     },
     {
       accessorKey: 'montoCobradoBs',
       header: 'Monto Cobrado (Bs)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', fontSize: '11.5px' }}>
-          Bs. {row.montoCobradoBs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          Bs. {(Number(row.montoCobradoBs) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       ),
     },
     {
       accessorKey: 'saldoRestanteUSD',
       header: 'Saldo Restante ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 800, color: '#b45309' }}>
-          $ {row.saldoRestanteUSD.toFixed(2)}
+          $ {(Number(row.saldoRestanteUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'detalle',
       header: 'Detalle / Concepto',
-      cell: ({ row }) => (
+      cell: (row) => (
         <span style={{ fontSize: '11.5px', color: '#475569' }}>
           {row.detalle}
         </span>
@@ -299,7 +299,7 @@ export const AbonosAmortizacionesPage: React.FC = () => {
     {
       accessorKey: 'estado',
       header: 'Estado',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'center' }}>
           <span
             style={{

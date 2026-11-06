@@ -222,7 +222,7 @@ export const AdelantosFincasPage: React.FC = () => {
       id: 'expand',
       header: '',
       size: 40,
-      cell: ({ row }) => {
+      cell: (row) => {
         const isExp = !!expandedRows[row.id];
         return (
           <button
@@ -256,12 +256,12 @@ export const AdelantosFincasPage: React.FC = () => {
       accessorKey: 'id',
       header: '# ID',
       size: 70,
-      cell: ({ row }) => <span style={{ fontWeight: 800, color: '#334155' }}>#{row.id}</span>,
+      cell: (row) => <span style={{ fontWeight: 800, color: '#334155' }}>#{row.id}</span>,
     },
     {
       accessorKey: 'fincaNombre',
       header: 'FINCA / PRODUCTOR',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div>
           <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.fincaNombre}</div>
           {row.propietarioNombre && (
@@ -276,7 +276,7 @@ export const AdelantosFincasPage: React.FC = () => {
     {
       accessorKey: 'semanaCodigo',
       header: 'SEMANA COBRO',
-      cell: ({ row }) => (
+      cell: (row) => (
         <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#0369a1' }}>
           {row.semanaCodigo}
         </span>
@@ -285,25 +285,25 @@ export const AdelantosFincasPage: React.FC = () => {
     {
       accessorKey: 'montoTotalUSD',
       header: 'TOTAL ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>
-          $ {row.montoTotalUSD.toFixed(2)}
+          $ {(Number(row.montoTotalUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'montoBs',
       header: 'MONTO (BS)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: '11.5px' }}>
-          Bs. {row.montoBs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          Bs. {(Number(row.montoBs) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       ),
     },
     {
       accessorKey: 'numeroCuotas',
       header: 'CUOTAS',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'center' }}>
           <span
             style={{
@@ -323,26 +323,26 @@ export const AdelantosFincasPage: React.FC = () => {
     {
       accessorKey: 'cuotaUSD',
       header: 'CUOTA ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
-          $ {row.cuotaUSD.toFixed(2)}
+          $ {(Number(row.cuotaUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'montoPagadoUSD',
       header: 'COBRADO ($)',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
-          $ {row.montoPagadoUSD.toFixed(2)}
+          $ {(Number(row.montoPagadoUSD) || 0).toFixed(2)}
         </div>
       ),
     },
     {
       accessorKey: 'montoPendienteUSD',
       header: 'PENDIENTE ($)',
-      cell: ({ row }) => {
-        const pend = row.montoPendienteUSD;
+      cell: (row) => {
+        const pend = Number(row.montoPendienteUSD) || 0;
         return (
           <div
             style={{
@@ -359,8 +359,9 @@ export const AdelantosFincasPage: React.FC = () => {
     {
       accessorKey: 'estado',
       header: 'ESTADO',
-      cell: ({ row }) => {
-        const isPagado = row.estado === 'PAGADO' || row.montoPendienteUSD <= 0.001;
+      cell: (row) => {
+        const pend = Number(row.montoPendienteUSD) || 0;
+        const isPagado = row.estado === 'PAGADO' || pend <= 0.001;
         return (
           <div style={{ textAlign: 'center' }}>
             <span
@@ -384,7 +385,7 @@ export const AdelantosFincasPage: React.FC = () => {
     {
       id: 'acciones',
       header: 'ACCIONES',
-      cell: ({ row }) => (
+      cell: (row) => (
         <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
           <button
             type="button"
