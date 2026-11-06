@@ -49,6 +49,8 @@ const REPORTES_CHOFER = [
   { value: 'RELACION_CHOFER', label: '7. RELACIÓN CHOFER (Liquidación de Viajes)', icon: 'fa-truck-arrow-right' },
 ];
 
+export const APP_VERSION = 'v2.4.2';
+
 export const AppMovilPage: React.FC = () => {
   // Navegación de Pestañas Móviles
   const [tabActiva, setTabActiva] = useState<TabMovil>('principal');
@@ -334,6 +336,24 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
+  // Forzar actualización y limpiar cachés del navegador / PWA
+  const handleForzarRecarga = async () => {
+    toast.info('Actualizando aplicación a la última versión...');
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map((name) => caches.delete(name)));
+      }
+    } catch {}
+    window.location.reload();
+  };
+
   // Guardar cambios en el Perfil
   const handleGuardarPerfil = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -604,10 +624,29 @@ export const AppMovilPage: React.FC = () => {
             <i className="fa-solid fa-truck-droplet"></i>
           </div>
 
-          <h1 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.5px' }}>
             Rutas & Transporte Móvil
           </h1>
-          <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 26px 0', lineHeight: '1.4' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(56, 189, 248, 0.15)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                padding: '3px 12px',
+                borderRadius: '16px',
+                fontSize: '11.5px',
+                fontWeight: 800,
+                letterSpacing: '0.5px',
+              }}
+            >
+              <i className="fa-solid fa-code-branch"></i> Versión {APP_VERSION}
+            </span>
+          </div>
+          <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 24px 0', lineHeight: '1.4' }}>
             Ingresa el código numérico de 6 dígitos suministrado por tu administrador para vincular este teléfono.
           </p>
 
@@ -716,6 +755,26 @@ export const AppMovilPage: React.FC = () => {
               </button>
             </div>
           )}
+
+          <div style={{ marginTop: '22px', fontSize: '11px', color: '#64748b' }}>
+            Terminal Móvil Chofer • {APP_VERSION} •{' '}
+            <button
+              type="button"
+              onClick={handleForzarRecarga}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#38bdf8',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: 0,
+              }}
+            >
+              🔄 Recargar última versión
+            </button>
+          </div>
 
           {mostrarGuiaIos && (
             <div
@@ -840,6 +899,19 @@ export const AppMovilPage: React.FC = () => {
               <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                 {dispositivo.empresaNombre}
               </span>
+              <span
+                style={{
+                  background: 'rgba(56, 189, 248, 0.2)',
+                  color: '#38bdf8',
+                  padding: '1px 6px',
+                  borderRadius: '6px',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                }}
+              >
+                {APP_VERSION}
+              </span>
             </div>
             <h2 style={{ fontSize: '15.5px', fontWeight: 800, margin: '3px 0 0 0', color: '#ffffff' }}>
               {dispositivo.nombreCompleto}
@@ -847,6 +919,25 @@ export const AppMovilPage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={handleForzarRecarga}
+              title="Recargar última versión"
+              style={{
+                background: 'rgba(56, 189, 248, 0.2)',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                color: '#38bdf8',
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <i className="fa-solid fa-arrows-rotate"></i>
+            </button>
             {dispositivo.placaCamion && (
               <span
                 style={{
@@ -1677,6 +1768,48 @@ export const AppMovilPage: React.FC = () => {
                 {guardandoPerfil ? 'Guardando...' : 'Guardar Cambios'}
               </button>
             </form>
+
+            {/* Información de Versión del Sistema Móvil */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '14px',
+                padding: '14px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
+                  Versión del Sistema
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 900, color: '#0284c7' }}>
+                  {APP_VERSION} (Producción)
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleForzarRecarga}
+                style={{
+                  background: '#f0f9ff',
+                  border: '1px solid #bae6fd',
+                  color: '#0284c7',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-arrows-rotate"></i>
+                Actualizar
+              </button>
+            </div>
 
             <button
               type="button"
