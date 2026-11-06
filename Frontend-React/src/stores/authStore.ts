@@ -22,6 +22,12 @@ interface AuthState {
   hasTenantModule: (moduloCodigo: string) => boolean;
 }
 
+type LogoutListener = () => void;
+let onLogoutListener: LogoutListener | null = null;
+export const setOnLogoutListener = (fn: LogoutListener) => {
+  onLogoutListener = fn;
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -44,6 +50,13 @@ export const useAuthStore = create<AuthState>()(
       logout: (message?: string) => {
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem('transporte_last_activity');
+        if (onLogoutListener) {
+          try {
+            onLogoutListener();
+          } catch {
+            // ignore
+          }
+        }
         set({
           token: null,
           user: null,

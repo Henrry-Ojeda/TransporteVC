@@ -59,6 +59,7 @@ import { UsuariosPage } from '@/modules/sistema/UsuariosPage';
 import { PermisosPage } from '@/modules/sistema/PermisosPage';
 import { ConfiguracionPage } from '@/modules/sistema/ConfiguracionPage';
 import { TiempoSesionPage } from '@/modules/sistema/TiempoSesionPage';
+import { setOnLogoutListener } from '@/stores/authStore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,11 @@ const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 5,
     },
   },
+});
+
+// Limpiar todas las consultas en vuelo y caché al cerrar sesión
+setOnLogoutListener(() => {
+  queryClient.clear();
 });
 
 export const App: React.FC = () => {

@@ -38,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       const res = await apiClient.get<BcvResponse>('/bcv/hoy');
       return res.data;
     },
+    enabled: !!user,
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 15,
   });
@@ -54,6 +55,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         return fallback.data;
       }
     },
+    enabled: !!user,
     staleTime: 1000 * 60 * 30,
   });
 
@@ -68,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         return null;
       }
     },
-    staleTime: 1000 * 60 * 15,
+    enabled: !!user,
   });
 
   const handleSyncBcv = async () => {
