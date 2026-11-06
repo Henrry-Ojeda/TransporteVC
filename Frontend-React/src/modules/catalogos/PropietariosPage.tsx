@@ -173,7 +173,7 @@ export const PropietariosPage: React.FC = () => {
     {
       header: 'FINCAS ASOCIADAS',
       cell: (row) => {
-        const count = fincas.filter((f) => f.propietarioId === row.id).length;
+        const count = fincas.filter((f) => f.propietarioId === row.id).length || row.totalFincas || 0;
         return (
           <button
             type="button"
@@ -184,18 +184,19 @@ export const PropietariosPage: React.FC = () => {
               padding: '0 10px',
               fontSize: '11.5px',
               fontWeight: 700,
-              color: '#2563eb',
-              borderColor: '#bfdbfe',
-              background: '#eff6ff',
+              color: count > 0 ? '#2563eb' : '#d97706',
+              borderColor: count > 0 ? '#bfdbfe' : '#fde68a',
+              background: count > 0 ? '#eff6ff' : '#fffbeb',
               borderRadius: '6px',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               cursor: 'pointer',
             }}
+            title={count > 0 ? 'Ver o editar fincas asignadas' : 'Click para asignar fincas a este propietario'}
           >
-            <i className="fa-solid fa-seedling"></i>
-            {count} finca{count !== 1 ? 's' : ''}
+            <i className={`fa-solid ${count > 0 ? 'fa-seedling' : 'fa-plus'}`}></i>
+            {count > 0 ? `${count} finca${count !== 1 ? 's' : ''}` : '0 fincas (Asignar)'}
           </button>
         );
       },

@@ -52,8 +52,10 @@ export interface PropietarioDto {
   pagoMovilTelefono?: string;
   pagoMovilCedula?: string;
   pagoMovilBancoId?: number;
+  estado?: string;
   activo: boolean;
   totalFincas?: number;
+  fincasNombres?: string[];
   fincasAsignadas?: { id: number; nombre: string }[];
 }
 

@@ -143,19 +143,51 @@ export const catalogosApi = {
     return res.data;
   },
 
-  // PROPIETARIOS (Extraídos de forma segura sin errores 500 de consola)
+  // PROPIETARIOS (Obtenidos del backend oficial y combinados con fincas para retrocompatibilidad)
   getPropietarios: async (): Promise<PropietarioDto[]> => {
     try {
-      const fincas = await catalogosApi.getFincas(false);
       const propMap = new Map<number, any>();
       const nameToIdMap = new Map<string, number>();
 
-      // Cargar propietarios adicionales creados localmente si existen
+      // 1. Cargar propietarios oficiales registrados en el backend (/api/propietarios)
+      try {
+        const res = await apiClient.get<PropietarioDto[]>('/propietarios');
+        if (Array.isArray(res.data)) {
+          res.data.forEach((p) => {
+            if (p && p.id) {
+              const propObj = {
+                ...p,
+                id: Number(p.id),
+                nombre: p.nombre || p.nombreCompleto || '',
+                nombreCompleto: p.nombreCompleto || p.nombre || '',
+                cedulaRIF: p.cedulaRIF || p.cedulaRif || '',
+                cedulaRif: p.cedulaRif || p.cedulaRIF || '',
+                telefono: p.telefono || '',
+                email: p.email || '',
+                bancoId: p.bancoId,
+                bancoNombre: p.bancoNombre && p.bancoNombre !== 'Sin Banco' ? p.bancoNombre : '',
+                numeroCuenta: p.numeroCuenta || '',
+                estado: p.estado || 'ACTIVO',
+                activo: p.activo ?? (p.estado === 'ACTIVO' || p.estado === '1'),
+                totalFincas: p.totalFincas || 0,
+                fincasNombres: p.fincasNombres || [],
+              };
+              propMap.set(Number(p.id), propObj);
+              const normName = String(propObj.nombre).trim().toLowerCase();
+              if (normName) nameToIdMap.set(normName, Number(p.id));
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Endpoint /propietarios no disponible o en fallback:', err);
+      }
+
+      // 2. Cargar propietarios creados en almacenamiento local si existen
       try {
         const customRaw = localStorage.getItem(PROPIETARIOS_CUSTOM_KEY);
         const customList: any[] = customRaw ? JSON.parse(customRaw) : [];
         customList.forEach((p) => {
-          if (p && p.id) {
+          if (p && p.id && !propMap.has(Number(p.id))) {
             propMap.set(Number(p.id), p);
             const normName = String(p.nombre || p.nombreCompleto || '').trim().toLowerCase();
             if (normName) nameToIdMap.set(normName, Number(p.id));
@@ -165,68 +197,77 @@ export const catalogosApi = {
         // ignore
       }
 
-      fincas.forEach((f: any) => {
-        const rawNombre = String(f.propietario || f.propietarioNombre || '').trim();
-        if (!rawNombre || rawNombre.toUpperCase() === 'N/A' || rawNombre.toLowerCase() === 'sin asignar') {
-          return;
-        }
-        const normName = rawNombre.toLowerCase();
-        let propId = Number(f.propietarioId || 0);
-        if (!propId || propId <= 0) {
-          if (nameToIdMap.has(normName)) {
-            propId = nameToIdMap.get(normName)!;
-          } else {
-            // Generar ID determinístico para propietarios registrados por nombre en TB_FINCAS
-            let hash = 0;
-            for (let i = 0; i < normName.length; i++) {
-              hash = (hash * 31 + normName.charCodeAt(i)) % 900000;
+      // 3. Complementar con fincas existentes para no perder ganaderos con asignación directa
+      try {
+        const fincas = await catalogosApi.getFincas(false);
+        fincas.forEach((f: any) => {
+          const rawNombre = String(f.propietario || f.propietarioNombre || '').trim();
+          if (!rawNombre || rawNombre.toUpperCase() === 'N/A' || rawNombre.toLowerCase() === 'sin asignar') {
+            return;
+          }
+          const normName = rawNombre.toLowerCase();
+          let propId = Number(f.propietarioId || 0);
+          if (!propId || propId <= 0) {
+            if (nameToIdMap.has(normName)) {
+              propId = nameToIdMap.get(normName)!;
+            } else {
+              let hash = 0;
+              for (let i = 0; i < normName.length; i++) {
+                hash = (hash * 31 + normName.charCodeAt(i)) % 900000;
+              }
+              propId = 100000 + Math.abs(hash);
+              nameToIdMap.set(normName, propId);
             }
-            propId = 100000 + Math.abs(hash);
+          } else {
             nameToIdMap.set(normName, propId);
           }
-        } else {
-          nameToIdMap.set(normName, propId);
-        }
 
-        const existente = propMap.get(propId);
-        if (existente) {
-          existente.totalFincas = (existente.totalFincas || 0) + 1;
-          if (f.nombre && (!existente.fincasNombres || !existente.fincasNombres.includes(f.nombre))) {
-            existente.fincasNombres = [...(existente.fincasNombres || []), f.nombre];
+          const existente = propMap.get(propId);
+          if (existente) {
+            if (!existente.totalFincas || existente.totalFincas === 0) {
+              existente.totalFincas = 1;
+            } else {
+              existente.totalFincas = (existente.totalFincas || 0) + 1;
+            }
+            if (f.nombre && (!existente.fincasNombres || !existente.fincasNombres.includes(f.nombre))) {
+              existente.fincasNombres = [...(existente.fincasNombres || []), f.nombre];
+            }
+            if (!existente.cedulaRIF && f.cedulaRIF) {
+              existente.cedulaRIF = f.cedulaRIF;
+              existente.cedulaRif = f.cedulaRIF;
+            }
+            if (!existente.telefono && f.telefono) {
+              existente.telefono = f.telefono;
+            }
+            if (!existente.bancoId && f.bancoId) {
+              existente.bancoId = f.bancoId;
+              existente.bancoNombre = f.bancoNombre;
+            }
+            if (!existente.numeroCuenta && f.numeroCuenta) {
+              existente.numeroCuenta = f.numeroCuenta;
+            }
+          } else {
+            propMap.set(propId, {
+              id: propId,
+              nombre: rawNombre,
+              nombreCompleto: rawNombre,
+              cedulaRIF: f.cedulaRIF || '',
+              cedulaRif: f.cedulaRIF || '',
+              telefono: f.telefono || '',
+              email: '',
+              bancoId: f.bancoId,
+              bancoNombre: f.bancoNombre && f.bancoNombre !== 'Sin Banco' ? f.bancoNombre : '',
+              numeroCuenta: f.numeroCuenta || '',
+              estado: 'ACTIVO',
+              activo: true,
+              totalFincas: 1,
+              fincasNombres: f.nombre ? [f.nombre] : [],
+            });
           }
-          if (!existente.cedulaRIF && f.cedulaRIF) {
-            existente.cedulaRIF = f.cedulaRIF;
-            existente.cedulaRif = f.cedulaRIF;
-          }
-          if (!existente.telefono && f.telefono) {
-            existente.telefono = f.telefono;
-          }
-          if (!existente.bancoId && f.bancoId) {
-            existente.bancoId = f.bancoId;
-            existente.bancoNombre = f.bancoNombre;
-          }
-          if (!existente.numeroCuenta && f.numeroCuenta) {
-            existente.numeroCuenta = f.numeroCuenta;
-          }
-        } else {
-          propMap.set(propId, {
-            id: propId,
-            nombre: rawNombre,
-            nombreCompleto: rawNombre,
-            cedulaRIF: f.cedulaRIF || '',
-            cedulaRif: f.cedulaRIF || '',
-            telefono: f.telefono || '',
-            email: '',
-            bancoId: f.bancoId,
-            bancoNombre: f.bancoNombre && f.bancoNombre !== 'Sin Banco' ? f.bancoNombre : '',
-            numeroCuenta: f.numeroCuenta || '',
-            estado: 'ACTIVO',
-            activo: true,
-            totalFincas: 1,
-            fincasNombres: f.nombre ? [f.nombre] : [],
-          });
-        }
-      });
+        });
+      } catch {
+        // ignore
+      }
 
       return Array.from(propMap.values()).sort((a, b) =>
         String(a.nombre || a.nombreCompleto || '').localeCompare(String(b.nombre || b.nombreCompleto || ''))
