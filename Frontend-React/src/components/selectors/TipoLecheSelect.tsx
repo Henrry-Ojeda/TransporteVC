@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SearchableSelect, type SelectOption } from '@/components/common/SearchableSelect';
+import { useAuthStore } from '@/stores/authStore';
 
 interface TipoLecheSelectProps {
   value: string | undefined | null;
@@ -12,11 +13,6 @@ interface TipoLecheSelectProps {
   className?: string;
 }
 
-const TIPOS_LECHE_OPTIONS: SelectOption[] = [
-  { value: 'VACA', label: '🥛 Leche de Vaca' },
-  { value: 'BUFALA', label: '🐃 Leche de Búfala' },
-];
-
 export const TipoLecheSelect: React.FC<TipoLecheSelectProps> = ({
   value,
   onChange,
@@ -27,14 +23,29 @@ export const TipoLecheSelect: React.FC<TipoLecheSelectProps> = ({
   style,
   className,
 }) => {
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
+
+  const options: SelectOption[] = useMemo(() => {
+    if (!hasBufala) {
+      return [{ value: 'VACA', label: '🥛 Leche de Vaca' }];
+    }
+    return [
+      { value: 'VACA', label: '🥛 Leche de Vaca' },
+      { value: 'BUFALA', label: '🐃 Leche de Búfala' },
+    ];
+  }, [hasBufala]);
+
+  // Si no tiene búfala y viene con búfala u otro, forzar VACA
+  const valorEfectivo = !hasBufala ? 'VACA' : (value || 'VACA');
+
   return (
     <SearchableSelect
-      options={TIPOS_LECHE_OPTIONS}
-      value={value || 'VACA'}
+      options={options}
+      value={valorEfectivo}
       onChange={(val) => onChange(String(val || 'VACA'))}
       placeholder={placeholder}
       searchPlaceholder="Buscar tipo de leche..."
-      disabled={disabled}
+      disabled={disabled || !hasBufala}
       required={required}
       allowClear={allowClear}
       style={style}

@@ -79,7 +79,21 @@ export const useAuthStore = create<AuthState>()(
         const code = moduloCodigo.toUpperCase();
 
         if (user?.modulosHabilitados && Array.isArray(user.modulosHabilitados)) {
+          if (code === 'MOD_LECHE_BUFALA' || code === 'MOD_BUFALA' || code === 'BUFALA') {
+            return user.modulosHabilitados.some((m: string) => {
+              const u = m.toUpperCase();
+              return u === 'MOD_LECHE_BUFALA' || u === 'MOD_BUFALA' || u === 'BUFALA' || u === 'LECHE_BUFALA';
+            });
+          }
           return user.modulosHabilitados.includes(code);
+        }
+
+        // Si el usuario pertenece explícitamente a CAMPO_VERDE y no tiene módulos devueltos, búfala está desactivada por defecto
+        if (code === 'MOD_LECHE_BUFALA' || code === 'MOD_BUFALA' || code === 'BUFALA') {
+          const emp = (user?.empresaCodigo || '').toUpperCase();
+          if (emp.includes('CAMPO_VERDE') || emp.includes('CAMPOVERDE')) {
+            return false;
+          }
         }
 
         return true;

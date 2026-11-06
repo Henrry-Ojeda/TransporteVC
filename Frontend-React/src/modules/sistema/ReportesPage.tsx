@@ -2785,6 +2785,7 @@ const RenderReporteRelacionCompanias: React.FC<{
   onAjustarPrecios,
   onVerDetalleEntregas,
 }) => {
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const companias = Array.isArray(data) ? data : [];
 
   const filtradas = useMemo(() => {
@@ -2940,8 +2941,12 @@ const RenderReporteRelacionCompanias: React.FC<{
                     <td>
                       <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                         <div style={{ fontSize: '11px', fontWeight: 700 }}>
-                          <span style={{ color: '#16a34a' }}>V: ${pVaca.toFixed(4)}</span> |{' '}
-                          <span style={{ color: '#7e22ce' }}>B: ${pBuf.toFixed(4)}</span>
+                          <span style={{ color: '#16a34a' }}>V: ${pVaca.toFixed(4)}</span>
+                          {hasBufala && (
+                            <>
+                              {' '}| <span style={{ color: '#7e22ce' }}>B: ${pBuf.toFixed(4)}</span>
+                            </>
+                          )}
                         </div>
                         <button
                           type="button"

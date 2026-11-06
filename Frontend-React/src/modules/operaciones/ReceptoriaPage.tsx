@@ -227,10 +227,11 @@ export const ReceptoriaPage: React.FC = () => {
   });
 
   const actualizarDespachoMutation = useMutation({
-    mutationFn: (dto: { id: number; fecha: string; litrosDespachados: number; observacion?: string }) =>
+    mutationFn: (dto: { id: number; fecha: string; litrosDespachados: number; tipoLeche?: string; observacion?: string }) =>
       operacionesApi.actualizarDespachoCompania(dto.id, {
         fecha: dto.fecha,
         litrosDespachados: dto.litrosDespachados,
+        tipoLeche: dto.tipoLeche,
         observacion: dto.observacion
       }),
     onSuccess: () => {
@@ -833,9 +834,27 @@ export const ReceptoriaPage: React.FC = () => {
                           <i className="fa-solid fa-building" style={{ color: '#9333ea', marginRight: '6px' }}></i>
                           {nombreComp}
                         </span>
-                        <span className="badge" style={{ background: '#f3e8ff', color: '#7e22ce', fontWeight: 800 }}>
-                          Ctrl #{d.id}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {hasBufala && (
+                            <span
+                              className="badge"
+                              style={{
+                                background: (d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#f3e8ff' : '#e0f2fe',
+                                color: (d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#7e22ce' : '#0369a1',
+                                border: `1px solid ${(d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#d8b4fe' : '#bae6fd'}`,
+                                fontWeight: 800,
+                                fontSize: '10.5px',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                              }}
+                            >
+                              {(d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '🐃 BÚFALA' : '🥛 VACA'}
+                            </span>
+                          )}
+                          <span className="badge" style={{ background: '#f3e8ff', color: '#7e22ce', fontWeight: 800 }}>
+                            Ctrl #{d.id}
+                          </span>
+                        </div>
                       </div>
                       <div style={{ fontSize: '12px', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
                         <span>
@@ -1302,6 +1321,11 @@ export const ReceptoriaPage: React.FC = () => {
                 <th style={{ textAlign: 'center', width: '140px' }}>
                   MERMA / BALANCE
                 </th>
+                {hasBufala && (
+                  <th style={{ textAlign: 'center', width: '110px' }}>
+                    TIPO LECHE
+                  </th>
+                )}
                 <th style={{ width: '160px', maxWidth: '160px' }}>OBSERVACIÓN</th>
                 <th style={{ width: '110px', minWidth: '110px', textAlign: 'center' }}>ACCIONES</th>
               </tr>
@@ -1309,14 +1333,14 @@ export const ReceptoriaPage: React.FC = () => {
             <tbody>
               {loadingEntregas ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                  <td colSpan={hasBufala ? 9 : 8} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
                     <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '20px', marginRight: '8px' }}></i>
                     Cargando entregas de receptoría...
                   </td>
                 </tr>
               ) : entregasPaginadas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: '36px' }}>
+                  <td colSpan={hasBufala ? 9 : 8} style={{ textAlign: 'center', color: '#94a3b8', padding: '36px' }}>
                     <i className="fa-solid fa-inbox" style={{ fontSize: '28px', marginBottom: '8px', display: 'block', opacity: 0.4 }}></i>
                     No hay entregas registradas para los filtros seleccionados
                   </td>
@@ -1458,6 +1482,35 @@ export const ReceptoriaPage: React.FC = () => {
                           <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>-</span>
                         )}
                       </td>
+
+                      {/* TIPO DE LECHE (CONDICIONADO AL MÓDULO BÚFALA) */}
+                      {hasBufala && (
+                        <td style={{ textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                          {(() => {
+                            const tipo = (e.tipoLeche || 'VACA').toUpperCase();
+                            const esBuf = tipo.includes('BUFAL');
+                            return (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: esBuf ? '#f3e8ff' : '#e0f2fe',
+                                  color: esBuf ? '#7e22ce' : '#0369a1',
+                                  border: `1px solid ${esBuf ? '#d8b4fe' : '#bae6fd'}`,
+                                  fontWeight: 800,
+                                  fontSize: '11px',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                {esBuf ? '🐃 BÚFALA' : '🥛 VACA'}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                      )}
 
                       {/* 7. OBSERVACIÓN */}
                       <td style={{ verticalAlign: 'middle', width: '160px', maxWidth: '160px', paddingRight: '8px' }}>
@@ -2155,6 +2208,7 @@ export const ReceptoriaPage: React.FC = () => {
                   id: despachoAEditar.id,
                   fecha: despachoAEditar.fecha,
                   litrosDespachados: Number(despachoAEditar.litrosDespachados),
+                  tipoLeche: despachoAEditar.tipoLeche || 'VACA',
                   observacion: despachoAEditar.observacion
                 });
               }}
@@ -2188,6 +2242,19 @@ export const ReceptoriaPage: React.FC = () => {
                   style={{ height: '38px', width: '100%', fontWeight: 800, color: '#2563eb' }}
                 />
               </div>
+
+              {hasBufala && (
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    Tipo de Leche
+                  </label>
+                  <TipoLecheSelect
+                    value={despachoAEditar.tipoLeche || 'VACA'}
+                    onChange={(val) => setDespachoAEditar({ ...despachoAEditar, tipoLeche: val })}
+                    allowClear={false}
+                  />
+                </div>
+              )}
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>

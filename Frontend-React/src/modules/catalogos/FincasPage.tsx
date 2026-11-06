@@ -63,11 +63,18 @@ export const FincasPage: React.FC = () => {
       const propNombre = propObj
         ? propObj.nombre || propObj.nombreCompleto || ''
         : (dto as any).propietario || (dto as any).propietarioNombre || '';
+      
+      const esDual = hasBufala && (dto.tipoLeche === 'AMBOS' || Boolean(dto.tieneDosTiposLeche));
+      const esSoloBufala = hasBufala && dto.tipoLeche === 'BUFALA';
+
       const payload: any = {
         ...dto,
         propietario: propNombre,
         propietarioNombre: propNombre,
         rutaId: dto.activo === false ? undefined : dto.rutaId,
+        tipoLeche: !hasBufala ? 'VACA' : (esDual ? 'AMBOS' : (esSoloBufala ? 'BUFALA' : 'VACA')),
+        tieneDosTiposLeche: esDual,
+        precioBufalaLitroUSD: (hasBufala && (esDual || esSoloBufala)) ? (dto.precioBufalaLitroUSD || 0.40) : 0,
       };
       return modoEdicionId ? catalogosApi.actualizarFinca(modoEdicionId, payload) : catalogosApi.crearFinca(payload);
     },
@@ -130,7 +137,7 @@ export const FincasPage: React.FC = () => {
       precioLitroAcidaUSD: item.precioLitroAcidaUSD || 0.20,
       tieneDosTiposLeche: Boolean(item.tieneDosTiposLeche),
       precioBufalaLitroUSD: item.precioBufalaLitroUSD || 0.40,
-      tipoLeche: item.tipoLeche || 'VACA',
+      tipoLeche: item.tieneDosTiposLeche ? 'AMBOS' : (item.tipoLeche || 'VACA'),
       telefono: item.telefono || '',
       ubicacion: item.ubicacion || '',
       activo: item.activo !== false,
@@ -731,82 +738,134 @@ export const FincasPage: React.FC = () => {
                   />
                 </div>
 
-                {/* 3. Check Dual (SOLO SI EL TENANT TIENE BÚFALA HABILITADA) */}
-                {hasBufala && (
+                {/* 3. Consulta de Tipo de Leche y Búfala (SOLO SI EL TENANT TIENE BÚFALA HABILITADA) */}
+                {hasBufala ? (
                   <div
                     style={{
-                      padding: '10px 14px',
-                      background: '#eff6ff',
-                      border: '1.5px solid #bfdbfe',
-                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '10px',
                     }}
                   >
-                    <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        cursor: 'pointer',
-                        color: '#1e293b',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.tieneDosTiposLeche || false}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setForm({
-                            ...form,
-                            tieneDosTiposLeche: checked,
-                            tipoLeche: checked ? 'AMBOS' : form.tipoLeche,
-                          });
-                        }}
-                        style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
-                      />
-                      <span>
-                        <i className="fa-solid fa-code-fork" style={{ color: '#2563eb', marginRight: '6px' }}></i>
-                        ¿Maneja dos tipos de leche? (Vaca y Búfala)
-                      </span>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>
+                      <i className="fa-solid fa-gem" style={{ color: '#0d9488', marginRight: '6px' }}></i>
+                      ¿Qué tipo de leche produce esta finca? *
                     </label>
-                  </div>
-                )}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, tipoLeche: 'VACA', tieneDosTiposLeche: false });
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                          background: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '#eff6ff' : '#ffffff',
+                          color: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '#1d4ed8' : '#64748b',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        🥛 Solo Vaca
+                      </button>
 
-                {/* 4. Grid de Precios: Precio Normal + Precio Ácida / Mala (+ Precio Búfala si aplica) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, tipoLeche: 'BUFALA', tieneDosTiposLeche: false });
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '2px solid #9333ea' : '1px solid #cbd5e1',
+                          background: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '#faf5ff' : '#ffffff',
+                          color: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '#7e22ce' : '#64748b',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        🐃 Solo Búfala
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, tipoLeche: 'AMBOS', tieneDosTiposLeche: true });
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '2px solid #0d9488' : '1px solid #cbd5e1',
+                          background: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '#f0fdfa' : '#ffffff',
+                          color: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '#0f766e' : '#64748b',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        🥛+🐃 Dual (Ambas)
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* 4. Grid de Precios adaptado al tipo de leche */}
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: hasBufala && form.tieneDosTiposLeche ? '1fr 1fr 1fr' : '1fr 1fr',
+                    gridTemplateColumns:
+                      hasBufala && (form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS')
+                        ? '1fr 1fr 1fr'
+                        : '1fr 1fr',
                     gap: '12px',
                   }}
                 >
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
-                      🥛 Precio Normal ($/Lt) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={form.precioLitroUSD}
-                      onChange={(e) => setForm({ ...form, precioLitroUSD: Number(e.target.value) })}
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        height: '38px',
-                        fontWeight: 800,
-                        color: '#047857',
-                        background: '#f0fdf4',
-                        border: '1.5px solid #86efac',
-                      }}
-                      required
-                    />
-                  </div>
-
-                  {hasBufala && form.tieneDosTiposLeche && (
+                  {/* Precio Vaca (si es Vaca o Dual, o si no hay módulo búfala) */}
+                  {(!hasBufala || form.tipoLeche !== 'BUFALA' || form.tieneDosTiposLeche) && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0369a1', marginBottom: '4px' }}>
-                        🐃 Precio Búfala ($/Lt) *
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
+                        🥛 Precio Leche Vaca ($/Lt) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={form.precioLitroUSD}
+                        onChange={(e) => setForm({ ...form, precioLitroUSD: Number(e.target.value) })}
+                        className="form-input"
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          fontWeight: 800,
+                          color: '#047857',
+                          background: '#f0fdf4',
+                          border: '1.5px solid #86efac',
+                        }}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {/* Precio Búfala (si es Solo Búfala o Dual) */}
+                  {hasBufala && (form.tipoLeche === 'BUFALA' || form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS') && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#7e22ce', marginBottom: '4px' }}>
+                        🐃 Precio Leche Búfala ($/Lt) *
                       </label>
                       <input
                         type="number"
@@ -818,18 +877,20 @@ export const FincasPage: React.FC = () => {
                           width: '100%',
                           height: '38px',
                           fontWeight: 800,
-                          color: '#0369a1',
-                          background: '#f0f9ff',
-                          border: '1.5px solid #7dd3fc',
+                          color: '#7e22ce',
+                          background: '#faf5ff',
+                          border: '1.5px solid #d8b4fe',
                         }}
+                        required
                       />
                     </div>
                   )}
 
+                  {/* Precio Leche Ácida */}
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#b45309', marginBottom: '4px' }}>
                       <i className="fa-solid fa-flask" style={{ color: '#d97706', marginRight: '4px' }}></i>
-                      Precio Leche Ácida / Mala ($/Lt)
+                      Precio Leche Ácida ($/Lt)
                     </label>
                     <input
                       type="number"
