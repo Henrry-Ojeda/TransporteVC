@@ -53,11 +53,12 @@ export const operacionesApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  editarFincaViajeAuditado: async (id: number, rutaId: number, dto: { fincaId: number; litros: number; esAcida?: boolean; tipoLeche?: string; motivo?: string; motivoModificacion?: string; observacion?: string }): Promise<{ message: string }> => {
+  editarFincaViajeAuditado: async (id: number, rutaId: number, dto: { fincaId: number; litros: number; esAcida?: boolean; esDiferido?: boolean; tipoLeche?: string; motivo?: string; motivoModificacion?: string; observacion?: string }): Promise<{ message: string }> => {
     const payload = {
       fincaId: dto.fincaId,
       litros: dto.litros,
       esAcida: Boolean(dto.esAcida),
+      esDiferido: Boolean(dto.esDiferido),
       tipoLeche: dto.tipoLeche || 'VACA',
       observacion: dto.observacion || '',
       motivo: dto.motivo || dto.motivoModificacion || '',
@@ -98,12 +99,14 @@ export const operacionesApi = {
     return res.data;
   },
 
-  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche?: number; litros?: number; esAcida?: boolean; tipoLeche?: string; observacion?: string; temperatura?: number }): Promise<{ success: boolean; message: string }> => {
+  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche?: number; litros?: number; esAcida?: boolean; esDiferido?: boolean; fecha?: string; tipoLeche?: string; observacion?: string; temperatura?: number }): Promise<{ success: boolean; message: string }> => {
     const payload = {
       controlRutaId: id,
       fincaId: dto.fincaId,
       litros: dto.litros ?? dto.litrosLeche ?? 0,
       esAcida: Boolean(dto.esAcida),
+      esDiferido: Boolean(dto.esDiferido),
+      fecha: dto.fecha,
       tipoLeche: dto.tipoLeche || 'VACA',
       observacion: dto.observacion || '',
       temperatura: dto.temperatura,
@@ -296,7 +299,7 @@ export const operacionesApi = {
     return res.data;
   },
 
-  editarRecoleccion: async (id: number, dto: { fincaId?: number; litros?: number; tipoLeche?: string; esAcida?: boolean; observacion?: string }): Promise<{ success: boolean; message: string }> => {
+  editarRecoleccion: async (id: number, dto: { fincaId?: number; litros?: number; tipoLeche?: string; esAcida?: boolean; esDiferido?: boolean; observacion?: string }): Promise<{ success: boolean; message: string }> => {
     const res = await apiClient.put(`/rutas/${id}`, dto);
     return res.data;
   },

@@ -102,12 +102,14 @@ export const RecoleccionRutasPage: React.FC = () => {
     observaciones: '',
   });
 
-  // Formulario Modal Registrar Recolección en Finca (para tickets abiertos sin ruta)
+  // Formulario Modal Registrar Recolección en Finca (para tickets abiertos)
   const [formFinca, setFormFinca] = useState({
     fincaId: 0,
     litros: '' as any,
     tipoLeche: 'VACA',
     esAcida: false,
+    esDiferido: false,
+    fecha: '',
     observacion: '',
   });
 
@@ -118,6 +120,8 @@ export const RecoleccionRutasPage: React.FC = () => {
     litros: 0,
     tipoLeche: 'VACA',
     esAcida: false,
+    esDiferido: false,
+    fecha: '',
     observacion: '',
   });
 
@@ -279,12 +283,14 @@ export const RecoleccionRutasPage: React.FC = () => {
   const guardarRecoleccionModalMutation = useMutation({
     mutationFn: async (dto: typeof formFinca) => {
       if (!viajeActivo) throw new Error('No hay ticket activo seleccionado');
-      const payload = {
+      const payload: any = {
         controlRutaId: viajeActivo.id,
         fincaId: dto.fincaId,
         litros: Number(dto.litros),
         tipoLeche: dto.tipoLeche,
         esAcida: dto.esAcida,
+        esDiferido: Boolean(dto.esDiferido),
+        fecha: dto.fecha || (viajeActivo.fecha ? viajeActivo.fecha.split('T')[0] : undefined),
         observacion: dto.observacion,
       };
       return operacionesApi.agregarFincaViaje(viajeActivo.id, payload);
@@ -298,7 +304,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalRegistroFinca(false);
-      setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' });
+      setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al registrar recolección');
@@ -312,6 +318,7 @@ export const RecoleccionRutasPage: React.FC = () => {
         litros: Number(dto.litros),
         tipoLeche: dto.tipoLeche,
         esAcida: dto.esAcida,
+        esDiferido: Boolean(dto.esDiferido),
         observacion: dto.observacion,
       }),
     onSuccess: async (data) => {
@@ -1413,7 +1420,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setViajeActivo(item);
-                                    setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' });
+                                    setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
                                     setModalRegistroFinca(true);
                                   }}
                                   className="btn btn-xs"
@@ -1450,7 +1457,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                                           type="button"
                                           onClick={() => {
                                             setViajeActivo(item);
-                                            setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' });
+                                            setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
                                             setModalRegistroFinca(true);
                                           }}
                                           className="btn btn-xs btn-primary"
@@ -1513,6 +1520,8 @@ export const RecoleccionRutasPage: React.FC = () => {
                                                     litros: fLitros,
                                                     tipoLeche: fTipo,
                                                     esAcida: esAcida,
+                                                    esDiferido: Boolean(f.esDiferido || f.EsDiferido),
+                                                    fecha: f.fecha || item.fecha || '',
                                                     observacion: f.observacion || f.Observacion || '',
                                                   });
                                                   setModalEditarRecoleccion(true);
@@ -2180,23 +2189,56 @@ export const RecoleccionRutasPage: React.FC = () => {
       {/* MODAL 3: REGISTRAR PARADA EN FINCA (DENTRO DEL TICKET ABIERTO)            */}
       {/* ========================================================================= */}
       {modalRegistroFinca && viajeActivo && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
-          <div className="content-card" style={{ width: '100%', maxWidth: '480px', padding: '24px', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                  <i className="fa-solid fa-cow" style={{ color: '#10b981', marginRight: '8px' }}></i>
-                  Agregar Finca al Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
-                </h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  Chofer: {viajeActivo.choferNombre || viajeActivo.nombreConductor}
-                </span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-xl bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto" style={{ maxHeight: '92vh' }}>
+            {/* CABECERA CON GRADIENTE OSCURO PREMIUM */}
+            <div
+              className="p-5 flex items-center justify-between border-b border-white/10 shrink-0"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0369a1 100%)' }}
+            >
+              <div className="flex items-center gap-3.5">
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-xl text-emerald-400 shrink-0 shadow-xs"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.18)',
+                    border: '1.5px solid rgba(52, 211, 153, 0.35)',
+                  }}
+                >
+                  <i className="fa-solid fa-cow"></i>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="m-0 text-base font-extrabold text-white">
+                      Agregar Finca al Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
+                    </h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 uppercase tracking-wider">
+                      {viajeActivo.estado || 'ABIERTO'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-sky-200">
+                    <span>
+                      <i className="fa-solid fa-user-tie text-sky-300 mr-1"></i>
+                      Chofer: <strong>{viajeActivo.choferNombre || viajeActivo.nombreConductor || 'Conductor'}</strong>
+                    </span>
+                    <span className="text-white/40">•</span>
+                    <span>
+                      <i className="fa-solid fa-truck-moving text-sky-300 mr-1"></i>
+                      {viajeActivo.camionPlaca || 'Cisterna'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <button type="button" onClick={() => setModalRegistroFinca(false)} style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}>
-                <i className="fa-solid fa-xmark"></i>
+              <button
+                type="button"
+                onClick={() => setModalRegistroFinca(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 text-2xl transition-colors cursor-pointer"
+                title="Cerrar modal"
+              >
+                &times;
               </button>
             </div>
 
+            {/* FORMULARIO */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -2210,78 +2252,249 @@ export const RecoleccionRutasPage: React.FC = () => {
                 }
                 guardarRecoleccionModalMutation.mutate(formFinca);
               }}
+              className="flex flex-col flex-1 overflow-hidden"
             >
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Finca Ganadera *</label>
-                <FincaSelect
-                  value={formFinca.fincaId}
-                  onChange={(id) => {
-                    const fMatch = fincas.find((f) => f.id === id);
-                    const esBuf = (fMatch?.tipoLeche || '').toUpperCase().includes('BUFAL');
-                    setFormFinca({ ...formFinca, fincaId: id, tipoLeche: esBuf ? 'BUFALA' : 'VACA' });
-                  }}
-                  required
-                />
-              </div>
+              <div className="p-5 md:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* 1. BANNER ELEGANTE DE FECHA OPERATIVA Y ASOCIACIÓN AL TICKET */}
+                <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border-[1.5px] border-sky-200 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                      <i className="fa-regular fa-calendar-days"></i>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Fecha de Carga / Recolección</span>
+                        <span className="text-[10px] bg-sky-200/80 text-sky-900 px-1.5 py-0.2 rounded font-bold">Asociada al Ticket</span>
+                      </div>
+                      <div className="text-sm font-extrabold text-slate-900 mt-0.5 flex items-center gap-2">
+                        <span>
+                          {viajeActivo.fecha
+                            ? new Date(viajeActivo.fecha).toLocaleDateString('es-VE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+                            : new Date().toLocaleDateString('es-VE')}
+                        </span>
+                        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          Semana #{viajeActivo.cicloId || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block text-right">
+                    <span className="text-[10.5px] font-bold text-slate-500 block">Identificador</span>
+                    <span className="font-mono text-xs font-black text-sky-700 bg-white px-2 py-0.5 rounded border border-sky-200 shadow-2xs">
+                      TKT-#{viajeActivo.id}
+                    </span>
+                  </div>
+                </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontWeight: 700 }}>Litros Recolectados *</label>
-                  <input
-                    type="number"
-                    value={formFinca.litros}
-                    onChange={(e) => setFormFinca({ ...formFinca, litros: e.target.value })}
-                    className="form-input"
-                    placeholder="Ej: 450"
-                    min="1"
+                {/* 2. FINCA GANADERA */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <i className="fa-solid fa-location-dot text-emerald-600"></i>
+                      Finca Ganadera *
+                    </span>
+                    {formFinca.fincaId > 0 && (
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {fincas.find((f) => f.id === formFinca.fincaId)?.propietario
+                          ? `Productor: ${fincas.find((f) => f.id === formFinca.fincaId)?.propietario}`
+                          : ''}
+                      </span>
+                    )}
+                  </label>
+                  <FincaSelect
+                    value={formFinca.fincaId}
+                    onChange={(id) => {
+                      const fMatch = fincas.find((f) => f.id === id);
+                      const esBuf = (fMatch?.tipoLeche || '').toUpperCase().includes('BUFAL');
+                      setFormFinca({
+                        ...formFinca,
+                        fincaId: id,
+                        tipoLeche: esBuf ? 'BUFALA' : (formFinca.tipoLeche || 'VACA'),
+                      });
+                    }}
                     required
-                    style={{ height: '38px', fontWeight: 800, fontSize: '15px' }}
                   />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontWeight: 700 }}>Tipo de Leche *</label>
-                  <select
-                    value={formFinca.tipoLeche}
-                    onChange={(e) => setFormFinca({ ...formFinca, tipoLeche: e.target.value })}
-                    className="form-input"
-                    style={{ height: '38px', fontWeight: 700 }}
+                {/* 3. LITROS RECOLECTADOS & TIPO DE LECHE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-faucet-drip text-blue-600"></i>
+                      Litros Recolectados *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formFinca.litros}
+                        onChange={(e) => setFormFinca({ ...formFinca, litros: e.target.value })}
+                        className="w-full h-11 pl-3 pr-12 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 font-mono font-black text-lg text-slate-900 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                        placeholder="Ej: 450"
+                        min="1"
+                        required
+                        autoFocus
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
+                        LTS
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-cow text-sky-600"></i>
+                      Tipo de Leche *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 h-11">
+                      <button
+                        type="button"
+                        onClick={() => setFormFinca({ ...formFinca, tipoLeche: 'VACA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formFinca.tipoLeche === 'VACA'
+                            ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>🥛</span>
+                        <span>Vaca</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormFinca({ ...formFinca, tipoLeche: 'BUFALA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formFinca.tipoLeche === 'BUFALA'
+                            ? 'bg-purple-50 border-purple-500 text-purple-800 shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>🐃</span>
+                        <span>Búfala</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. OPCIONES OPERATIVAS: DIFERIDO Y CALIDAD */}
+                <div className="space-y-2.5 pt-1">
+                  {/* OPCIÓN DIFERIR LITROS */}
+                  <div
+                    onClick={() => setFormFinca({ ...formFinca, esDiferido: !formFinca.esDiferido })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formFinca.esDiferido
+                        ? 'bg-amber-50/90 border-amber-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
                   >
-                    <option value="VACA">🥛 Leche de Vaca</option>
-                    <option value="BUFALA">🐃 Leche de Búfala</option>
-                  </select>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formFinca.esDiferido}
+                        onChange={(e) => setFormFinca({ ...formFinca, esDiferido: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                            Diferir Litros para el Siguiente Ciclo
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formFinca.esDiferido ? 'bg-amber-200 text-amber-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formFinca.esDiferido ? 'Diferido Activo' : 'Liquidación Normal'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Suma de inmediato al volumen de leche recolectada del camión en ruta, pero <strong>pospone el cálculo de pago</strong> para la liquidación de la próxima semana.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* OPCIÓN LECHE ÁCIDA */}
+                  <div
+                    onClick={() => setFormFinca({ ...formFinca, esAcida: !formFinca.esAcida })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formFinca.esAcida
+                        ? 'bg-rose-50/90 border-rose-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formFinca.esAcida}
+                        onChange={(e) => setFormFinca({ ...formFinca, esAcida: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-rose-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                            ¿Es Leche Ácida / Deteriorada?
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formFinca.esAcida ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formFinca.esAcida ? 'Leche Ácida' : 'Leche Dulce'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Aplica tarifa especial de leche ácida y marca la parada para recepción segregada en silo o receptoría.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. OBSERVACIONES */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <i className="fa-regular fa-comment-dots text-slate-500"></i>
+                    Observación Operativa (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formFinca.observacion}
+                    onChange={(e) => setFormFinca({ ...formFinca, observacion: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border-[1.5px] border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 text-xs text-slate-800 transition-all placeholder:text-slate-400"
+                    placeholder="Ej: Muestra tomada en caneca, recolección con retraso..."
+                  />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#b45309', fontWeight: 700, fontSize: '13px' }}>
-                  <input
-                    type="checkbox"
-                    checked={formFinca.esAcida}
-                    onChange={(e) => setFormFinca({ ...formFinca, esAcida: e.target.checked })}
-                    style={{ width: '18px', height: '18px' }}
-                  />
-                  <span>¿Es Leche Ácida / Deteriorada?</span>
-                </label>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Observación</label>
-                <input
-                  type="text"
-                  value={formFinca.observacion}
-                  onChange={(e) => setFormFinca({ ...formFinca, observacion: e.target.value })}
-                  className="form-input"
-                  placeholder="Detalles de la parada..."
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setModalRegistroFinca(false)} className="btn btn-outline">
+              {/* PIE DE ACCIONES */}
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalRegistroFinca(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
+                >
                   Cancelar
                 </button>
-                <button type="submit" disabled={guardarRecoleccionModalMutation.isPending} className="btn btn-primary" style={{ fontWeight: 800 }}>
-                  {guardarRecoleccionModalMutation.isPending ? 'Guardando...' : 'Guardar Parada'}
+                <button
+                  type="submit"
+                  disabled={guardarRecoleccionModalMutation.isPending}
+                  className="px-5 py-2 rounded-xl text-xs font-extrabold text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}
+                >
+                  {guardarRecoleccionModalMutation.isPending ? (
+                    <>
+                      <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check"></i>
+                      Guardar Parada
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -2293,18 +2506,43 @@ export const RecoleccionRutasPage: React.FC = () => {
       {/* MODAL 4: EDITAR PARADA EN FINCA (DENTRO DEL TICKET ABIERTO)               */}
       {/* ========================================================================= */}
       {modalEditarRecoleccion && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
-          <div className="content-card" style={{ width: '100%', maxWidth: '440px', padding: '24px', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                <i className="fa-solid fa-pen-to-square" style={{ color: '#2563eb', marginRight: '8px' }}></i>
-                Editar Litros de Parada
-              </h3>
-              <button type="button" onClick={() => setModalEditarRecoleccion(false)} style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}>
-                <i className="fa-solid fa-xmark"></i>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto" style={{ maxHeight: '92vh' }}>
+            {/* CABECERA */}
+            <div
+              className="p-5 flex items-center justify-between border-b border-white/10 shrink-0"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #2563eb 100%)' }}
+            >
+              <div className="flex items-center gap-3.5">
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-xl text-blue-400 shrink-0 shadow-xs"
+                  style={{
+                    background: 'rgba(37, 99, 235, 0.2)',
+                    border: '1.5px solid rgba(96, 165, 250, 0.4)',
+                  }}
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                  <h3 className="m-0 text-base font-extrabold text-white">
+                    Editar Parada de Finca
+                  </h3>
+                  <p className="m-0 text-xs text-blue-200 mt-0.5">
+                    Modificación de litros y condiciones operativas en ticket abierto
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEditarRecoleccion(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 text-2xl transition-colors cursor-pointer"
+                title="Cerrar modal"
+              >
+                &times;
               </button>
             </div>
 
+            {/* FORMULARIO EDITAR */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -2314,69 +2552,193 @@ export const RecoleccionRutasPage: React.FC = () => {
                 }
                 editarRecoleccionMutation.mutate(formEditar);
               }}
+              className="flex flex-col flex-1 overflow-hidden"
             >
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Litros Recolectados *</label>
-                <input
-                  type="number"
-                  value={formEditar.litros || ''}
-                  onChange={(e) => setFormEditar({ ...formEditar, litros: Number(e.target.value) })}
-                  className="form-input"
-                  min="1"
-                  required
-                  style={{ height: '38px', fontWeight: 800, fontSize: '16px' }}
-                />
-              </div>
+              <div className="p-5 md:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* 1. LITROS RECOLECTADOS & TIPO DE LECHE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-faucet-drip text-blue-600"></i>
+                      Litros Recolectados *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formEditar.litros || ''}
+                        onChange={(e) => setFormEditar({ ...formEditar, litros: Number(e.target.value) })}
+                        className="w-full h-11 pl-3 pr-12 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 font-mono font-black text-lg text-slate-900 transition-all"
+                        min="1"
+                        required
+                        autoFocus
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
+                        LTS
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Tipo de Leche</label>
-                <select
-                  value={formEditar.tipoLeche}
-                  onChange={(e) => setFormEditar({ ...formEditar, tipoLeche: e.target.value })}
-                  className="form-input"
-                  style={{ height: '38px', fontWeight: 700 }}
-                >
-                  <option value="VACA">🥛 Leche de Vaca</option>
-                  <option value="BUFALA">🐃 Leche de Búfala</option>
-                </select>
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-cow text-sky-600"></i>
+                      Tipo de Leche *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 h-11">
+                      <button
+                        type="button"
+                        onClick={() => setFormEditar({ ...formEditar, tipoLeche: 'VACA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formEditar.tipoLeche === 'VACA'
+                            ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>🥛</span>
+                        <span>Vaca</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormEditar({ ...formEditar, tipoLeche: 'BUFALA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formEditar.tipoLeche === 'BUFALA'
+                            ? 'bg-purple-50 border-purple-500 text-purple-800 shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>🐃</span>
+                        <span>Búfala</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#b45309', fontWeight: 700, fontSize: '13px' }}>
+                {/* 2. OPCIONES DIFERIDO Y ÁCIDA */}
+                <div className="space-y-2.5 pt-1">
+                  {/* DIFERIDO */}
+                  <div
+                    onClick={() => setFormEditar({ ...formEditar, esDiferido: !formEditar.esDiferido })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formEditar.esDiferido
+                        ? 'bg-amber-50/90 border-amber-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formEditar.esDiferido}
+                        onChange={(e) => setFormEditar({ ...formEditar, esDiferido: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                            Diferir Litros para el Siguiente Ciclo
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formEditar.esDiferido ? 'bg-amber-200 text-amber-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formEditar.esDiferido ? 'Diferido Activo' : 'Liquidación Normal'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Suma al volumen del camión, pero se liquida y paga en la semana operativa siguiente.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ÁCIDA */}
+                  <div
+                    onClick={() => setFormEditar({ ...formEditar, esAcida: !formEditar.esAcida })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formEditar.esAcida
+                        ? 'bg-rose-50/90 border-rose-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formEditar.esAcida}
+                        onChange={(e) => setFormEditar({ ...formEditar, esAcida: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-rose-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                            ¿Es Leche Ácida / Deteriorada?
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formEditar.esAcida ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formEditar.esAcida ? 'Leche Ácida' : 'Leche Dulce'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Aplica tarifa especial de leche ácida.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. OBSERVACIÓN / MOTIVO */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <i className="fa-regular fa-comment-dots text-slate-500"></i>
+                    Observación o Justificación del Ajuste
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={formEditar.esAcida}
-                    onChange={(e) => setFormEditar({ ...formEditar, esAcida: e.target.checked })}
-                    style={{ width: '18px', height: '18px' }}
+                    type="text"
+                    value={formEditar.observacion}
+                    onChange={(e) => setFormEditar({ ...formEditar, observacion: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-xs text-slate-800 transition-all placeholder:text-slate-400"
+                    placeholder="Motivo del ajuste de litros..."
                   />
-                  <span>¿Es Leche Ácida / Deteriorada?</span>
-                </label>
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Observación / Motivo</label>
-                <input
-                  type="text"
-                  value={formEditar.observacion}
-                  onChange={(e) => setFormEditar({ ...formEditar, observacion: e.target.value })}
-                  className="form-input"
-                  placeholder="Motivo del ajuste..."
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setModalEditarRecoleccion(false)} className="btn btn-outline">
+              {/* PIE */}
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalEditarRecoleccion(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
+                >
                   Cancelar
                 </button>
-                <button type="submit" disabled={editarRecoleccionMutation.isPending} className="btn btn-primary" style={{ fontWeight: 800 }}>
-                  {editarRecoleccionMutation.isPending ? 'Actualizando...' : 'Guardar Ajuste'}
+                <button
+                  type="submit"
+                  disabled={editarRecoleccionMutation.isPending}
+                  className="px-5 py-2 rounded-xl text-xs font-extrabold text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)' }}
+                >
+                  {editarRecoleccionMutation.isPending ? (
+                    <>
+                      <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check"></i>
+                      Guardar Ajuste
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
       {/* ========================================================================= */}
       {/* MODAL 5: ENVIAR A RECEPTORÍA                                              */}
       {/* ========================================================================= */}

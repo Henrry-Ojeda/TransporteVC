@@ -2,6 +2,7 @@ export interface FincaDto {
   id: number;
   codigo?: string;
   nombre: string;
+  propietario?: string;
   propietarioId?: number;
   propietarioNombre?: string;
   rutaId?: number;

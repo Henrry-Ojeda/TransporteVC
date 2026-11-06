@@ -2,6 +2,7 @@ export interface ControlRutaDto {
   id: number;
   codigoTicket?: string;
   fecha: string;
+  cicloId?: number;
   usuarioId?: number;
   nombreConductor?: string;
   camionId?: number;
@@ -49,8 +50,12 @@ export interface ControlRutaFincaDto {
   litrosLeche: number;
   temperatura?: number;
   tipoLeche?: string;
+  esAcida?: boolean;
+  esDiferido?: boolean;
+  fecha?: string;
   horaRecoleccion?: string;
   precioLitroUSD?: number;
+  observacion?: string;
 }
 
 export interface ControlRutaEntregaDto {

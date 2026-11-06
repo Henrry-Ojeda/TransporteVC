@@ -77,6 +77,7 @@ export const ViajesTicketsPage: React.FC = () => {
     fincaId: 0,
     litros: 0,
     esAcida: false,
+    esDiferido: false,
     tipoLeche: 'VACA',
     observacion: '',
     motivo: '',
@@ -89,6 +90,7 @@ export const ViajesTicketsPage: React.FC = () => {
     fincaId: 0,
     litros: 0,
     esAcida: false,
+    esDiferido: false,
     tipoLeche: 'VACA',
     observacion: '',
     motivo: '',
@@ -740,6 +742,7 @@ export const ViajesTicketsPage: React.FC = () => {
       fincaId: finca.fincaId || finca.FincaId || 0,
       litros: Number(finca.litros || finca.Litros || 0),
       esAcida: Boolean(finca.esAcida),
+      esDiferido: Boolean(finca.esDiferido || finca.EsDiferido),
       tipoLeche: (finca.tipoLeche || finca.TipoLeche || 'VACA').toUpperCase(),
       observacion: finca.observacion || '',
       motivo: '',
@@ -2502,45 +2505,66 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 7. MODAL AGREGAR FINCA AUDITADA (1:1 V2_3_11_26) */}
+      {/* 7. MODAL AGREGAR FINCA AUDITADA (REDISEÑADO CON FECHA ASOCIADA Y DIFERIDO) */}
       {modalAgregarFincaAuditada && ticketTrazabilidad && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto" style={{ maxHeight: '92vh' }}>
+            {/* CABECERA */}
             <div
-              className="px-5 py-4 flex items-center justify-between border-b border-white/10"
-              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0369a1 100%)' }}
+              className="p-5 flex items-center justify-between border-b border-white/10 shrink-0"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0369a1 100%)' }}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3.5">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-sky-400 shrink-0"
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-xl text-sky-400 shrink-0 shadow-xs"
                   style={{
                     background: 'rgba(56, 189, 248, 0.2)',
                     border: '1.5px solid rgba(56, 189, 248, 0.4)',
                   }}
                 >
-                  <i className="fa-solid fa-plus"></i>
+                  <i className="fa-solid fa-cow"></i>
                 </div>
                 <div>
-                  <h3 className="m-0 text-base font-extrabold text-white">Agregar Finca al Viaje</h3>
-                  <p className="m-0 text-xs text-sky-200 font-medium">
-                    Registro de recolección adicional en ruta
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="m-0 text-base font-extrabold text-white">
+                      Agregar Finca al Ticket #{ticketTrazabilidad.id}
+                    </h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 uppercase tracking-wider">
+                      {ticketTrazabilidad.estado || 'ABIERTO'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-sky-200">
+                    <span>
+                      <i className="fa-solid fa-user-tie text-sky-300 mr-1"></i>
+                      Chofer: <strong>{ticketTrazabilidad.nombreConductor || 'Conductor'}</strong>
+                    </span>
+                    {ticketTrazabilidad.camionPlaca && (
+                      <>
+                        <span className="text-white/40">•</span>
+                        <span>
+                          <i className="fa-solid fa-truck-moving text-sky-300 mr-1"></i>
+                          {ticketTrazabilidad.camionPlaca}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalAgregarFincaAuditada(false)}
-                className="text-slate-300 hover:text-white text-xl cursor-pointer"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 text-2xl transition-colors cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
+            {/* FORMULARIO */}
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!formFincaAuditada.fincaId || formFincaAuditada.litros <= 0) {
-                  toast.error('Selecciona la finca e indica los litros');
+                  toast.error('Selecciona la finca e indica los litros recolectados');
                   return;
                 }
 
@@ -2548,7 +2572,7 @@ export const ViajesTicketsPage: React.FC = () => {
                   title: 'Motivo de Inclusión de Finca',
                   text: 'Indique la justificación para registrar esta finca en el ticket:',
                   input: 'textarea',
-                  inputValue: 'Inclusión de recolección faltante en ruta',
+                  inputValue: 'Inclusión de recolección en ruta operativa',
                   icon: 'question',
                   showCancelButton: true,
                   confirmButtonText: 'Registrar y Guardar',
@@ -2564,8 +2588,10 @@ export const ViajesTicketsPage: React.FC = () => {
                     fincaId: formFincaAuditada.fincaId,
                     litros: formFincaAuditada.litros,
                     esAcida: formFincaAuditada.esAcida,
+                    esDiferido: formFincaAuditada.esDiferido,
                     tipoLeche: formFincaAuditada.tipoLeche,
                     observacion: formFincaAuditada.observacion || motivo,
+                    fecha: ticketTrazabilidad.fecha,
                   });
                   toast.success('Finca agregada con éxito al ticket.');
                   setModalAgregarFincaAuditada(false);
@@ -2574,104 +2600,261 @@ export const ViajesTicketsPage: React.FC = () => {
                   toast.error(err?.response?.data?.message || 'Error al agregar finca');
                 }
               }}
-              className="p-5 space-y-4 text-xs"
+              className="flex flex-col flex-1 overflow-hidden"
             >
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Finca / Ganadero *</label>
-                <SearchableSelect
-                  options={[...fincas]
-                    .sort((a, b) => {
-                      const rId = ticketTrazabilidad?.rutaLogisticaId;
-                      if (rId && rId > 0) {
-                        const aEn = a.rutaId === rId;
-                        const bEn = b.rutaId === rId;
-                        if (aEn && !bEn) return -1;
-                        if (!aEn && bEn) return 1;
-                      }
-                      return a.nombre.localeCompare(b.nombre);
-                    })
-                    .map((f) => {
-                      const esDeRuta = ticketTrazabilidad?.rutaLogisticaId && f.rutaId === ticketTrazabilidad.rutaLogisticaId;
-                      return {
-                        value: f.id,
-                        label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
-                        subLabel: f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined,
-                        badge: esDeRuta ? '⭐ En esta ruta' : undefined,
-                      };
-                    })}
-                  value={formFincaAuditada.fincaId}
-                  onChange={(val) => setFormFincaAuditada({ ...formFincaAuditada, fincaId: Number(val) })}
-                  placeholder="-- BUSCAR Y SELECCIONAR FINCA --"
-                />
-              </div>
+              <div className="p-5 md:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* 1. BANNER ELEGANTE DE FECHA OPERATIVA Y ASOCIACIÓN AL TICKET */}
+                <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border-[1.5px] border-sky-200 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                      <i className="fa-regular fa-calendar-days"></i>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Fecha de Carga / Recolección</span>
+                        <span className="text-[10px] bg-sky-200/80 text-sky-900 px-1.5 py-0.2 rounded font-bold">Asociada al Ticket</span>
+                      </div>
+                      <div className="text-sm font-extrabold text-slate-900 mt-0.5 flex items-center gap-2">
+                        <span>
+                          {ticketTrazabilidad.fecha
+                            ? new Date(ticketTrazabilidad.fecha).toLocaleDateString('es-VE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+                            : new Date().toLocaleDateString('es-VE')}
+                        </span>
+                        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          Semana #{ticketTrazabilidad.cicloId || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block text-right">
+                    <span className="text-[10.5px] font-bold text-slate-500 block">Identificador</span>
+                    <span className="font-mono text-xs font-black text-sky-700 bg-white px-2 py-0.5 rounded border border-sky-200 shadow-2xs">
+                      TKT-#{ticketTrazabilidad.id}
+                    </span>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Litros Recolectados *</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    value={formFincaAuditada.litros || ''}
-                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, litros: Number(e.target.value) })}
-                    placeholder="Ej: 500"
-                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-extrabold text-sm"
-                    required
+                {/* 2. FINCA GANADERA */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <i className="fa-solid fa-location-dot text-emerald-600"></i>
+                      Finca Ganadera *
+                    </span>
+                    {formFincaAuditada.fincaId > 0 && (
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {fincas.find((f) => f.id === formFincaAuditada.fincaId)?.propietario
+                          ? `Productor: ${fincas.find((f) => f.id === formFincaAuditada.fincaId)?.propietario}`
+                          : ''}
+                      </span>
+                    )}
+                  </label>
+                  <SearchableSelect
+                    options={[...fincas]
+                      .sort((a, b) => {
+                        const rId = ticketTrazabilidad?.rutaLogisticaId;
+                        if (rId && rId > 0) {
+                          const aEn = a.rutaId === rId;
+                          const bEn = b.rutaId === rId;
+                          if (aEn && !bEn) return -1;
+                          if (!aEn && bEn) return 1;
+                        }
+                        return a.nombre.localeCompare(b.nombre);
+                      })
+                      .map((f) => {
+                        const esDeRuta = ticketTrazabilidad?.rutaLogisticaId && f.rutaId === ticketTrazabilidad.rutaLogisticaId;
+                        return {
+                          value: f.id,
+                          label: `${f.nombre} (${f.propietarioNombre || f.propietario || 'Productor'})`,
+                          subLabel: f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined,
+                          badge: esDeRuta ? '⭐ En esta ruta' : undefined,
+                        };
+                      })}
+                    value={formFincaAuditada.fincaId}
+                    onChange={(val) => {
+                      const id = Number(val);
+                      const fMatch = fincas.find((f) => f.id === id);
+                      const esBuf = (fMatch?.tipoLeche || '').toUpperCase().includes('BUFAL');
+                      setFormFincaAuditada({
+                        ...formFincaAuditada,
+                        fincaId: id,
+                        tipoLeche: esBuf ? 'BUFALA' : (formFincaAuditada.tipoLeche || 'VACA'),
+                      });
+                    }}
+                    placeholder="-- SELECCIONAR FINCA GANADERA --"
                   />
                 </div>
 
-                <div>
-                  <label className="h-10 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-bold flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formFincaAuditada.esAcida}
-                      onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, esAcida: e.target.checked })}
-                      className="w-4 h-4 rounded text-amber-600"
-                    />
-                    ¿Leche Ácida?
-                  </label>
-                </div>
-              </div>
+                {/* 3. LITROS RECOLECTADOS & TIPO DE LECHE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-faucet-drip text-blue-600"></i>
+                      Litros Recolectados *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={formFincaAuditada.litros || ''}
+                        onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, litros: Number(e.target.value) })}
+                        placeholder="Ej: 450"
+                        className="w-full h-11 pl-3 pr-12 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 font-mono font-black text-lg text-slate-900 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                        required
+                        autoFocus
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
+                        LTS
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tipo de Leche *</label>
-                  <select
-                    value={formFincaAuditada.tipoLeche}
-                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: e.target.value })}
-                    className="form-select w-full h-10 rounded-lg border border-slate-300 px-3 font-bold bg-white text-slate-800"
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-cow text-sky-600"></i>
+                      Tipo de Leche *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 h-11">
+                      <button
+                        type="button"
+                        onClick={() => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: 'VACA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formFincaAuditada.tipoLeche === 'VACA'
+                            ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <i className="fa-solid fa-cow text-sm"></i>
+                        Vaca
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: 'BUFALA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formFincaAuditada.tipoLeche === 'BUFALA'
+                            ? 'bg-emerald-50 border-emerald-600 text-emerald-800 shadow-2xs font-extrabold ring-1 ring-emerald-500/20'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-sm">🐃</span>
+                        Búfala
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. OPCIÓN DIFERIR LITROS & LECHE ÁCIDA */}
+                <div className="space-y-2.5 pt-1">
+                  {/* CARD DIFERIR LITROS */}
+                  <div
+                    onClick={() => setFormFincaAuditada({ ...formFincaAuditada, esDiferido: !formFincaAuditada.esDiferido })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formFincaAuditada.esDiferido
+                        ? 'bg-purple-50/90 border-purple-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
                   >
-                    <option value="VACA">🥛 VACA</option>
-                    <option value="BUFALA">🐃 BÚFALA</option>
-                  </select>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formFincaAuditada.esDiferido}
+                        onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, esDiferido: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-calendar-plus text-purple-600"></i>
+                            Diferir Litros para el Siguiente Ciclo
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formFincaAuditada.esDiferido ? 'bg-purple-200 text-purple-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formFincaAuditada.esDiferido ? 'Pago en Ciclo Siguiente' : 'Ciclo Actual'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Los litros recolectados se contabilizarán en la siguiente semana operativa sin afectar la liquidación corriente de la finca.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD LECHE ÁCIDA */}
+                  <div
+                    onClick={() => setFormFincaAuditada({ ...formFincaAuditada, esAcida: !formFincaAuditada.esAcida })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formFincaAuditada.esAcida
+                        ? 'bg-rose-50/90 border-rose-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formFincaAuditada.esAcida}
+                        onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, esAcida: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-rose-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                            ¿Es Leche Ácida / Deteriorada?
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formFincaAuditada.esAcida ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formFincaAuditada.esAcida ? 'Leche Ácida' : 'Leche Dulce'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Aplica tarifa especial de leche ácida y marca la parada para recepción segregada en silo o receptoría.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Observación (Opcional)</label>
+                {/* 5. OBSERVACIONES */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <i className="fa-regular fa-comment-dots text-slate-500"></i>
+                    Observación Operativa (Opcional)
+                  </label>
                   <input
                     type="text"
                     value={formFincaAuditada.observacion}
                     onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, observacion: e.target.value })}
-                    placeholder="Nota de la ruta..."
-                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3"
+                    className="w-full h-10 px-3 rounded-xl border-[1.5px] border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 text-xs text-slate-800 transition-all placeholder:text-slate-400"
+                    placeholder="Ej: Muestra tomada en caneca, recolección con retraso..."
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200">
+              {/* PIE DE ACCIONES */}
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setModalAgregarFincaAuditada(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 border border-slate-300 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg text-xs font-bold text-white shadow-xs"
+                  className="px-5 py-2 rounded-xl text-xs font-extrabold text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer"
                   style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}
                 >
-                  <i className="fa-solid fa-plus mr-1"></i> Agregar al Viaje
+                  <i className="fa-solid fa-plus"></i>
+                  Agregar al Viaje
                 </button>
               </div>
             </form>
@@ -2679,27 +2862,35 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 8. MODAL EDITAR FINCA AUDITADA (1:1 V2_3_11_26) */}
+      {/* 8. MODAL EDITAR FINCA AUDITADA (REDISEÑADO CON FECHA ASOCIADA Y DIFERIDO) */}
       {modalEditarFincaAuditada && ticketTrazabilidad && fincaParaEditar && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto" style={{ maxHeight: '92vh' }}>
+            {/* CABECERA */}
             <div
-              className="px-5 py-4 flex items-center justify-between border-b border-white/10"
-              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+              className="p-5 flex items-center justify-between border-b border-white/10 shrink-0"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #2563eb 100%)' }}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3.5">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-sky-400 shrink-0"
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-xl text-blue-400 shrink-0 shadow-xs"
                   style={{
-                    background: 'rgba(59, 130, 246, 0.2)',
-                    border: '1.5px solid rgba(59, 130, 246, 0.4)',
+                    background: 'rgba(37, 99, 235, 0.2)',
+                    border: '1.5px solid rgba(96, 165, 250, 0.4)',
                   }}
                 >
                   <i className="fa-solid fa-pen-to-square"></i>
                 </div>
                 <div>
-                  <h3 className="m-0 text-base font-extrabold text-white">Modificar Finca en Control</h3>
-                  <p className="m-0 text-xs text-slate-400 font-medium">
+                  <div className="flex items-center gap-2">
+                    <h3 className="m-0 text-base font-extrabold text-white">
+                      Modificar Finca en Ticket #{ticketTrazabilidad.id}
+                    </h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 uppercase tracking-wider">
+                      Auditado
+                    </span>
+                  </div>
+                  <p className="m-0 mt-0.5 text-xs text-sky-200 font-medium">
                     Ajuste de recolección con registro obligatorio en bitácora
                   </p>
                 </div>
@@ -2707,129 +2898,286 @@ export const ViajesTicketsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setModalEditarFincaAuditada(false)}
-                className="text-slate-300 hover:text-white text-xl cursor-pointer"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 text-2xl transition-colors cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={handleGuardarEditarFinca} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Finca / Ganadero *</label>
-                <SearchableSelect
-                  options={[...fincas]
-                    .sort((a, b) => {
-                      const rId = ticketTrazabilidad?.rutaLogisticaId;
-                      if (rId && rId > 0) {
-                        const aEn = a.rutaId === rId;
-                        const bEn = b.rutaId === rId;
-                        if (aEn && !bEn) return -1;
-                        if (!aEn && bEn) return 1;
-                      }
-                      return a.nombre.localeCompare(b.nombre);
-                    })
-                    .map((f) => {
-                      const esDeRuta = ticketTrazabilidad?.rutaLogisticaId && f.rutaId === ticketTrazabilidad.rutaLogisticaId;
-                      return {
-                        value: f.id,
-                        label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
-                        subLabel: f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined,
-                        badge: esDeRuta ? '⭐ En esta ruta' : undefined,
-                      };
-                    })}
-                  value={formEditarFinca.fincaId}
-                  onChange={(val) => setFormEditarFinca({ ...formEditarFinca, fincaId: Number(val) })}
-                  placeholder="-- BUSCAR FINCA --"
-                />
-              </div>
+            <form onSubmit={handleGuardarEditarFinca} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-5 md:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* 1. BANNER DE FECHA OPERATIVA */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-[1.5px] border-blue-200 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                      <i className="fa-regular fa-calendar-days"></i>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Fecha del Ticket / Carga</span>
+                        <span className="text-[10px] bg-blue-200/80 text-blue-900 px-1.5 py-0.2 rounded font-bold">Asociada al Ticket</span>
+                      </div>
+                      <div className="text-sm font-extrabold text-slate-900 mt-0.5 flex items-center gap-2">
+                        <span>
+                          {ticketTrazabilidad.fecha
+                            ? new Date(ticketTrazabilidad.fecha).toLocaleDateString('es-VE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+                            : new Date().toLocaleDateString('es-VE')}
+                        </span>
+                        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          Semana #{ticketTrazabilidad.cicloId || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block text-right">
+                    <span className="text-[10.5px] font-bold text-slate-500 block">Identificador</span>
+                    <span className="font-mono text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
+                      TKT-#{ticketTrazabilidad.id}
+                    </span>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Litros Recolectados *</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    value={formEditarFinca.litros || ''}
-                    onChange={(e) => setFormEditarFinca({ ...formEditarFinca, litros: Number(e.target.value) })}
-                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-extrabold text-sm"
-                    required
+                {/* 2. FINCA GANADERA */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <i className="fa-solid fa-location-dot text-emerald-600"></i>
+                      Finca Ganadera *
+                    </span>
+                    {formEditarFinca.fincaId > 0 && (
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {fincas.find((f) => f.id === formEditarFinca.fincaId)?.propietario
+                          ? `Productor: ${fincas.find((f) => f.id === formEditarFinca.fincaId)?.propietario}`
+                          : ''}
+                      </span>
+                    )}
+                  </label>
+                  <SearchableSelect
+                    options={[...fincas]
+                      .sort((a, b) => {
+                        const rId = ticketTrazabilidad?.rutaLogisticaId;
+                        if (rId && rId > 0) {
+                          const aEn = a.rutaId === rId;
+                          const bEn = b.rutaId === rId;
+                          if (aEn && !bEn) return -1;
+                          if (!aEn && bEn) return 1;
+                        }
+                        return a.nombre.localeCompare(b.nombre);
+                      })
+                      .map((f) => {
+                        const esDeRuta = ticketTrazabilidad?.rutaLogisticaId && f.rutaId === ticketTrazabilidad.rutaLogisticaId;
+                        return {
+                          value: f.id,
+                          label: `${f.nombre} (${f.propietarioNombre || f.propietario || 'Productor'})`,
+                          subLabel: f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined,
+                          badge: esDeRuta ? '⭐ En esta ruta' : undefined,
+                        };
+                      })}
+                    value={formEditarFinca.fincaId}
+                    onChange={(val) => {
+                      const id = Number(val);
+                      const fMatch = fincas.find((f) => f.id === id);
+                      const esBuf = (fMatch?.tipoLeche || '').toUpperCase().includes('BUFAL');
+                      setFormEditarFinca({
+                        ...formEditarFinca,
+                        fincaId: id,
+                        tipoLeche: esBuf ? 'BUFALA' : (formEditarFinca.tipoLeche || 'VACA'),
+                      });
+                    }}
+                    placeholder="-- BUSCAR FINCA --"
                   />
                 </div>
 
-                <div>
-                  <label className="h-10 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-bold flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formEditarFinca.esAcida}
-                      onChange={(e) => setFormEditarFinca({ ...formEditarFinca, esAcida: e.target.checked })}
-                      className="w-4 h-4 rounded text-amber-600"
-                    />
-                    ¿Leche Ácida?
-                  </label>
-                </div>
-              </div>
+                {/* 3. LITROS RECOLECTADOS & TIPO DE LECHE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-faucet-drip text-blue-600"></i>
+                      Litros Recolectados *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={formEditarFinca.litros || ''}
+                        onChange={(e) => setFormEditarFinca({ ...formEditarFinca, litros: Number(e.target.value) })}
+                        className="w-full h-11 pl-3 pr-12 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 font-mono font-black text-lg text-slate-900 transition-all"
+                        required
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
+                        LTS
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tipo de Leche *</label>
-                  <select
-                    value={formEditarFinca.tipoLeche}
-                    onChange={(e) => setFormEditarFinca({ ...formEditarFinca, tipoLeche: e.target.value })}
-                    className="form-select w-full h-10 rounded-lg border border-slate-300 px-3 font-bold bg-white text-slate-800"
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <i className="fa-solid fa-cow text-sky-600"></i>
+                      Tipo de Leche *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 h-11">
+                      <button
+                        type="button"
+                        onClick={() => setFormEditarFinca({ ...formEditarFinca, tipoLeche: 'VACA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formEditarFinca.tipoLeche === 'VACA'
+                            ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <i className="fa-solid fa-cow text-sm"></i>
+                        Vaca
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormEditarFinca({ ...formEditarFinca, tipoLeche: 'BUFALA' })}
+                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          formEditarFinca.tipoLeche === 'BUFALA'
+                            ? 'bg-emerald-50 border-emerald-600 text-emerald-800 shadow-2xs font-extrabold ring-1 ring-emerald-500/20'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-sm">🐃</span>
+                        Búfala
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. OPCIÓN DIFERIR LITROS & LECHE ÁCIDA */}
+                <div className="space-y-2.5 pt-1">
+                  {/* CARD DIFERIR LITROS */}
+                  <div
+                    onClick={() => setFormEditarFinca({ ...formEditarFinca, esDiferido: !formEditarFinca.esDiferido })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formEditarFinca.esDiferido
+                        ? 'bg-purple-50/90 border-purple-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
                   >
-                    <option value="VACA">🥛 VACA</option>
-                    <option value="BUFALA">🐃 BÚFALA</option>
-                  </select>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formEditarFinca.esDiferido}
+                        onChange={(e) => setFormEditarFinca({ ...formEditarFinca, esDiferido: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-calendar-plus text-purple-600"></i>
+                            Diferir Litros para el Siguiente Ciclo
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formEditarFinca.esDiferido ? 'bg-purple-200 text-purple-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formEditarFinca.esDiferido ? 'Pago en Ciclo Siguiente' : 'Ciclo Actual'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Los litros recolectados se contabilizarán en la siguiente semana operativa sin afectar la liquidación corriente de la finca.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD LECHE ÁCIDA */}
+                  <div
+                    onClick={() => setFormEditarFinca({ ...formEditarFinca, esAcida: !formEditarFinca.esAcida })}
+                    className={`p-3.5 rounded-xl border-[1.5px] transition-all cursor-pointer select-none ${
+                      formEditarFinca.esAcida
+                        ? 'bg-rose-50/90 border-rose-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={formEditarFinca.esAcida}
+                        onChange={(e) => setFormEditarFinca({ ...formEditarFinca, esAcida: e.target.checked })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 mt-0.5 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-rose-950 flex items-center gap-1.5">
+                            <i className="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                            ¿Es Leche Ácida / Deteriorada?
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              formEditarFinca.esAcida ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {formEditarFinca.esAcida ? 'Leche Ácida' : 'Leche Dulce'}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 m-0 mt-1 leading-snug">
+                          Aplica tarifa especial de leche ácida y segrega la carga en receptoría.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Observación</label>
+                {/* 5. OBSERVACIONES */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <i className="fa-regular fa-comment-dots text-slate-500"></i>
+                    Observación (Opcional)
+                  </label>
                   <input
                     type="text"
                     value={formEditarFinca.observacion}
                     onChange={(e) => setFormEditarFinca({ ...formEditarFinca, observacion: e.target.value })}
-                    placeholder="Nota de la ruta..."
-                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3"
+                    placeholder="Nota operativa de la modificación..."
+                    className="w-full h-10 px-3 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-xs text-slate-800 transition-all"
+                  />
+                </div>
+
+                {/* 6. MOTIVO OBLIGATORIO DE MODIFICACIÓN */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                    <i className="fa-solid fa-shield-halved text-amber-600"></i>
+                    Motivo de la Modificación (Obligatorio para Bitácora de Auditoría) *
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formEditarFinca.motivo}
+                    onChange={(e) => setFormEditarFinca({ ...formEditarFinca, motivo: e.target.value })}
+                    placeholder="Explique detalladamente la razón contable/operativa del ajuste..."
+                    className="w-full p-2.5 rounded-xl border-[1.5px] border-amber-300 bg-amber-50/40 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-xs font-medium text-slate-800 transition-all placeholder:text-slate-400"
+                    required
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-amber-800 mb-1">
-                  Motivo de la Modificación (Obligatorio para Auditoría) *
-                </label>
-                <textarea
-                  rows={2}
-                  value={formEditarFinca.motivo}
-                  onChange={(e) => setFormEditarFinca({ ...formEditarFinca, motivo: e.target.value })}
-                  placeholder="Explique detalladamente la razón contable/operativa del ajuste..."
-                  className="form-textarea w-full rounded-lg border border-amber-300 bg-amber-50/50 p-2 text-xs font-medium"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200">
+              {/* PIE DE ACCIONES */}
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setModalEditarFincaAuditada(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 border border-slate-300 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg text-xs font-bold text-white shadow-xs"
+                  className="px-5 py-2 rounded-xl text-xs font-extrabold text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer"
                   style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}
                 >
-                  <i className="fa-solid fa-check mr-1"></i> Guardar Cambios
+                  <i className="fa-solid fa-check"></i>
+                  Guardar Cambios
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
       {/* 9. MODAL EDITAR ENTREGA AUDITADA (1:1 V2_3_11_26) */}
       {modalEditarEntregaAuditada && ticketTrazabilidad && entregaParaEditar && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">

@@ -623,6 +623,7 @@ namespace Transporte.Infrastructure.Repositories
             string? observacionFinal = dto.Observacion ?? (string?)ruta.Observacion;
 
             bool esAcidaFinal = dto.EsAcida ?? (bool)ruta.EsAcida;
+            bool esDiferidoFinal = dto.EsDiferido ?? (bool)(ruta.EsDiferido ?? false);
             string tipoLecheFinal = !string.IsNullOrWhiteSpace(dto.TipoLeche)
                 ? dto.TipoLeche.Trim().ToUpper()
                 : ((string?)ruta.TipoLeche ?? "VACA");
@@ -645,6 +646,7 @@ namespace Transporte.Infrastructure.Repositories
                     UsuarioId = @conductorFinal,
                     Fecha = @fechaFinal,
                     EsAcida = @esAcidaFinal,
+                    EsDiferido = @esDiferidoFinal,
                     TipoLeche = @tipoLecheFinal,
                     PrecioLitroUSDAplicado = @precioAplicado,
                     Observacion = @observacionFinal,
@@ -659,6 +661,7 @@ namespace Transporte.Infrastructure.Repositories
                 conductorFinal,
                 fechaFinal,
                 esAcidaFinal,
+                esDiferidoFinal,
                 tipoLecheFinal,
                 precioAplicado,
                 observacionFinal,
@@ -8488,20 +8491,26 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             var tasaActual = await connection.ExecuteScalarAsync<decimal?>("SELECT TOP 1 TasaDolarBs FROM TB_HISTORIAL_BCV ORDER BY Fecha DESC") ?? 1.0m;
             decimal precioAplicado = dto.EsAcida ? (decimal)(finca.PrecioLitroAcidaUSD ?? finca.PrecioLitroUSD ?? 0.0m) : (decimal)(finca.PrecioLitroUSD ?? 0.0m);
 
+            DateTime fechaEfectiva = dto.Fecha ?? (DateTime)viaje.Fecha;
+            string tipoLecheEfectivo = string.IsNullOrWhiteSpace(dto.TipoLeche) ? "VACA" : dto.TipoLeche.ToUpper();
+            bool esDiferidoEfectivo = dto.EsDiferido;
+
             var sqlInsertRuta = @"
                 INSERT INTO TB_RUTAS_RECOLECCION
-                (CicloId, Fecha, FincaId, UsuarioId, Litros, EsAcida, PrecioLitroUSDAplicado, TasaDolarBsAplicada, UuidLocal, Observacion, ControlRutaId, CreatedAt, CreatedBy)
-                VALUES (@cicloId, @fecha, @fincaId, @choferId, @litros, @esAcida, @precioAplicado, @tasaActual, @uuidLocal, @observacion, @controlRutaId, GETDATE(), @usuarioId);
+                (CicloId, Fecha, FincaId, UsuarioId, Litros, EsAcida, TipoLeche, EsDiferido, PrecioLitroUSDAplicado, TasaDolarBsAplicada, UuidLocal, Observacion, ControlRutaId, CreatedAt, CreatedBy)
+                VALUES (@cicloId, @fecha, @fincaId, @choferId, @litros, @esAcida, @tipoLeche, @esDiferido, @precioAplicado, @tasaActual, @uuidLocal, @observacion, @controlRutaId, GETDATE(), @usuarioId);
                 SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
             var nuevaRutaId = await connection.ExecuteScalarAsync<long>(sqlInsertRuta, new
             {
                 cicloId = (int?)viaje.CicloId,
-                fecha = (DateTime)viaje.Fecha,
+                fecha = fechaEfectiva,
                 fincaId = dto.FincaId,
                 choferId = (int)viaje.UsuarioId,
                 litros = dto.Litros,
                 esAcida = dto.EsAcida,
+                tipoLeche = tipoLecheEfectivo,
+                esDiferido = esDiferidoEfectivo,
                 precioAplicado,
                 tasaActual,
                 uuidLocal = Guid.NewGuid().ToString(),
@@ -9838,8 +9847,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 precioAplicado = (decimal)(fincaNueva.PrecioLitroUSD ?? 0.3500m);
             }
 
-            string valAnt = $"Finca: {rutaActual.FincaNombre} (ID: {rutaActual.FincaId}), Tipo: {rutaActual.TipoLeche ?? "VACA"}, Litros: {rutaActual.Litros}, EsAcida: {((bool)rutaActual.EsAcida ? "SI" : "NO")}, Obs: {rutaActual.Observacion ?? "-"}";
-            string valNue = $"Finca: {fincaNueva.Nombre} (ID: {dto.FincaId}), Tipo: {tipoLeche}, Litros: {dto.Litros}, EsAcida: {(dto.EsAcida ? "SI" : "NO")}, Obs: {dto.Observacion ?? "-"}";
+            string valAnt = $"Finca: {rutaActual.FincaNombre} (ID: {rutaActual.FincaId}), Tipo: {rutaActual.TipoLeche ?? "VACA"}, Litros: {rutaActual.Litros}, EsAcida: {((bool)rutaActual.EsAcida ? "SI" : "NO")}, Diferido: {((bool)(rutaActual.EsDiferido ?? false) ? "SI" : "NO")}, Obs: {rutaActual.Observacion ?? "-"}";
+            string valNue = $"Finca: {fincaNueva.Nombre} (ID: {dto.FincaId}), Tipo: {tipoLeche}, Litros: {dto.Litros}, EsAcida: {(dto.EsAcida ? "SI" : "NO")}, Diferido: {(dto.EsDiferido ? "SI" : "NO")}, Obs: {dto.Observacion ?? "-"}";
 
             // 1. Actualizar la recolección
             await connection.ExecuteAsync(@"
@@ -9847,13 +9856,14 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 SET FincaId = @FincaId,
                     Litros = @Litros,
                     EsAcida = @EsAcida,
+                    EsDiferido = @EsDiferido,
                     TipoLeche = @tipoLeche,
                     PrecioLitroUSDAplicado = @precioAplicado,
                     Observacion = @Observacion,
                     ModifiedAt = GETDATE(),
                     ModifiedBy = @usuarioId
                 WHERE Id = @rutaId",
-                new { dto.FincaId, dto.Litros, dto.EsAcida, tipoLeche, precioAplicado, dto.Observacion, usuarioId, rutaId });
+                new { dto.FincaId, dto.Litros, dto.EsAcida, dto.EsDiferido, tipoLeche, precioAplicado, dto.Observacion, usuarioId, rutaId });
 
             // 2. Registrar en Bitácora de Auditoría
             await connection.ExecuteAsync(@"

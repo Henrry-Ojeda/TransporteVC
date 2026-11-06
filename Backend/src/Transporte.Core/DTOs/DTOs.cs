@@ -450,6 +450,7 @@ namespace Transporte.Core.DTOs
         public int? FincaId { get; set; }
         public bool? EsAcida { get; set; }
         public string? TipoLeche { get; set; }
+        public bool? EsDiferido { get; set; }
         public decimal? PrecioLitroUSDAplicado { get; set; }
         public string? Observacion { get; set; }
     }
@@ -1386,6 +1387,9 @@ namespace Transporte.Core.DTOs
         public int FincaId { get; set; }
         public int Litros { get; set; }
         public bool EsAcida { get; set; } = false;
+        public string? TipoLeche { get; set; } = "VACA";
+        public bool EsDiferido { get; set; } = false;
+        public DateTime? Fecha { get; set; }
         public int? NumeroCompartimiento { get; set; }
         public string? Observacion { get; set; }
     }
@@ -1540,6 +1544,7 @@ namespace Transporte.Core.DTOs
         public int Litros { get; set; }
         public bool EsAcida { get; set; }
         public string? TipoLeche { get; set; }
+        public bool EsDiferido { get; set; } = false;
         public string? Observacion { get; set; }
         public string Motivo { get; set; } = string.Empty;
     }
