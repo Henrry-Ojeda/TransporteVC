@@ -142,7 +142,7 @@ namespace Transporte.API.Multitenancy
             try
             {
                 string sqlHost = IsRunningInDocker ? "sql_instancia" : (OperatingSystem.IsLinux() ? "127.0.0.1" : "84.247.178.194");
-                string masterConn = $"Server=tcp:{sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;Connect Timeout=3;Pooling=true;";
+                string masterConn = $"Server=tcp:{sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;Connect Timeout=10;Pooling=true;";
                 using var db = new SqlConnection(masterConn);
                 
                 var emp = db.QueryFirstOrDefault<dynamic>(
@@ -188,21 +188,34 @@ namespace Transporte.API.Multitenancy
                 _logger.LogWarning("Fallback a conexión local para host {Host}: {Msg}", host, ex.Message);
             }
 
-            string fallbackConn = _configuration.GetConnectionString("DefaultConnection") 
-                ?? "Server=sql_instancia,1433;Database=DB_PROD_CAMPO_VERDE;User Id=user_campoverde;Password=Campo_Verde_2026!;TrustServerCertificate=True;";
-            
+            // Fallback inteligente según el subdominio/host solicitado para evitar contaminación cruzada de tenants
+            bool isVergel = host.Contains("vergel", StringComparison.OrdinalIgnoreCase);
+            bool isBase = host.Contains("base", StringComparison.OrdinalIgnoreCase);
+
+            string fallbackDb = isVergel 
+                ? "DB_PROD_TRANSPORTE_VERGEL_CARRILLO" 
+                : (isBase ? "DB_PRODUCTO_BASE" : "DB_PROD_CAMPO_VERDE");
+
+            string fallbackUser = (isVergel || isBase) ? "sa" : "user_campoverde";
+            string fallbackPass = (isVergel || isBase) ? "sql_HO_2026!" : "Campo_Verde_2026!";
+
+            string sqlInstHost = IsRunningInDocker ? "sql_instancia" : "127.0.0.1";
+            string fallbackConn = $"Server=tcp:{sqlInstHost},1433;Database={fallbackDb};User Id={fallbackUser};Password={fallbackPass};TrustServerCertificate=True;Encrypt=False;Connect Timeout=5;Pooling=true;";
+
             _currentTenant = new TenantInfo
             {
-                Codigo = "CAMPO_VERDE",
-                Nombre = "Lácteos Campo Verde, C.A.",
+                Codigo = isVergel ? "VERGEL_CARRILLO" : (isBase ? "PRODUCTO_BASE" : "CAMPO_VERDE"),
+                Nombre = isVergel 
+                    ? "Transporte Vergel & Carrillo" 
+                    : (isBase ? "Sistema Transporte V2 (Producto Base Demo)" : "Productos Lácteos Campo Verde, C.A."),
                 ConnectionString = AdjustConnectionStringForEnvironment(fallbackConn),
                 Estado = "ACTIVA",
                 FechaVencimiento = DateTime.UtcNow.AddYears(1),
                 Modulos = new List<string> { "MOD_DASHBOARD", "MOD_LECHE_VACA", "MOD_LECHE_BUFALA", "MOD_LOGISTICA_RUTAS", "MOD_RECEPTORIA", "MOD_COMBUSTIBLE", "MOD_MANTENIMIENTO", "MOD_REPUESTOS", "MOD_LIQUIDACIONES", "MOD_HISTORIAL_BCV" }
             };
 
-            // Cachear fallback por 10 minutos para evitar reintentos continuos y congelamientos
-            _tenantCache[host] = (_currentTenant, DateTime.UtcNow);
+            // Cachear fallback por 15 segundos para reintentar prontamente la conexión con DB_SAAS_MASTER
+            _tenantCache[host] = (_currentTenant, DateTime.UtcNow.AddMinutes(-9.75));
         }
 
         private static void cleanHost(ref string host)

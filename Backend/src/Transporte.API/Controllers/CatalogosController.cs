@@ -376,7 +376,6 @@ namespace Transporte.API.Controllers
         // ==========================================
         [HttpGet("empresa")]
         [HttpGet("/api/empresa")]
-        [HttpGet("/api/catalogos/empresa")]
         [AllowAnonymous]
         public async Task<IActionResult> ObtenerEmpresaConfig()
         {
@@ -388,8 +387,6 @@ namespace Transporte.API.Controllers
         [HttpPost("empresa")]
         [HttpPut("/api/empresa")]
         [HttpPost("/api/empresa")]
-        [HttpPut("/api/catalogos/empresa")]
-        [HttpPost("/api/catalogos/empresa")]
         [Authorize]
         public async Task<IActionResult> GuardarEmpresaConfig([FromBody] EmpresaConfigDto dto)
         {

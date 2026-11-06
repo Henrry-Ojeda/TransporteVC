@@ -232,7 +232,6 @@ namespace Transporte.Core.DTOs
         public string Nombre { get; set; } = string.Empty;
         public string NombreCompleto => Nombre;
         public string? CedulaRIF { get; set; }
-        public string? CedulaRif => CedulaRIF;
         public string? Telefono { get; set; }
         public string? Email { get; set; }
         public int? BancoId { get; set; }

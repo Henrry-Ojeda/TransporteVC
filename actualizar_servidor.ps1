@@ -18,3 +18,4 @@ ssh -t root@84.247.178.194 "unzip -o /opt/Transporte.API.zip -d /opt/transporte-
 Write-Host "`n========================================================" -ForegroundColor Green
 Write-Host "  PROCESO COMPLETADO EXITOSAMENTE" -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green
+

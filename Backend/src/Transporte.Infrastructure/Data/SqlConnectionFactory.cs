@@ -26,6 +26,10 @@ public class SqlConnectionFactory : IDbConnectionFactory
     public IDbConnection CreateConnection()
     {
         var connStr = _tenantService?.GetConnectionString() ?? _fallbackConnectionString!;
+        if (File.Exists("/.dockerenv") || string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            connStr = connStr.Replace("84.247.178.194", "sql_instancia").Replace("127.0.0.1", "sql_instancia");
+        }
         return new SqlConnection(connStr);
     }
 }
