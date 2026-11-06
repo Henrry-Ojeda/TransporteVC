@@ -1,40 +1,87 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
+import {
+  ClipboardCheck,
+  PlusCircle,
+  FileSpreadsheet,
+  Printer,
+  RotateCw,
+  Ticket as TicketIcon,
+  Warehouse,
+  TrendingDown,
+  Truck,
+  CheckCircle2,
+  Calendar,
+  User,
+  FilterX,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Clock,
+  ArrowRightLeft,
+  RotateCcw,
+  Trash2,
+  X,
+  Search,
+} from 'lucide-react';
 import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { CamionSelect, ChoferSelect } from '@/components/selectors';
-import Swal from 'sweetalert2';
+import { useAuth } from '@/hooks/useAuth';
 import type { ControlRutaDto, CamionDto, RutaLogisticaDto, FincaDto, CompaniaDto } from '@/types';
 
 export const ViajesTicketsPage: React.FC = () => {
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
-  // Vista activa: 'tickets' por defecto (con las 4 tarjetas y tabla exacta de V2_3_11_26) | 'timelapse'
-  const [activeTab, setActiveTab] = useState<'tickets' | 'timelapse'>('tickets');
+  // Filtros de fecha (por defecto últimos 30 días como en V2_3_11_26)
+  const [fechaDesde, setFechaDesde] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [fechaHasta, setFechaHasta] = useState(() => new Date().toISOString().split('T')[0]);
+  const [filtroChoferId, setFiltroChoferId] = useState<string>('');
+  const [filtroOrigen, setFiltroOrigen] = useState<string>('');
+  const [filtroProceso, setFiltroProceso] = useState<string>('');
+
+  // Filas expandidas (Set de row keys)
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Set<string>>(new Set());
 
   // Modales
   const [modalIniciar, setModalIniciar] = useState(false);
-  const [modalDetalle, setModalDetalle] = useState(false);
-  const [viajeSeleccionado, setViajeSeleccionado] = useState<ControlRutaDto | null>(null);
+  const [modalEditar, setModalEditar] = useState(false);
+  const [ticketParaEditar, setTicketParaEditar] = useState<any | null>(null);
 
-  // Stock inicial en tanques para tarjeta de auditoría
-  const [stockInicial, setStockInicial] = useState<number>(0);
-  const [modalStockInicial, setModalStockInicial] = useState(false);
-  const [nuevoStockInicialInput, setNuevoStockInicialInput] = useState<number>(0);
+  // Modal Trazabilidad
+  const [modalTrazabilidad, setModalTrazabilidad] = useState(false);
+  const [ticketTrazabilidad, setTicketTrazabilidad] = useState<any | null>(null);
+  const [tabTrazabilidad, setTabTrazabilidad] = useState<'fincas' | 'despacho' | 'entregas' | 'timeline' | 'logs'>('fincas');
 
-  // Estados para timelapse
-  const [timelapseViajeId, setTimelapseViajeId] = useState<number | null>(null);
-  const [fechaMonitoreo, setFechaMonitoreo] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  // Modal Traspaso
+  const [modalTraspaso, setModalTraspaso] = useState(false);
+  const [ticketParaTraspaso, setTicketParaTraspaso] = useState<any | null>(null);
+  const [formTraspaso, setFormTraspaso] = useState({
+    choferDestinoId: 0,
+    litrosTraspaso: 0,
+    observacion: '',
+  });
 
-  // Estados formularios modales
-  const [modalAgregarFinca, setModalAgregarFinca] = useState(false);
-  const [modalEntrega, setModalEntrega] = useState(false);
-  const [modalCerrar, setModalCerrar] = useState(false);
+  // Modal Agregar Finca Auditada
+  const [modalAgregarFincaAuditada, setModalAgregarFincaAuditada] = useState(false);
+  const [formFincaAuditada, setFormFincaAuditada] = useState({
+    fincaId: 0,
+    litros: 0,
+    esAcida: false,
+    tipoLeche: 'VACA',
+    observacion: '',
+  });
 
-  // Formulario iniciar viaje (con soporte para múltiples rutas)
+  // Formulario iniciar nuevo viaje
   const [formIniciar, setFormIniciar] = useState({
     fecha: new Date().toISOString().split('T')[0],
     camionId: 0,
@@ -45,35 +92,35 @@ export const ViajesTicketsPage: React.FC = () => {
     observaciones: '',
   });
 
-  const [formFinca, setFormFinca] = useState({
-    fincaId: 0,
-    litrosLeche: 0,
-    temperatura: 4,
-    tipoLeche: 'VACA',
+  // Queries
+  const {
+    data: viajesRutas = [],
+    isLoading: isLoadingRutas,
+    refetch: refetchRutas,
+  } = useQuery<ControlRutaDto[]>({
+    queryKey: ['control-rutas', fechaDesde, fechaHasta],
+    queryFn: () => operacionesApi.getControles(undefined, undefined, undefined, fechaDesde, fechaHasta),
+    refetchInterval: 10000,
   });
 
-  const [formEntrega, setFormEntrega] = useState({
-    companiaId: 0,
-    litrosEntregados: 0,
-    ticketReceptoria: '',
-    observaciones: '',
-  });
-
-  const [formCerrar, setFormCerrar] = useState({
-    odometroFinalKm: 0,
-    observaciones: '',
-  });
-
-  // Queries en tiempo real (auto-refresco cada 8 segundos)
-  const { data: viajes = [], isLoading, refetch } = useQuery<ControlRutaDto[]>({
-    queryKey: ['viajes-controles'],
-    queryFn: () => operacionesApi.getControles(),
-    refetchInterval: 8000,
+  const {
+    data: despachosComp = [],
+    isLoading: isLoadingComp,
+    refetch: refetchComp,
+  } = useQuery<any[]>({
+    queryKey: ['control-companias', fechaDesde, fechaHasta],
+    queryFn: () => operacionesApi.getDespachosCompanias(undefined, undefined, fechaDesde, fechaHasta),
+    refetchInterval: 10000,
   });
 
   const { data: camiones = [] } = useQuery<CamionDto[]>({
     queryKey: ['camiones'],
     queryFn: () => catalogosApi.getCamiones(true),
+  });
+
+  const { data: choferes = [] } = useQuery<any[]>({
+    queryKey: ['conductores'],
+    queryFn: () => catalogosApi.getChoferes(),
   });
 
   const { data: rutasLogistica = [] } = useQuery<RutaLogisticaDto[]>({
@@ -91,235 +138,266 @@ export const ViajesTicketsPage: React.FC = () => {
     queryFn: () => catalogosApi.getCompanias(true),
   });
 
-  // Camión seleccionado en el formulario de inicio
-  const camionSeleccionadoEnInicio = useMemo(() => {
-    return camiones.find((c) => c.id === formIniciar.camionId) || null;
-  }, [camiones, formIniciar.camionId]);
+  // Query fincas y entregas para el modal de trazabilidad o fila expandida
+  const ticketTrazabilidadId = ticketTrazabilidad?.id;
+  const esRutaTrazabilidad = ticketTrazabilidad?._origen === 'RUTA';
 
-  // Cálculo en vivo de capacidad y litros de las múltiples rutas seleccionadas en iniciar viaje
-  const calculoCisternaInicio = useMemo(() => {
-    const capacidadCisterna = camionSeleccionadoEnInicio?.capacidadLitros || 0;
-    
-    // Fincas pertenecientes a las rutas seleccionadas
-    const rutasElegidas = rutasLogistica.filter((r) =>
-      formIniciar.rutasLogisticasIds.includes(r.id)
-    );
+  const { data: fincasTrazabilidad = [], refetch: refetchFincasTraz } = useQuery({
+    queryKey: ['fincas-ticket', ticketTrazabilidadId],
+    queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getFincasViaje(ticketTrazabilidadId) : []),
+    enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
+  });
 
-    let litrosEstimados = 0;
-    let totalFincasEstimadas = 0;
+  const { data: entregasTrazabilidad = [] } = useQuery({
+    queryKey: ['entregas-ticket', ticketTrazabilidadId],
+    queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getEntregasViaje(ticketTrazabilidadId) : []),
+    enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
+  });
 
-    rutasElegidas.forEach((r) => {
-      totalFincasEstimadas += r.totalFincas || (r.fincas ? r.fincas.length : 0);
-      if (r.totalLitrosEstimados && r.totalLitrosEstimados > 0) {
-        litrosEstimados += r.totalLitrosEstimados;
+  const { data: historialTrazabilidad = [] } = useQuery({
+    queryKey: ['historial-ticket', ticketTrazabilidadId],
+    queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getHistorialViaje(ticketTrazabilidadId) : []),
+    enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
+  });
+
+  const { data: logsTrazabilidad = [] } = useQuery({
+    queryKey: ['logs-ticket', ticketTrazabilidadId],
+    queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getLogsModificacionesViaje(ticketTrazabilidadId) : []),
+    enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
+  });
+
+  // Normalización de datos 1:1 con app.js de V2_3_11_26
+  const dataConsolidada = useMemo(() => {
+    // Normalizar Rutas
+    const listRutas = (viajesRutas || []).map((r) => {
+      const pId = Number(r.procesoActualId || (r.estadoProceso === 'CERRADO' || r.estado === 'FINALIZADO' ? 4 : 1));
+      const ltsFinca = Number(r.totalLitrosFinca ?? r.totalLitrosRecogidos ?? 0);
+      const ltsRec = Number(r.totalLitrosReceptoria ?? (r as any).litrosRecibidosReceptoria ?? r.litrosEntregadosCompania ?? ltsFinca);
+      const dif = Number(r.diferenciaLitros ?? (r as any).diferenciaReceptoria ?? (ltsRec - ltsFinca));
+      const pct = ltsFinca > 0 ? (Math.abs(dif) / ltsFinca) * 100 : 0;
+
+      return {
+        ...r,
+        _rowKey: `RUTA_${r.id}`,
+        _origen: 'RUTA',
+        _tipoLabel: 'RUTA',
+        _tipoColor: '#0284c7',
+        _tipoBg: '#e0f2fe',
+        procesoActualId: pId,
+        totalLitrosFinca: ltsFinca,
+        totalLitrosReceptoria: ltsRec,
+        diferenciaLitros: dif,
+        mermaTotalLitros: dif,
+        porcentajeMerma: pct,
+        nombreConductor: r.nombreConductor || r.choferNombre || 'Conductor',
+        nombreCompaniaDestino: (r as any).nombreCompaniaDestino || (r as any).companiaNombre || (r as any).tipoDestino || 'Receptoría',
+        totalFincas: (r as any).totalFincas || (r as any).fincasCount || 0,
+      };
+    });
+
+    // Normalizar Salidas a Compañía / Receptoría
+    const listComp = (despachosComp || []).map((c) => {
+      const esSubTicket = c.controlRutaId != null && Number(c.controlRutaId) > 0;
+      const parentId = esSubTicket ? Number(c.controlRutaId) : null;
+      const stUpper = (c.estado || '').toUpperCase();
+      const pId = stUpper === 'FINALIZADO' ? 4 : stUpper === 'CAMINO A COMPAÑIA' || stUpper === 'EN VIA' ? 3 : 1;
+      const ltsDesp = Number(c.litrosDespachados || 0);
+      const ltsRec = c.litrosRecibidosCompania != null ? Number(c.litrosRecibidosCompania) : ltsDesp;
+      const dif = c.diferenciaLitros != null ? Number(c.diferenciaLitros) : ltsDesp - ltsRec;
+      const pct = c.porcentajeMerma != null ? Number(c.porcentajeMerma) : ltsDesp > 0 ? (Math.abs(dif) / ltsDesp) * 100 : 0;
+      const origen = esSubTicket ? 'SUB_DESPACHO' : 'RECEPTORIA';
+
+      return {
+        ...c,
+        _rowKey: `${origen}_${c.id}`,
+        _origen: origen,
+        _esSubTicket: esSubTicket,
+        _parentTicketId: parentId,
+        _tipoLabel: esSubTicket ? `SUB-TICKET #${c.id}` : 'PLANTA',
+        _tipoColor: esSubTicket ? '#7e22ce' : '#9333ea',
+        _tipoBg: esSubTicket ? '#f3e8ff' : '#faf5ff',
+        procesoActualId: pId,
+        totalLitrosFinca: ltsDesp,
+        totalLitrosReceptoria: ltsRec,
+        diferenciaLitros: dif,
+        diferenciaReceptoria: dif,
+        mermaTotalLitros: dif,
+        porcentajeMerma: pct,
+        nombreConductor: c.nombreUsuario || c.nombreConductor || 'Chofer',
+        nombreCompaniaDestino: c.nombreCompania || 'Planta / Quesera',
+        totalFincas: 0,
+      };
+    });
+
+    let data = [...listRutas, ...listComp];
+
+    // Filtros
+    if (filtroOrigen) {
+      if (filtroOrigen === 'RECEPTORIA') {
+        data = data.filter((v) => v._origen === 'RECEPTORIA');
+      } else if (filtroOrigen === 'RUTA') {
+        data = data.filter((v) => v._origen === 'RUTA');
+      }
+    }
+
+    if (filtroChoferId) {
+      data = data.filter((v) => {
+        const matchId = String(v.usuarioId || v.conductorId || '') === String(filtroChoferId);
+        const matchNombre = (v.nombreConductor || '').toLowerCase().includes(String(filtroChoferId).toLowerCase());
+        return matchId || matchNombre;
+      });
+    }
+
+    if (filtroProceso) {
+      data = data.filter((v) => Number(v.procesoActualId) === Number(filtroProceso));
+    }
+
+    return data;
+  }, [viajesRutas, despachosComp, filtroOrigen, filtroChoferId, filtroProceso]);
+
+  // Lista para la tabla principal (oculta sub-tickets que van como subfilas)
+  const ticketsTablaPrincipal = useMemo(() => {
+    return dataConsolidada.filter((v) => !v._esSubTicket);
+  }, [dataConsolidada]);
+
+  // Cálculos de KPIs 1:1 con app.js (L27930 - L28120)
+  const kpis = useMemo(() => {
+    const total = dataConsolidada.length;
+    let abiertos = 0;
+    let receptoria = 0;
+    let entregados = 0;
+    let finalizados = 0;
+
+    let countRutas = 0;
+    let ltsFincasRutas = 0;
+    let ltsRecibidosRutas = 0;
+
+    let countComp = 0;
+    let ltsDespachadosComp = 0;
+    let ltsRecibidosComp = 0;
+
+    const idsRutasEnAllData = new Set(dataConsolidada.filter((v) => !v._esSubTicket).map((v) => Number(v.id)));
+
+    dataConsolidada.forEach((v) => {
+      const p = v.procesoActualId || 1;
+      if (p === 1) abiertos++;
+      else if (p === 2) receptoria++;
+      else if (p === 3) entregados++;
+      else if (p === 4) finalizados++;
+
+      if (v._esSubTicket && v._parentTicketId && idsRutasEnAllData.has(Number(v._parentTicketId))) {
+        return;
+      }
+
+      if (v._origen === 'RECEPTORIA') {
+        countComp++;
+        const desp = Number(v.litrosDespachados || v.totalLitrosFinca || 0);
+        const rec = Number(v.litrosRecibidosCompania || v.totalLitrosReceptoria || desp);
+        ltsDespachadosComp += desp;
+        ltsRecibidosComp += rec;
       } else {
-        // Promedio estimado de 300L por finca si no tiene estimado registrado
-        const fincasCount = r.totalFincas || (r.fincas ? r.fincas.length : 0);
-        litrosEstimados += fincasCount * 300;
+        countRutas++;
+        const finca = Number(v.totalLitrosFinca || 0);
+        const rec = Number(v.totalLitrosReceptoria || finca);
+        ltsFincasRutas += finca;
+        ltsRecibidosRutas += rec;
       }
     });
 
-    const porcentajeOcupacion =
-      capacidadCisterna > 0 ? Math.round((litrosEstimados / capacidadCisterna) * 100) : 0;
+    let displayLtsOrigen = ltsFincasRutas;
+    let displayLtsDestino = ltsRecibidosRutas;
+    let displayDif = ltsRecibidosRutas - ltsFincasRutas;
+    let subTotViajes = `${countRutas} Rutas · ${countComp} Despachos`;
 
-    const esSobrecarga = capacidadCisterna > 0 && litrosEstimados > capacidadCisterna;
-    const esOptimo = porcentajeOcupacion >= 75 && porcentajeOcupacion <= 100;
-    const esSubutilizado = porcentajeOcupacion < 60;
+    if (filtroOrigen === 'RECEPTORIA') {
+      displayLtsOrigen = ltsDespachadosComp;
+      displayLtsDestino = ltsRecibidosComp;
+      displayDif = ltsRecibidosComp - ltsDespachadosComp;
+      subTotViajes = `${countComp} Despachos en período`;
+    } else if (filtroOrigen === 'RUTA') {
+      displayLtsOrigen = ltsFincasRutas;
+      displayLtsDestino = ltsRecibidosRutas;
+      displayDif = ltsRecibidosRutas - ltsFincasRutas;
+      subTotViajes = `${countRutas} Rutas en período`;
+    }
+
+    const absDif = Math.abs(displayDif);
+    const pct = displayLtsOrigen > 0 ? ((absDif / displayLtsOrigen) * 100).toFixed(2) : '0.00';
+    const efectividad = total > 0 ? ((finalizados / total) * 100).toFixed(1) : '100';
+
+    // Días de período
+    const d1 = new Date(fechaDesde);
+    const d2 = new Date(fechaHasta);
+    const diasPeriodo = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
     return {
-      capacidadCisterna,
-      litrosEstimados,
-      totalFincasEstimadas,
-      porcentajeOcupacion,
-      esSobrecarga,
-      esOptimo,
-      esSubutilizado,
-      diferencia: capacidadCisterna - litrosEstimados,
+      total,
+      diasPeriodo,
+      subTotViajes,
+      displayLtsOrigen,
+      displayLtsDestino,
+      displayDif,
+      absDif,
+      pct,
+      abiertos,
+      receptoria,
+      entregados,
+      enProceso: abiertos + receptoria + entregados,
+      finalizados,
+      efectividad,
     };
-  }, [camionSeleccionadoEnInicio, formIniciar.rutasLogisticasIds, rutasLogistica]);
+  }, [dataConsolidada, filtroOrigen, fechaDesde, fechaHasta]);
 
-  // Viajes filtrados exclusivamente por la Fecha de Monitoreo seleccionada
-  const viajesDelDiaMonitoreo = useMemo(() => {
+  // Rangos rápidos de fecha
+  const setRangoFechas = (tipo: 7 | 30 | 'mes' | '2026') => {
+    const hoy = new Date();
+    const hoyStr = hoy.toISOString().split('T')[0];
+    setFechaHasta(hoyStr);
 
-    return viajes.filter((v) => {
-      if (!v.fecha) return false;
-      const fStr = v.fecha.split('T')[0];
-      return fStr === fechaMonitoreo;
-    });
-  }, [viajes, fechaMonitoreo]);
-  const viajesActivos = viajesDelDiaMonitoreo;
-
-  const viajeTimelapseActual = useMemo(() => {
-    if (timelapseViajeId) {
-      const match = viajesDelDiaMonitoreo.find((v) => v.id === timelapseViajeId);
-      if (match) return match;
+    if (tipo === 7) {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      setFechaDesde(d.toISOString().split('T')[0]);
+    } else if (tipo === 30) {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      setFechaDesde(d.toISOString().split('T')[0]);
+    } else if (tipo === 'mes') {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      setFechaDesde(d.toISOString().split('T')[0]);
+    } else if (tipo === '2026') {
+      setFechaDesde('2026-01-01');
+      setFechaHasta('2026-12-31');
     }
-    const enRuta = viajesDelDiaMonitoreo.find((v) => v.estadoProceso !== 'CERRADO' && v.estado !== 'CERRADO');
-    return enRuta || viajesDelDiaMonitoreo[0] || null;
-  }, [viajesDelDiaMonitoreo, timelapseViajeId]);
+  };
 
-  // Query fincas y entregas del viaje para el Timelapse / Detalle
-  const idViajeParaConsultar = viajeSeleccionado?.id || viajeTimelapseActual?.id;
+  const limpiarFiltros = () => {
+    setFiltroChoferId('');
+    setFiltroOrigen('');
+    setFiltroProceso('');
+    setRangoFechas(30);
+  };
 
-  const { data: fincasViaje = [], refetch: refetchFincas } = useQuery({
-    queryKey: ['fincas-viaje', idViajeParaConsultar],
-    queryFn: () => (idViajeParaConsultar ? operacionesApi.getFincasViaje(idViajeParaConsultar) : []),
-    enabled: !!idViajeParaConsultar,
-    refetchInterval: 8000,
-  });
-
-  const { data: entregasViaje = [], refetch: refetchEntregas } = useQuery({
-    queryKey: ['entregas-viaje', idViajeParaConsultar],
-    queryFn: () => (idViajeParaConsultar ? operacionesApi.getEntregasViaje(idViajeParaConsultar) : []),
-    enabled: !!idViajeParaConsultar,
-    refetchInterval: 8000,
-  });
-
-  // Información del camión y rutas del viaje en timelapse
-  const camionDelTimelapse = useMemo(() => {
-    if (!viajeTimelapseActual) return null;
-    return (
-      camiones.find(
-        (c) =>
-          c.id === viajeTimelapseActual.camionId ||
-          c.placa === viajeTimelapseActual.camionPlaca ||
-          c.usuarioId === viajeTimelapseActual.usuarioId
-      ) || null
-    );
-  }, [camiones, viajeTimelapseActual]);
-
-  // Rutas asociadas al viaje del timelapse
-  const rutasDelTimelapse = useMemo(() => {
-    if (!viajeTimelapseActual) return [];
-    
-    // Extraer de observaciones si trae tag [RUTAS:1,2,3]
-    const obs = viajeTimelapseActual.observacion || viajeTimelapseActual.observaciones || '';
-    const match = obs.match(/\[RUTAS:([0-9,]+)\]/);
-    const idsEnObs = match ? match[1].split(',').map(Number) : [];
-
-    const ids = new Set<number>();
-    if (viajeTimelapseActual.rutaLogisticaId) ids.add(viajeTimelapseActual.rutaLogisticaId);
-    if (viajeTimelapseActual.rutasLogisticasIds) {
-      viajeTimelapseActual.rutasLogisticasIds.forEach((id) => ids.add(id));
-    }
-    idsEnObs.forEach((id) => ids.add(id));
-
-    return rutasLogistica.filter((r) => ids.has(r.id));
-  }, [viajeTimelapseActual, rutasLogistica]);
-
-  // Generar la secuencia completa del Timelapse (Recolectadas, En Curso, Pendientes)
-  const timelinePuntos = useMemo(() => {
-    if (!viajeTimelapseActual) return [];
-
-    // Fincas que forman parte del plan de las rutas asignadas
-    const fincasPlanificadas: { id: number; nombre: string; propietario?: string; litrosEstimados?: number }[] = [];
-    rutasDelTimelapse.forEach((r) => {
-      const enRuta = fincas.filter((f) => f.rutaId === r.id);
-      enRuta.forEach((f) => {
-        if (!fincasPlanificadas.some((p) => p.id === f.id)) {
-          fincasPlanificadas.push({
-            id: f.id,
-            nombre: f.nombre,
-            propietario: f.propietarioNombre,
-            litrosEstimados: 300,
-          });
-        }
-      });
+  const toggleExpand = (rowKey: string) => {
+    setExpandedRowKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
     });
+  };
 
-    // Fincas ya recolectadas en el viaje
-    const recogidasIds = new Set<number>();
-    const puntos: Array<{
-      id: string;
-      fincaId: number;
-      nombre: string;
-      propietario: string;
-      estado: 'COMPLETADA' | 'EN_CURSO' | 'PENDIENTE';
-      litros: number;
-      temperatura: number | null;
-      tipoLeche: string;
-      esAcida: boolean;
-      hora?: string;
-    }> = [];
-
-    // 1. Fincas efectivamente recolectadas
-    fincasViaje.forEach((fv, idx) => {
-      const fincaId = fv.fincaId || (fv as any).Id;
-      recogidasIds.add(fincaId);
-
-      puntos.push({
-        id: `rec-${idx}-${fincaId}`,
-        fincaId,
-        nombre: fv.fincaNombre || (fv as any).finca || `Finca #${fincaId}`,
-        propietario: fv.propietarioNombre || (fv as any).propietario || 'Productor',
-        estado: 'COMPLETADA' as const,
-        litros: Number((fv as any).litros ?? (fv as any).Litros ?? fv.litrosLeche ?? 0),
-        temperatura: fv.temperatura || 4,
-        tipoLeche: String(fv.tipoLeche || (fv as any).TipoLeche || 'VACA').toUpperCase(),
-        esAcida: Boolean((fv as any).esAcida ?? (fv as any).EsAcida ?? false),
-        hora: (fv as any).createdAt ? new Date((fv as any).createdAt).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }) : undefined,
-      });
-    });
-
-    // 2. Fincas planificadas que faltan por recolectar
-    const faltantes = fincasPlanificadas.filter((fp) => !recogidasIds.has(fp.id));
-
-    faltantes.forEach((fp, idx) => {
-      const esSiguiente = idx === 0 && viajeTimelapseActual.estadoProceso !== 'CERRADO';
-      puntos.push({
-        id: `pen-${fp.id}`,
-        fincaId: fp.id,
-        nombre: fp.nombre,
-        propietario: fp.propietario || 'Productor planificado',
-        estado: (esSiguiente ? 'EN_CURSO' : 'PENDIENTE') as 'EN_CURSO' | 'PENDIENTE',
-        litros: fp.litrosEstimados || 300,
-        temperatura: null,
-        tipoLeche: 'VACA',
-        esAcida: false,
-        hora: undefined,
-      });
-    });
-
-    return puntos;
-  }, [viajeTimelapseActual, rutasDelTimelapse, fincas, fincasViaje]);
-
-  // Litros totales recogidos y capacidad en el Timelapse
-  const estadisticasTimelapse = useMemo(() => {
-    const totalRecogidos = fincasViaje.reduce(
-      (sum, f) => sum + Number((f as any).litros ?? (f as any).Litros ?? f.litrosLeche ?? 0),
-      0
-    );
-    const capacidad = camionDelTimelapse?.capacidadLitros || viajeTimelapseActual?.capacidadCamionLitros || 8000;
-    const pctLlenado = capacidad > 0 ? Math.min(100, Math.round((totalRecogidos / capacidad) * 100)) : 0;
-    const sobrecarga = totalRecogidos > capacidad;
-
-    const completadas = timelinePuntos.filter((p) => p.estado === 'COMPLETADA').length;
-    const totalPuntos = Math.max(1, timelinePuntos.length);
-    const pctRuta = Math.round((completadas / totalPuntos) * 100);
-
-    return {
-      totalRecogidos,
-      capacidad,
-      pctLlenado,
-      sobrecarga,
-      completadas,
-      totalPuntos,
-      pctRuta,
-      litrosRestantes: Math.max(0, capacidad - totalRecogidos),
-    };
-  }, [fincasViaje, camionDelTimelapse, viajeTimelapseActual, timelinePuntos]);
-
-  // Mutaciones
+  // Mutación Iniciar Viaje
   const iniciarMutation = useMutation({
     mutationFn: (dto: typeof formIniciar) => operacionesApi.iniciarViaje(dto),
-    onSuccess: (data) => {
+    onSuccess: (res) => {
       Swal.fire({
         icon: 'success',
         title: '¡Viaje Iniciado!',
-        text: data.message || 'Viaje iniciado con éxito en el sistema.',
+        text: res.message || 'Viaje iniciado con éxito en el sistema.',
         confirmButtonColor: '#4f46e5',
       });
-      queryClient.invalidateQueries({ queryKey: ['viajes-controles'] });
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
       setModalIniciar(false);
       setFormIniciar({
         fecha: new Date().toISOString().split('T')[0],
@@ -332,1489 +410,964 @@ export const ViajesTicketsPage: React.FC = () => {
       });
     },
     onError: (err: any) => {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al Iniciar Viaje',
-        text: err.response?.data?.message || 'Error al iniciar viaje',
-        confirmButtonColor: '#ef4444',
-      });
+      toast.error(err?.response?.data?.message || 'Error al iniciar viaje');
     },
   });
 
-  const agregarFincaMutation = useMutation({
-    mutationFn: (dto: typeof formFinca) =>
-      operacionesApi.agregarFincaViaje(idViajeParaConsultar!, dto),
-    onSuccess: (data) => {
-      toast.success(data.message || 'Finca registrada en viaje');
-      refetchFincas();
-      queryClient.invalidateQueries({ queryKey: ['viajes-controles'] });
-      setModalAgregarFinca(false);
-      setFormFinca({ fincaId: 0, litrosLeche: 0, temperatura: 4, tipoLeche: 'VACA' });
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al registrar recolección');
-    },
-  });
-
-  const entregarMutation = useMutation({
-    mutationFn: (dto: typeof formEntrega) =>
-      operacionesApi.entregarDirectoCompania(idViajeParaConsultar!, dto),
-    onSuccess: (data) => {
-      toast.success(data.message || 'Entrega registrada');
-      refetchEntregas();
-      queryClient.invalidateQueries({ queryKey: ['viajes-controles'] });
-      setModalEntrega(false);
-      setFormEntrega({ companiaId: 0, litrosEntregados: 0, ticketReceptoria: '', observaciones: '' });
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al registrar entrega');
-    },
-  });
-
-  const cerrarMutation = useMutation({
-    mutationFn: (dto: typeof formCerrar) =>
-      operacionesApi.cerrarViaje(idViajeParaConsultar!, dto),
-    onSuccess: (data) => {
-      toast.success(data.message || 'Viaje cerrado exitosamente');
-      queryClient.invalidateQueries({ queryKey: ['viajes-controles'] });
-      setModalCerrar(false);
-      setModalDetalle(false);
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al cerrar viaje');
-    },
-  });
-
-  // Helpers de normalización robusta de litros y procesos
-  const getLitrosRecogidos = (v: any) =>
-    Number(v.totalLitrosFinca ?? v.totalLitrosRecogidos ?? v.TotalLitrosFinca ?? v.litrosRecogidos ?? 0);
-
-  const getLitrosEntregados = (v: any) =>
-    Number(
-      v.totalLitrosReceptoria ??
-      v.litrosEntregadosCompania ??
-      v.totalLitrosEntregados ??
-      v.TotalLitrosReceptoria ??
-      v.LitrosEntregadosCompania ??
-      0
-    );
-
-  const getProcesoInfo = (row: ControlRutaDto) => {
-    const recogidos = getLitrosRecogidos(row);
-    const receptoria = Number(row.totalLitrosReceptoria ?? 0);
-    const compania = Number(row.litrosEntregadosCompania ?? (row as any).litrosEntregados ?? 0);
-
-    let id = 3;
-    let label = '3. Finca ➔ Compañía (Entrega Directa)';
-    let bg = '#ecfdf5';
-    let text = '#047857';
-    let border = '#a7f3d0';
-
-    const procId = (row as any).procesoOperativoId;
-    if (procId === 1 || (receptoria > 0 && compania === 0)) {
-      id = 1;
-      label = '1. Finca ➔ Receptoría (Descarga Tanque)';
-      bg = '#eff6ff';
-      text = '#1d4ed8';
-      border = '#bfdbfe';
-    } else if (procId === 2 || (receptoria > 0 && compania > 0)) {
-      id = 2;
-      label = '2. Finca ➔ Receptoría ➔ Compañía (Tránsito)';
-      bg = '#f5f3ff';
-      text = '#6d28d9';
-      border = '#ddd6fe';
-    } else if (procId === 4) {
-      id = 4;
-      label = '4. Receptoría ➔ Compañía (Despacho Tanque)';
-      bg = '#faf5ff';
-      text = '#7e22ce';
-      border = '#e9d5ff';
-    } else if (recogidos > 4500 && compania === 0) {
-      id = 1;
-      label = '1. Finca ➔ Receptoría (Descarga Tanque)';
-      bg = '#eff6ff';
-      text = '#1d4ed8';
-      border = '#bfdbfe';
-    }
-
-    return { id, label, bg, text, border };
-  };
-
-  const getBadgeEstado = (estado: string) => {
-    switch (estado?.toUpperCase()) {
-      case 'INICIADO':
-      case 'EN_RUTA':
-      case 'ABIERTO':
-        return (
-          <span
-            className="badge"
-            style={{
-              background: '#e0f2fe',
-              color: '#0284c7',
-              border: '1px solid #bae6fd',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <span
-              style={{
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                backgroundColor: '#0284c7',
-                display: 'inline-block',
-                animation: 'pulse 1.5s infinite',
-              }}
-            />
-            <i className="fa-solid fa-truck-moving"></i> En Ruta
-          </span>
-        );
-      case 'EN_RECEPTORIA':
-      case 'RECIBIDO':
-      case 'ENTREGADO_COMPANIA':
-        return (
-          <span
-            className="badge"
-            style={{
-              background: '#fef3c7',
-              color: '#d97706',
-              border: '1px solid #fde68a',
-              fontWeight: 700,
-            }}
-          >
-            <i className="fa-solid fa-truck-ramp-box" style={{ marginRight: '4px' }}></i> En Planta
-          </span>
-        );
-      case 'CERRADO':
-      case 'FINALIZADO':
-      default:
-        return (
-          <span
-            className="badge"
-            style={{
-              background: '#ecfdf5',
-              color: '#047857',
-              border: '1px solid #a7f3d0',
-              fontWeight: 700,
-            }}
-          >
-            <i className="fa-solid fa-circle-check" style={{ marginRight: '4px' }}></i> Liquidado
-          </span>
-        );
-    }
-  };
-
-  // CÃ¡lculos volumÃ©tricos idÃ©nticos a Sistema V2_3_11_26 (4 Tarjetas Maestras)
-  const kpisVolumetricos = useMemo(() => {
-    let recoleccionFincas = 0;
-    let entregaPlantas = 0;
-    let entregaDirecto = 0;
-    let entregaTanques = 0;
-
-    viajes.forEach((v) => {
-      const recogido = getLitrosRecogidos(v);
-      const entregado = getLitrosEntregados(v);
-      const receptoria = Number(v.totalLitrosReceptoria ?? 0);
-      const compania = Number(v.litrosEntregadosCompania ?? 0);
-
-      recoleccionFincas += recogido;
-      entregaPlantas += entregado;
-
-      if (receptoria > 0) {
-        entregaTanques += receptoria;
-      }
-      if (compania > 0) {
-        entregaDirecto += compania;
-      }
+  // Mutación Finalizar Viaje (Admin)
+  const handleFinalizarAdmin = async (ticket: any) => {
+    const { value: observacion, isConfirmed } = await Swal.fire({
+      title: '¿Finalizar y Auditar Viaje?',
+      text: `Se cerrará el ticket #${ticket.id} y se registrará el cuadre volumétrico definitivo.`,
+      input: 'text',
+      inputPlaceholder: 'Nota contable de cierre (opcional)...',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Finalizar Viaje',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#475569',
     });
 
-    if (entregaDirecto === 0 && entregaTanques === 0 && entregaPlantas > 0) {
-      entregaDirecto = Math.round(entregaPlantas * 0.6);
-      entregaTanques = entregaPlantas - entregaDirecto;
+    if (!isConfirmed) return;
+
+    try {
+      await operacionesApi.finalizarViajeAdmin(ticket.id, observacion);
+      Swal.fire({
+        icon: 'success',
+        title: '¡Viaje Finalizado!',
+        text: `El ticket #${ticket.id} ha sido auditado y cerrado contablemente.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+      queryClient.invalidateQueries({ queryKey: ['control-companias'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al finalizar viaje');
     }
+  };
 
-    const mermaLitros = Math.max(0, recoleccionFincas - entregaPlantas);
-    const mermaPct = recoleccionFincas > 0 ? (mermaLitros / recoleccionFincas) * 100 : 0;
+  // Mutación Revertir Proceso (Admin)
+  const handleRevertirAdmin = async (ticket: any) => {
+    const { value: formValues, isConfirmed } = await Swal.fire({
+      title: `Revertir Proceso — Ticket #${ticket.id}`,
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #334155;">
+          <p style="margin-bottom: 12px; color: #64748b;">
+            Al revertir el proceso se reabrirá el viaje y se permitirá agregar fincas faltantes, ajustar litros o modificar entregas.
+          </p>
+          <div style="margin-bottom: 14px;">
+            <label style="font-weight: 700; color: #0f172a; display: block; margin-bottom: 5px;">Etapa Destino:</label>
+            <select id="swalSelectProcesoDestino" class="swal2-input" style="width: 100%; margin: 0; font-size: 13px; height: 40px; border-radius: 8px;">
+              <option value="1">1. En Ruta / Recolección (Permite agregar fincas y corregir litros)</option>
+              <option value="2">2. Llegada a Receptoría (Descarga y pesaje en silos)</option>
+              <option value="3">3. Despacho / Entrega a Compañía</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight: 700; color: #b91c1c; display: block; margin-bottom: 5px;">Motivo o Justificación * (Obligatorio para auditoría):</label>
+            <textarea id="swalTextareaMotivoReversion" class="swal2-textarea" placeholder="Ej: no se agrego una finca y falto litros..." style="width: 100%; margin: 0; height: 75px; font-size: 13px; border-radius: 8px;"></textarea>
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Revertir Proceso',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#f59e0b',
+      preConfirm: () => {
+        const procesoDestinoId = parseInt((document.getElementById('swalSelectProcesoDestino') as HTMLSelectElement).value, 10);
+        const motivo = (document.getElementById('swalTextareaMotivoReversion') as HTMLTextAreaElement).value.trim();
+        if (!motivo) {
+          Swal.showValidationMessage('¡El motivo de la reversión es obligatorio para el registro de auditoría!');
+          return false;
+        }
+        return { procesoDestinoId, motivo };
+      },
+    });
 
-    const entradasTanque = entregaTanques > 0 ? entregaTanques : Math.round(recoleccionFincas * 0.4);
-    const salidasTanque = Math.round(entradasTanque * 0.89);
-    const stockTanquesActual = stockInicial + entradasTanque - salidasTanque;
-    const descuadreGlobal = recoleccionFincas - (entregaPlantas + mermaLitros);
+    if (!isConfirmed || !formValues) return;
 
-    return {
-      stockTanquesActual,
-      entradasTanque,
-      salidasTanque,
-      recoleccionFincas,
-      mermaLitros,
-      mermaPct,
-      entregaPlantas,
-      entregaDirecto,
-      entregaTanques,
-      descuadreGlobal,
-    };
-  }, [viajes, stockInicial]);
+    try {
+      await operacionesApi.revertirProcesoViaje(ticket.id, formValues);
+      Swal.fire({
+        icon: 'success',
+        title: '¡Proceso Revertido!',
+        text: `El ticket #${ticket.id} ha sido revertido exitosamente. Ahora puedes agregar fincas faltantes o corregir información.`,
+        timer: 2500,
+        showConfirmButton: true,
+      });
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al revertir proceso');
+    }
+  };
 
-  const columns: ColumnDef<ControlRutaDto>[] = [
+  // Mutación Eliminar Ticket (Admin)
+  const handleEliminarAdmin = async (ticket: any) => {
+    const esRuta = ticket._origen === 'RUTA';
+    const desc = esRuta ? `Ticket de Ruta #${ticket.id}` : `Ticket de Salida a Quesera #${ticket.id}`;
+
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `¿Eliminar ${desc}?`,
+      html: `<p style="color: #64748b; font-size: 13.5px;">Esta acción como <strong>ADMINISTRADOR</strong> eliminará permanentemente el ticket y sus registros vinculados.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Eliminar Definitivamente',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+    });
+
+    if (!res.isConfirmed) return;
+
+    try {
+      if (esRuta) {
+        await operacionesApi.eliminarControl(ticket.id);
+      } else {
+        await operacionesApi.eliminarDespachoCompania(ticket.id);
+      }
+      toast.success(`${desc} eliminado correctamente.`);
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+      queryClient.invalidateQueries({ queryKey: ['control-companias'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al eliminar ticket');
+    }
+  };
+
+  // Imprimir Bitácora
+  const handleImprimirBitacora = () => {
+    window.print();
+  };
+
+  // Imprimir Comprobante Individual
+  const handleImprimirComprobante = (ticket: any) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=750');
+    if (!printWindow) return;
+
+    const fechaStr = (ticket.fecha || '').split('T')[0];
+    const ltsFinca = Number(ticket.totalLitrosFinca || ticket.litrosDespachados || 0);
+    const ltsRec = Number(ticket.totalLitrosReceptoria || ticket.litrosRecibidosReceptoria || ticket.litrosRecibidosCompania || ltsFinca);
+    const dif = Number(ticket.diferenciaLitros || 0);
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Comprobante de Viaje #${ticket.id}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 25px; color: #1e293b; font-size: 12px; }
+          .ticket-box { border: 2px solid #334155; border-radius: 8px; padding: 20px; max-width: 650px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 14px; margin-bottom: 14px; }
+          .title { font-size: 20px; font-weight: bold; color: #1e1b4b; margin: 0; }
+          .grid-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; font-size: 12px; }
+          .metric-box { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 16px; margin-top: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="ticket-box">
+          <div class="header">
+            <h2 class="title">COMPROBANTE DE CONTROL LOGÍSTICO DE VIAJE</h2>
+            <div style="font-size: 14px; font-weight: bold; color: #4338ca; margin-top: 4px;">TICKET #${ticket.id} (${ticket._origen || 'RUTA'})</div>
+            <div style="color: #64748b; font-size: 11px;">Rutas de Leche &bull; Sistema Transporte V2</div>
+          </div>
+          <div class="grid-info">
+            <div><strong>Fecha:</strong> ${fechaStr}</div>
+            <div><strong>Semana:</strong> S${ticket.cicloId || '-'}</div>
+            <div><strong>Conductor:</strong> ${ticket.nombreConductor || '-'}</div>
+            <div><strong>Destino:</strong> ${ticket.nombreCompaniaDestino || 'Receptoría'}</div>
+            <div><strong>Fincas:</strong> ${ticket.totalFincas || 0}</div>
+            <div><strong>Estado:</strong> ${ticket.estado || 'FINALIZADO'}</div>
+          </div>
+          <div class="metric-box">
+            <div>
+              <div style="font-size: 11px; color: #64748b;">VOLUMEN ORIGEN</div>
+              <div style="font-size: 16px; font-weight: bold; color: #0284c7;">${ltsFinca.toLocaleString('es-VE')} L</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #64748b;">VOLUMEN RECIBIDO</div>
+              <div style="font-size: 16px; font-weight: bold; color: #0f172a;">${ltsRec.toLocaleString('es-VE')} L</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #64748b;">DIFERENCIA / MERMA</div>
+              <div style="font-size: 16px; font-weight: bold; color: ${dif > 0 ? '#dc2626' : '#15803d'};">
+                ${dif > 0 ? `-${dif.toLocaleString('es-VE')}` : `+${Math.abs(dif).toLocaleString('es-VE')}`} L
+              </div>
+            </div>
+          </div>
+          ${ticket.observacion ? `<div style="margin-top: 14px; font-size: 11.5px; color: #64748b;"><strong>Observaciones:</strong> ${ticket.observacion}</div>` : ''}
+          <div style="margin-top: 45px; display: flex; justify-content: space-between; text-align: center; font-size: 11px;">
+            <div style="border-top: 1px solid #333; width: 180px; padding-top: 4px;">Firma Conductor</div>
+            <div style="border-top: 1px solid #333; width: 180px; padding-top: 4px;">Firma Receptor / Auditor</div>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); };</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Abrir modal de edición
+  const handleAbrirEditar = (ticket: any) => {
+    setTicketParaEditar({
+      ...ticket,
+      fechaEdit: (ticket.fecha || '').split('T')[0],
+      choferEditId: ticket.usuarioId || ticket.conductorId || 0,
+      estadoEdit: ticket.estado || 'ABIERTO',
+      litrosRecibidosEdit: ticket.litrosRecibidosReceptoria != null ? ticket.litrosRecibidosReceptoria : (ticket.totalLitrosReceptoria || ticket.totalLitrosFinca || 0),
+      observacionEdit: ticket.observacion || '',
+    });
+    setModalEditar(true);
+  };
+
+  const handleGuardarEdicion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketParaEditar) return;
+
+    try {
+      const payload: any = {
+        fecha: ticketParaEditar.fechaEdit,
+        usuarioId: Number(ticketParaEditar.choferEditId),
+        estado: ticketParaEditar.estadoEdit,
+        procesoActualId: ticketParaEditar.estadoEdit === 'ABIERTO' ? 1 : ticketParaEditar.estadoEdit === 'FINALIZADO' ? 4 : 2,
+        observacion: ticketParaEditar.observacionEdit,
+        litrosRecibidosReceptoria: Number(ticketParaEditar.litrosRecibidosEdit),
+        totalLitrosReceptoria: Number(ticketParaEditar.litrosRecibidosEdit),
+      };
+
+      if (ticketParaEditar._origen === 'RUTA') {
+        await operacionesApi.editarControl(ticketParaEditar.id, payload);
+      } else {
+        await operacionesApi.actualizarDespachoCompania(ticketParaEditar.id, payload);
+      }
+
+      toast.success(`Ticket #${ticketParaEditar.id} actualizado exitosamente`);
+      setModalEditar(false);
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+      queryClient.invalidateQueries({ queryKey: ['control-companias'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al actualizar ticket');
+    }
+  };
+
+  // Abrir modal de trazabilidad
+  const handleAbrirTrazabilidad = (ticket: any) => {
+    setTicketTrazabilidad(ticket);
+    setTabTrazabilidad(ticket._origen === 'RUTA' ? 'fincas' : 'despacho');
+    setModalTrazabilidad(true);
+  };
+
+  // Columnas de la DataTable 1:1 con la bitácora de V2_3_11_26
+  const columns: ColumnDef<any>[] = [
     {
-      header: 'TICKET / FECHA',
-      accessorKey: 'codigoTicket',
+      header: '',
+      width: '38px',
+      cell: (row) => {
+        const isExp = expandedRowKeys.has(row._rowKey);
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand(row._rowKey);
+            }}
+            className="w-6 h-6 rounded flex items-center justify-center border border-slate-300 text-slate-500 hover:bg-slate-100"
+            title={isExp ? 'Ocultar desglose' : 'Ver desglose'}
+          >
+            {isExp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        );
+      },
+    },
+    {
+      header: 'TICKET #',
+      accessorKey: 'id',
+      sortable: true,
+      cell: (row) => {
+        const esRuta = row._origen === 'RUTA';
+        return (
+          <div className="flex items-center gap-1.5 font-mono font-bold text-xs">
+            <span style={{ color: esRuta ? '#4338ca' : '#9333ea' }}>#{row.id}</span>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded font-extrabold"
+              style={{
+                backgroundColor: row._tipoBg,
+                color: row._tipoColor,
+              }}
+            >
+              {row._tipoLabel}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      header: 'FECHA',
+      accessorKey: 'fecha',
       sortable: true,
       cell: (row) => (
-        <div>
-          <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0284c7', fontSize: '13px' }}>
-            {row.codigoTicket ? `#${row.codigoTicket.replace(/^#/, '')}` : `#${row.id}`}
+        <span className="text-xs text-slate-700 font-medium">
+          {(row.fecha || '').split('T')[0]}
+        </span>
+      ),
+    },
+    {
+      header: 'SEMANA',
+      accessorKey: 'cicloId',
+      sortable: true,
+      className: 'text-center',
+      cell: (row) => (
+        <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold px-2 py-0.5 rounded">
+          S{row.cicloId || '-'}
+        </span>
+      ),
+    },
+    {
+      header: 'CONDUCTOR',
+      accessorKey: 'nombreConductor',
+      sortable: true,
+      cell: (row) => (
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
+            {(row.nombreConductor || 'C').charAt(0).toUpperCase()}
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-            {row.fecha ? new Date(row.fecha).toLocaleDateString('es-VE') : '-'}
-          </div>
+          <span className="text-xs font-bold text-slate-800">{row.nombreConductor || '-'}</span>
         </div>
       ),
     },
     {
-      header: 'PROCESO OPERATIVO',
+      header: 'FINCAS',
+      accessorKey: 'totalFincas',
+      sortable: true,
+      className: 'text-center',
+      cell: (row) => (
+        <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold px-2 py-0.5 rounded">
+          {row.totalFincas || 0}
+        </span>
+      ),
+    },
+    {
+      header: 'LTS FINCA',
+      accessorKey: 'totalLitrosFinca',
+      sortable: true,
+      className: 'text-right',
+      cell: (row) => (
+        <span className="font-mono font-bold text-xs text-blue-700">
+          {(row.totalLitrosFinca || 0).toLocaleString()} L
+        </span>
+      ),
+    },
+    {
+      header: 'DESTINO',
+      accessorKey: 'nombreCompaniaDestino',
+      sortable: true,
+      cell: (row) => (
+        <span
+          className="text-[11px] font-bold px-2 py-0.5 rounded border inline-block"
+          style={{
+            backgroundColor: row._origen === 'RECEPTORIA' ? 'rgba(147, 51, 234, 0.1)' : 'rgba(2, 132, 199, 0.1)',
+            color: row._origen === 'RECEPTORIA' ? '#7e22ce' : '#0284c7',
+            borderColor: row._origen === 'RECEPTORIA' ? 'rgba(147, 51, 234, 0.3)' : 'rgba(2, 132, 199, 0.3)',
+          }}
+        >
+          {row.nombreCompaniaDestino || 'Receptoría'}
+        </span>
+      ),
+    },
+    {
+      header: 'LTS REC.',
+      accessorKey: 'totalLitrosReceptoria',
+      sortable: true,
+      className: 'text-right',
+      cell: (row) => (
+        <span className="font-mono font-semibold text-xs text-slate-700">
+          {(row.totalLitrosReceptoria || 0).toLocaleString()} L
+        </span>
+      ),
+    },
+    {
+      header: 'DIFERENCIA',
+      accessorKey: 'diferenciaLitros',
+      sortable: true,
+      className: 'text-right',
       cell: (row) => {
-        const proc = getProcesoInfo(row);
+        const dif = Number(row.diferenciaLitros || 0);
         return (
           <span
-            className="badge"
-            style={{
-              background: proc.bg,
-              color: proc.text,
-              border: `1px solid ${proc.border}`,
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontSize: '11.5px',
-              fontWeight: 700,
-              display: 'inline-block',
-              whiteSpace: 'nowrap',
-            }}
+            className={`font-mono font-bold text-xs ${
+              dif < 0 ? 'text-red-600' : dif > 0 ? 'text-emerald-600' : 'text-slate-500'
+            }`}
           >
-            {proc.label}
+            {dif !== 0 ? (dif > 0 ? `+${dif.toLocaleString()}` : dif.toLocaleString()) : '0 L'}
           </span>
         );
       },
     },
     {
-      header: 'CHOFER & CAMIÓN',
-      cell: (row) => (
-        <div>
-          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '12.5px' }}>
-            {row.choferNombre || row.nombreConductor || 'Chofer Asignado'}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-            <i className="fa-solid fa-truck" style={{ color: '#64748b', fontSize: '11px' }}></i>
-            {row.camionPlaca || (row.camionId ? `Cisterna` : 'Cisterna')}
-          </div>
-        </div>
-      ),
-    },
-    {
-      header: 'ENTRADA FINCAS',
-      accessorKey: 'totalLitrosRecogidos',
+      header: '% MERMA',
+      accessorKey: 'porcentajeMerma',
       sortable: true,
+      className: 'text-center',
       cell: (row) => {
-        const lts = getLitrosRecogidos(row);
+        const pct = Number(row.porcentajeMerma || 0);
+        const esPerdida = Number(row.diferenciaLitros || 0) < 0;
         return (
-          <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
-            {lts.toLocaleString()} <small style={{ color: '#64748b', fontWeight: 600 }}>L</small>
+          <span
+            className={`text-[10.5px] font-bold px-2 py-0.5 rounded border ${
+              esPerdida && pct > 1.0
+                ? 'bg-red-50 text-red-700 border-red-200'
+                : esPerdida
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}
+          >
+            {esPerdida ? `-${pct.toFixed(2)}%` : `+${pct.toFixed(2)}%`}
           </span>
         );
       },
     },
     {
-      header: 'SALIDA PLANTAS',
-      accessorKey: 'totalLitrosEntregados',
+      header: 'MERMA TOTAL',
+      accessorKey: 'mermaTotalLitros',
       sortable: true,
+      className: 'text-right',
       cell: (row) => {
-        const lts = getLitrosEntregados(row);
+        const merma = Number(row.mermaTotalLitros || row.diferenciaLitros || 0);
         return (
-          <span style={{ fontWeight: 800, color: lts > 0 ? '#10b981' : '#0f172a', fontSize: '13px' }}>
-            {lts.toLocaleString()} <small style={{ color: '#64748b', fontWeight: 600 }}>L</small>
+          <span
+            className={`font-mono font-extrabold text-xs ${
+              merma < 0 ? 'text-red-600' : merma > 0 ? 'text-emerald-600' : 'text-slate-500'
+            }`}
+          >
+            {merma < 0 ? `${merma.toLocaleString()} L` : merma > 0 ? `+${merma.toLocaleString()} L` : '0 L'}
           </span>
-        );
-      },
-    },
-    {
-      header: 'MERMA DE RUTA',
-      sortable: true,
-      cell: (row) => {
-        const rec = getLitrosRecogidos(row);
-        const ent = getLitrosEntregados(row);
-        const merma = Math.max(0, rec - ent);
-        const pct = rec > 0 ? (merma / rec) * 100 : 0;
-        const tieneMerma = merma > 0;
-
-        return (
-          <div>
-            <span style={{ fontWeight: 800, color: tieneMerma ? '#ef4444' : '#10b981', fontSize: '12.5px' }}>
-              {merma.toLocaleString()} L
-            </span>
-            <span style={{ fontSize: '10.5px', color: tieneMerma ? '#ef4444' : '#64748b', display: 'block' }}>
-              ({pct.toFixed(2)}%)
-            </span>
-          </div>
         );
       },
     },
     {
       header: 'ESTADO',
-      accessorKey: 'estadoProceso',
+      accessorKey: 'procesoActualId',
+      sortable: true,
+      className: 'text-center',
       cell: (row) => {
-        const estado = (row.estadoProceso || row.estado || 'ACTIVO').toUpperCase();
-        const esCerrado = estado === 'CERRADO' || estado === 'FINALIZADO';
+        const pId = row.procesoActualId || 1;
+        if (pId === 1) {
+          return (
+            <span className="badge bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[11px] px-2 py-0.5 rounded-full">
+              1: En Ruta
+            </span>
+          );
+        } else if (pId === 2) {
+          return (
+            <span className="badge bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[11px] px-2 py-0.5 rounded-full">
+              2: Recibido
+            </span>
+          );
+        } else if (pId === 3) {
+          return (
+            <span className="badge bg-purple-50 text-purple-700 border border-purple-200 font-bold text-[11px] px-2 py-0.5 rounded-full">
+              3: En Quesera
+            </span>
+          );
+        }
         return (
-          <span
-            className="badge"
-            style={{
-              background: esCerrado ? '#ecfdf5' : '#fffbeb',
-              color: esCerrado ? '#047857' : '#b45309',
-              border: `1px solid ${esCerrado ? '#a7f3d0' : '#fde68a'}`,
-              fontWeight: 800,
-              fontSize: '11px',
-              padding: '3px 8px',
-              borderRadius: '6px',
-              textTransform: 'uppercase',
-            }}
-          >
-            {esCerrado ? 'CERRADO' : 'ACTIVO'}
+          <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[11px] px-2 py-0.5 rounded-full">
+            4: Finalizado
           </span>
         );
       },
     },
     {
       header: 'ACCIONES',
-      className: 'text-right',
-      cell: (row) => (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setTimelapseViajeId(row.id);
-              setActiveTab('timelapse');
-            }}
-            className="btn btn-sm"
-            style={{
-              height: '30px',
-              padding: '0 8px',
-              fontSize: '11px',
-              fontWeight: 700,
-              color: '#0284c7',
-              borderColor: '#bae6fd',
-              background: '#f0f9ff',
-              borderRadius: '6px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-            title="Ver Timelapse en vivo"
-          >
-            <i className="fa-solid fa-clock-rotate-left"></i>
-            Timelapse
-          </button>
+      className: 'text-center',
+      cell: (row) => {
+        const esAdmin = isAdmin || (user?.rol || '').toUpperCase().includes('ADMIN');
+        const pId = row.procesoActualId || 1;
+        const esRuta = row._origen === 'RUTA';
 
-          <button
-            type="button"
-            onClick={() => {
-              setViajeSeleccionado(row);
-              setModalDetalle(true);
-            }}
-            className="btn btn-sm btn-outline"
-            style={{
-              height: '30px',
-              padding: '0 8px',
-              fontSize: '11px',
-              fontWeight: 700,
-              color: '#4f46e5',
-              borderColor: '#c7d2fe',
-              background: '#eef2ff',
-              borderRadius: '6px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <i className="fa-solid fa-eye"></i>
-            Detalle
-          </button>
-        </div>
-      ),
+        return (
+          <div className="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleAbrirEditar(row)}
+              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded border border-amber-200 transition-colors"
+              title={`Editar Ticket #${row.id}`}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleAbrirTrazabilidad(row)}
+              className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 transition-colors"
+              title="Ver Trazabilidad y Auditoría"
+            >
+              <Clock className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleImprimirComprobante(row)}
+              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+              title="Imprimir Comprobante de Viaje"
+            >
+              <Printer className="w-3.5 h-3.5" />
+            </button>
+
+            {esAdmin && pId !== 4 && esRuta && (
+              <button
+                type="button"
+                onClick={() => handleFinalizarAdmin(row)}
+                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200 transition-colors"
+                title="Finalizar y Auditar Viaje"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {esAdmin && esRuta && (
+              <button
+                type="button"
+                onClick={() => handleRevertirAdmin(row)}
+                className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded border border-indigo-200 transition-colors"
+                title="Revertir / Reabrir Proceso de Viaje"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {esAdmin && (
+              <button
+                type="button"
+                onClick={() => handleEliminarAdmin(row)}
+                className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors"
+                title="Eliminar Ticket"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
-  return (
-    <section id="tab-control-rutas" className="tab-content active" style={{ display: 'block' }}>
-      {/* CABECERA VISTA */}
-      <div className="view-header" style={{ marginBottom: '16px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-            <h1 className="view-title" style={{ margin: 0 }}>
-              <i className="fa-solid fa-clipboard-check" style={{ color: '#6366f1', marginRight: '8px' }}></i>
-              Control Logístico de Viajes y Tickets
-            </h1>
-            <span
-              className="badge"
-              style={{
-                background: 'rgba(99, 102, 241, 0.12)',
-                color: '#6366f1',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                fontWeight: 700,
-                fontSize: '11px',
-                padding: '4px 10px',
-                borderRadius: '9999px',
-              }}
-            >
-              <i className="fa-solid fa-bolt" style={{ marginRight: '4px' }}></i> Sistema V2
+  // Sub-fila expandida con fincas y sub-despachos asociados
+  const renderSubRow = (row: any) => {
+    const subDespachos = dataConsolidada.filter((x) => x._esSubTicket && Number(x._parentTicketId) === Number(row.id));
+
+    return (
+      <div className="p-4 bg-slate-50 border-y border-slate-200 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <i className="fa-solid fa-cow text-blue-600 text-sm"></i>
+            <span className="text-xs font-bold text-slate-800">
+              Desglose de Fincas y Trazabilidad — Ticket #{row.id}
+            </span>
+            <span className="text-xs text-gray-500">
+              (Fecha: {(row.fecha || '').split('T')[0]} | Conductor: {row.nombreConductor})
             </span>
           </div>
-          <p className="view-subtitle" style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
+
+          <button
+            type="button"
+            onClick={() => handleAbrirTrazabilidad(row)}
+            className="btn btn-sm text-xs font-bold h-7 px-2.5 bg-white border border-slate-300 text-indigo-600 rounded hover:bg-indigo-50"
+          >
+            Ver Historial Completo
+          </button>
+        </div>
+
+        {row.observacion && (
+          <div className="p-2.5 bg-white border-l-4 border-indigo-600 rounded text-xs text-slate-600">
+            <strong>Observaciones:</strong> {row.observacion}
+          </div>
+        )}
+
+        {/* Sub-despachos asociados si existen */}
+        {subDespachos.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-dashed border-slate-300">
+            <span className="text-xs font-bold text-purple-800 flex items-center gap-1.5">
+              <ArrowRightLeft className="w-3.5 h-3.5 text-purple-600" />
+              Sub-Despachos a Queseras ({subDespachos.length}):
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {subDespachos.map((st) => (
+                <div
+                  key={st.id}
+                  className="p-2.5 bg-purple-50 border border-purple-200 rounded-lg flex justify-between items-center"
+                >
+                  <div>
+                    <span className="font-bold text-purple-900 block">Sub #{st.id} — {st.nombreCompaniaDestino}</span>
+                    <span className="text-gray-500 text-[11px]">
+                      Despacho: {Number(st.totalLitrosFinca).toLocaleString()} L &rarr; Recibido: {Number(st.totalLitrosReceptoria).toLocaleString()} L
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-purple-700">
+                    {st.diferenciaLitros} L
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Footer con sumatorias de la vista
+  const renderFooter = (filtered: any[]) => {
+    let sumFincas = 0;
+    let sumLtsFinca = 0;
+    let sumLtsRec = 0;
+    let sumDif = 0;
+    let sumMerma = 0;
+
+    filtered.forEach((v) => {
+      sumFincas += v.totalFincas || 0;
+      sumLtsFinca += v.totalLitrosFinca || 0;
+      sumLtsRec += v.totalLitrosReceptoria || 0;
+      sumDif += v.diferenciaLitros || 0;
+      sumMerma += v.mermaTotalLitros || 0;
+    });
+
+    const pctMerma = sumLtsFinca > 0 ? ((Math.abs(sumMerma) / sumLtsFinca) * 100).toFixed(2) : '0.00';
+
+    return (
+      <tr>
+        <td colSpan={5} className="text-right uppercase tracking-wider text-xs p-3">
+          Totales del Período Filtrado ({filtered.length} viajes):
+        </td>
+        <td className="text-center p-3">{sumFincas.toLocaleString()}</td>
+        <td className="text-right p-3 text-blue-700 font-mono">{sumLtsFinca.toLocaleString()} L</td>
+        <td className="text-center p-3">-</td>
+        <td className="text-right p-3 text-slate-800 font-mono">{sumLtsRec.toLocaleString()} L</td>
+        <td className={`text-right p-3 font-mono ${sumDif < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+          {sumDif < 0 ? `${sumDif.toLocaleString()} L` : `+${sumDif.toLocaleString()} L`}
+        </td>
+        <td className="text-center p-3 text-xs">{pctMerma}%</td>
+        <td className={`text-right p-3 font-mono ${sumMerma < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+          {sumMerma < 0 ? `${sumMerma.toLocaleString()} L` : `+${sumMerma.toLocaleString()} L`}
+        </td>
+        <td colSpan={2} className="text-center p-3 text-emerald-700 font-bold">
+          Auditado
+        </td>
+      </tr>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 1. VIEW HEADER 1:1 CON V2_3_11_26 */}
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-200">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <ClipboardCheck className="w-5 h-5 text-indigo-600" />
+              Control Logístico de Viajes y Tickets
+            </h1>
+            <span className="badge bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
+              Sistema V2
+            </span>
+          </div>
+          <p className="text-xs text-gray-500">
             Monitoreo en tiempo real del ciclo de vida de recolección, recepción, destino y liquidación volumétrica
           </p>
         </div>
 
-        <div className="view-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="btn btn-primary"
+            onClick={handleImprimirBitacora}
+            className="btn btn-outline text-xs font-bold h-9 px-3 flex items-center gap-1.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50"
+          >
+            <Printer className="w-4 h-4 text-indigo-600" /> Imprimir
+          </button>
+
+          <button
+            type="button"
             onClick={() => setModalIniciar(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 700,
-              padding: '9px 18px',
-              background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
-              border: 'none',
-              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
-            }}
+            className="btn text-xs font-bold h-9 px-4 flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-lg shadow-sm"
           >
-            <i className="fa-solid fa-plus-circle"></i> Iniciar Nuevo Viaje
+            <PlusCircle className="w-4 h-4" /> Iniciar Nuevo Viaje
           </button>
 
           <button
             type="button"
-            className="btn btn-outline"
-            onClick={() => refetch()}
-            title="Actualizar datos desde el servidor"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, padding: '9px 14px' }}
+            onClick={() => {
+              refetchRutas();
+              refetchComp();
+            }}
+            className="btn btn-outline text-xs font-bold h-9 px-3 flex items-center gap-1.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50"
           >
-            <i className={`fa-solid fa-arrows-rotate ${isLoading ? 'fa-spin' : ''}`}></i> Actualizar
+            <RotateCw className={`w-3.5 h-3.5 ${isLoadingRutas || isLoadingComp ? 'animate-spin' : ''}`} /> Actualizar
           </button>
         </div>
       </div>
 
-      {/* TABS DE NAVEGACIÓN: TIMELAPSE EN VIVO vs TICKETS */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '20px',
-          borderBottom: '2px solid #e2e8f0',
-          paddingBottom: '2px',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab('timelapse')}
-          style={{
-            padding: '10px 18px',
-            border: 'none',
-            background: 'none',
-            borderBottom: activeTab === 'timelapse' ? '3px solid #6366f1' : '3px solid transparent',
-            color: activeTab === 'timelapse' ? '#4f46e5' : '#64748b',
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: '#10b981',
-              display: 'inline-block',
-              boxShadow: '0 0 8px #10b981',
-            }}
-          />
-          <i className="fa-solid fa-clock-rotate-left"></i>
-          TIMELAPSE EN VIVO DE CAMIONES
-          <span
-            style={{
-              background: '#e0f2fe',
-              color: '#0284c7',
-              fontSize: '11px',
-              padding: '2px 8px',
-              borderRadius: '9999px',
-              fontWeight: 700,
-            }}
-          >
-            {viajesActivos.length} activos
+      {/* 2. TARJETAS KPI REDISEÑADAS CON GLASSMORPHISM (6 TARJETAS EXACTAS DE V2_3_11_26) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        {/* TOTAL VIAJES */}
+        <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-extrabold text-blue-900 uppercase">TOTAL VIAJES</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+              <TicketIcon className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-slate-900">{kpis.total}</h3>
+          <span className="text-[11px] font-semibold text-blue-600 mt-1 block">
+            {kpis.diasPeriodo} días en período
           </span>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('tickets')}
-          style={{
-            padding: '10px 18px',
-            border: 'none',
-            background: 'none',
-            borderBottom: activeTab === 'tickets' ? '3px solid #6366f1' : '3px solid transparent',
-            color: activeTab === 'tickets' ? '#4f46e5' : '#64748b',
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.2s',
-          }}
-        >
-          <i className="fa-solid fa-list-check"></i>
-          LISTADO DE VIAJES & TICKETS
-          <span
-            style={{
-              background: '#f1f5f9',
-              color: '#475569',
-              fontSize: '11px',
-              padding: '2px 8px',
-              borderRadius: '9999px',
-              fontWeight: 700,
-            }}
-          >
-            {viajes.length}
+        {/* VOLUMEN FINCAS */}
+        <div className="bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border border-emerald-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-extrabold text-emerald-900 uppercase">VOLUMEN FINCAS</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <i className="fa-solid fa-cow text-sm"></i>
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-emerald-700">{kpis.displayLtsOrigen.toLocaleString()} L</h3>
+          <span className="text-[11px] font-semibold text-emerald-600 mt-1 block">
+            Recolectado en ruta
           </span>
-        </button>
+        </div>
+
+        {/* VOLUMEN RECIBIDO */}
+        <div className="bg-gradient-to-br from-cyan-50/70 to-sky-50/50 border border-cyan-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-extrabold text-cyan-900 uppercase">VOLUMEN RECIBIDO</span>
+            <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center">
+              <Warehouse className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-cyan-700">{kpis.displayLtsDestino.toLocaleString()} L</h3>
+          <span className="text-[11px] font-semibold text-cyan-600 mt-1 block">
+            En Receptoría / Planta
+          </span>
+        </div>
+
+        {/* MERMA GLOBAL */}
+        <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-extrabold text-amber-900 uppercase">MERMA GLOBAL</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+              <TrendingDown className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-amber-600">
+            {kpis.displayDif < 0 ? `-${kpis.absDif.toLocaleString()} L` : `+${kpis.absDif.toLocaleString()} L`}
+          </h3>
+          <span className="text-[11px] font-bold text-amber-600 mt-1 block">
+            {kpis.pct}% del volumen
+          </span>
+        </div>
+
+        {/* EN PROCESO */}
+        <div className="bg-gradient-to-br from-amber-50/70 to-yellow-50/50 border border-amber-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-extrabold text-amber-900 uppercase">EN PROCESO</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+              <Truck className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-amber-600">{kpis.enProceso}</h3>
+          <span className="text-[10px] font-semibold text-amber-700 mt-1 block">
+            {kpis.abiertos} Ruta | {kpis.receptoria} Rec. | {kpis.entregados} Dest.
+          </span>
+        </div>
+
+        {/* FINALIZADOS */}
+        <div className="bg-gradient-to-br from-emerald-50/70 to-green-50/50 border border-emerald-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-extrabold text-emerald-900 uppercase">FINALIZADOS</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-emerald-600">{kpis.finalizados}</h3>
+          <span className="text-[11px] font-semibold text-emerald-600 mt-1 block">
+            {kpis.efectividad}% completados
+          </span>
+        </div>
       </div>
 
-      {/* SECCIÓN 1: TIMELAPSE EN VIVO */}
-      {activeTab === 'timelapse' && (
-        <div>
-          {/* SELECTOR DE CAMIONES / VIAJES ACTIVOS */}
-          <div style={{ marginBottom: '16px', background: '#f8fafc', padding: '14px 18px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="fa-solid fa-truck-moving" style={{ color: '#6366f1' }}></i>
-                  MONITOREO DE JORNADA (TIMELAPSE EN VIVO):
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Fecha:</label>
-                  <input
-                    type="date"
-                    value={fechaMonitoreo}
-                    onChange={(e) => {
-                      setFechaMonitoreo(e.target.value);
-                      setTimelapseViajeId(null);
-                    }}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '12.5px',
-                      fontWeight: 700,
-                      borderRadius: '8px',
-                      border: '1.5px solid #cbd5e1',
-                      background: '#ffffff',
-                      color: '#0f172a'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFechaMonitoreo(new Date().toISOString().split('T')[0]);
-                      setTimelapseViajeId(null);
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      borderRadius: '8px',
-                      border: '1px solid #c7d2fe',
-                      background: '#eef2ff',
-                      color: '#4f46e5',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Hoy (En Vivo) ⚡
-                  </button>
-                </div>
-              </div>
-              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-                {viajesDelDiaMonitoreo.length} {viajesDelDiaMonitoreo.length === 1 ? 'camión en la fecha' : 'camiones en la fecha'} &bull; Auto-actualización reactiva 8s
-              </span>
+      {/* 3. CONTENEDOR DATATABLE PROFESIONAL */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* HEADER BANNER */}
+        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 text-white flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 text-lg">
+              <ClipboardCheck className="w-5 h-5" />
             </div>
-
-            {viajesDelDiaMonitoreo.length === 0 ? (
-              <div style={{ padding: '20px', background: '#ffffff', border: '1.5px dashed #cbd5e1', borderRadius: '12px', textAlign: 'center', color: '#64748b' }}>
-                <i className="fa-solid fa-calendar-xmark" style={{ fontSize: '20px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}></i>
-                No se registraron viajes u operaciones de ruta para el día <strong>{fechaMonitoreo}</strong>.
-                <div style={{ marginTop: '6px', fontSize: '12px', color: '#6366f1' }}>
-                  Selecciona otra fecha en el calendario o pulsa "Hoy (En Vivo) ⚡" para monitorear la jornada actual.
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '6px' }}>
-                {viajesDelDiaMonitoreo.map((v) => {
-                  const isSelected = viajeTimelapseActual?.id === v.id;
-                  const isEnRuta = v.estadoProceso !== 'CERRADO' && v.estado !== 'CERRADO';
-                  const cam = camiones.find((c) => c.id === v.camionId || c.placa === v.camionPlaca);
-                  const placaFinal = v.camionPlaca || cam?.placa || (v.camionId ? 'Cisterna #' + v.camionId : 'Unidad Cisterna');
-                  const marcaFinal = cam?.marca ? '[' + cam.marca + ']' : '';
-                  const choferFinal = v.choferNombre || v.nombreConductor || cam?.choferNombre || 'Chofer Asignado';
-
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      onClick={() => {
-                        setTimelapseViajeId(v.id);
-                        setViajeSeleccionado(v);
-                      }}
-                      style={{
-                        flex: '0 0 auto',
-                        padding: '12px 16px',
-                        borderRadius: '12px',
-                        border: isSelected ? '2px solid #6366f1' : '1px solid #e2e8f0',
-                        background: isSelected ? '#eef2ff' : '#ffffff',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isSelected ? '0 4px 12px rgba(99, 102, 241, 0.18)' : '0 1px 3px rgba(0,0,0,0.05)',
-                        minWidth: '240px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <span style={{ fontWeight: 800, color: isSelected ? '#4f46e5' : '#0f172a', fontSize: '13.5px' }}>
-                          🚛 {placaFinal} <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{marcaFinal}</span>
-                        </span>
-                        {isEnRuta ? (
-                          <span
-                            style={{
-                              fontSize: '9.5px',
-                              fontWeight: 800,
-                              color: '#0284c7',
-                              background: '#e0f2fe',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            EN RUTA
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '9.5px',
-                              fontWeight: 700,
-                              color: '#047857',
-                              background: '#ecfdf5',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            CERRADO
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-                        <i className="fa-regular fa-user" style={{ color: '#94a3b8' }}></i>
-                        <strong>{choferFinal}</strong>
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb' }}>
-                        {(v.totalLitrosFinca || v.totalLitrosRecogidos || 0).toLocaleString()} L <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>/ {(cam?.capacidadLitros || 8000).toLocaleString()} L</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* TARJETAS SUPERIORES DEL TIMELAPSE: DETALLE DE LA UNIDAD & CAPACIDAD */}
-          {viajeTimelapseActual ? (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                gap: '16px',
-                marginBottom: '20px',
-              }}
-            >
-              {/* CARD 1: INFORMACIÓN DEL CAMIÓN Y VIAJE */}
-              <div
-                className="content-card"
-                style={{
-                  padding: '18px',
-                  borderRadius: '16px',
-                  border: '1px solid #e2e8f0',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#6366f1', textTransform: 'uppercase' }}>
-                      TICKET #{viajeTimelapseActual.codigoTicket || viajeTimelapseActual.id}
-                    </span>
-                    <h3 style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                      {viajeTimelapseActual.camionPlaca || 'Unidad Cisterna'} &bull; {camionDelTimelapse?.marca || 'Cisterna'}
-                    </h3>
-                  </div>
-                  {getBadgeEstado(viajeTimelapseActual.nombreProceso || viajeTimelapseActual.estadoProceso || 'EN RUTA')}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Chofer Conductor:</span>
-                    <strong style={{ color: '#0f172a' }}>{viajeTimelapseActual.choferNombre || viajeTimelapseActual.nombreConductor || 'Chofer'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Fecha de Operación:</span>
-                    <strong style={{ color: '#0f172a' }}>{new Date(viajeTimelapseActual.fecha).toLocaleDateString('es-VE')}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Odómetro Inicial:</span>
-                    <strong style={{ color: '#0f172a' }}>{viajeTimelapseActual.odometroInicialKm ? `${viajeTimelapseActual.odometroInicialKm.toLocaleString()} Km` : 'No registrado'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Fincas Visitadas:</span>
-                    <strong style={{ color: '#0f172a' }}>{estadisticasTimelapse.completadas} de {estadisticasTimelapse.totalPuntos} ({estadisticasTimelapse.pctRuta}%)</strong>
-                  </div>
-                </div>
-
-                {/* RUTAS ASIGNADAS AL TICKET */}
-                <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
-                    Rutas Logísticas Asignadas al Ticket:
-                  </span>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {rutasDelTimelapse.length === 0 ? (
-                      <span className="badge" style={{ background: '#f1f5f9', color: '#475569' }}>
-                        {viajeTimelapseActual.rutaNombre || 'Ruta Abierta General'}
-                      </span>
-                    ) : (
-                      rutasDelTimelapse.map((r) => (
-                        <span
-                          key={r.id}
-                          className="badge"
-                          style={{
-                            background: '#eef2ff',
-                            color: '#4f46e5',
-                            border: '1px solid #c7d2fe',
-                            fontWeight: 700,
-                          }}
-                        >
-                          <i className="fa-solid fa-route" style={{ marginRight: '4px' }}></i>
-                          {r.nombre} ({r.totalFincas || 0} fincas)
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 2: OCUPACIÓN Y CAPACIDAD DE CISTERNA DEL CAMIÓN */}
-              <div
-                className="content-card"
-                style={{
-                  padding: '18px',
-                  borderRadius: '16px',
-                  border: '1px solid #e2e8f0',
-                  background: '#ffffff',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
-                    <i className="fa-solid fa-gas-pump" style={{ color: '#2563eb', marginRight: '6px' }}></i>
-                    Capacidad de Cisterna del Camión
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      background: estadisticasTimelapse.sobrecarga
-                        ? '#fef2f2'
-                        : estadisticasTimelapse.pctLlenado >= 75
-                        ? '#ecfdf5'
-                        : '#fefce8',
-                      color: estadisticasTimelapse.sobrecarga
-                        ? '#dc2626'
-                        : estadisticasTimelapse.pctLlenado >= 75
-                        ? '#047857'
-                        : '#b45309',
-                    }}
-                  >
-                    {estadisticasTimelapse.sobrecarga
-                      ? '⚠️ SOBRECARGA'
-                      : estadisticasTimelapse.pctLlenado >= 75
-                      ? '🟢 LLENADO ÓPTIMO'
-                      : '🟡 ESPACIO DISPONIBLE'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-                  <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: '#2563eb' }}>
-                    {estadisticasTimelapse.totalRecogidos.toLocaleString()}{' '}
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>/ {estadisticasTimelapse.capacidad.toLocaleString()} Litros</span>
-                  </h2>
-                  <span style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
-                    ({estadisticasTimelapse.pctLlenado}%)
-                  </span>
-                </div>
-
-                {/* BARRA DE PROGRESO DE LLENADO */}
-                <div
-                  style={{
-                    height: '14px',
-                    width: '100%',
-                    background: '#e2e8f0',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    marginBottom: '10px',
-                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${estadisticasTimelapse.pctLlenado}%`,
-                      background: estadisticasTimelapse.sobrecarga
-                        ? 'linear-gradient(90deg, #ef4444, #b91c1c)'
-                        : estadisticasTimelapse.pctLlenado >= 75
-                        ? 'linear-gradient(90deg, #10b981, #059669)'
-                        : 'linear-gradient(90deg, #3b82f6, #6366f1)',
-                      borderRadius: '8px',
-                      transition: 'width 0.4s ease',
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b' }}>
-                  <span>Espacio libre en tanque: <strong>{estadisticasTimelapse.litrosRestantes.toLocaleString()} L</strong></span>
-                  <span>Total recolectado: <strong>{fincasViaje.length} paradas</strong></span>
-                </div>
-
-                {/* ACCIÓN RÁPIDA: REGISTRAR RECOLECCIÓN */}
-                {viajeTimelapseActual.estadoProceso !== 'CERRADO' && (
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViajeSeleccionado(viajeTimelapseActual);
-                        setModalAgregarFinca(true);
-                      }}
-                      className="btn btn-sm btn-primary"
-                      style={{
-                        flex: 1,
-                        height: '34px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        background: '#2563eb',
-                      }}
-                    >
-                      <i className="fa-solid fa-plus"></i> Registrar Parada / Finca
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViajeSeleccionado(viajeTimelapseActual);
-                        setModalDetalle(true);
-                      }}
-                      className="btn btn-sm btn-outline"
-                      style={{ height: '34px', fontSize: '12px', fontWeight: 700 }}
-                    >
-                      <i className="fa-solid fa-file-invoice"></i> Gestionar Ticket
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-              No hay viajes activos en este momento.
-            </div>
-          )}
-
-          {/* TIMELINE VISUAL / TIMELAPSE DE RECORRIDO DE LA UNIDAD */}
-          {viajeTimelapseActual && (
-            <div
-              className="content-card"
-              style={{
-                padding: '24px',
-                borderRadius: '16px',
-                border: '1px solid #e2e8f0',
-                background: '#ffffff',
-                marginBottom: '24px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '20px',
-                  paddingBottom: '12px',
-                  borderBottom: '1px solid #f1f5f9',
-                }}
-              >
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
-                    <i className="fa-solid fa-timeline" style={{ color: '#4f46e5', marginRight: '8px' }}></i>
-                    Timelapse del Viaje: Secuencia de Recolección en Fincas
-                  </h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                    Monitoreo en orden cronológico de fincas recolectadas, en proceso y faltantes de las rutas planificadas
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', color: '#047857', fontWeight: 700 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                    Completadas ({estadisticasTimelapse.completadas})
-                  </span>
-                  <span style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', color: '#0284c7', fontWeight: 700 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0284c7' }} />
-                    En Proceso / Siguiente
-                  </span>
-                  <span style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8', fontWeight: 700 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#cbd5e1' }} />
-                    Faltantes
-                  </span>
-                </div>
-              </div>
-
-              {/* CONTENEDOR DEL STEPPER VERTICAL / TIMELINE */}
-              <div style={{ position: 'relative', paddingLeft: '28px' }}>
-                {/* LÍNEA GUÍA VERTICAL */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '14px',
-                    bottom: '14px',
-                    left: '11px',
-                    width: '3px',
-                    background: '#e2e8f0',
-                    zIndex: 1,
-                  }}
-                />
-
-                {/* PUNTO 0: SALIDA DE PATIO */}
-                <div style={{ position: 'relative', marginBottom: '22px' }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: '-28px',
-                      top: '0px',
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: '#4f46e5',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '11px',
-                      zIndex: 2,
-                      boxShadow: '0 2px 6px rgba(79, 70, 229, 0.4)',
-                    }}
-                  >
-                    <i className="fa-solid fa-flag-checkered"></i>
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>Salida e Inicio de Viaje</strong>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>
-                        Odómetro: {viajeTimelapseActual.odometroInicialKm ? `${viajeTimelapseActual.odometroInicialKm} Km` : 'Inicio'}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                      Cisterna vacía preparada con capacidad de {estadisticasTimelapse.capacidad.toLocaleString()} Litros
-                    </span>
-                  </div>
-                </div>
-
-                {/* SECUENCIA DE FINCAS */}
-                {timelinePuntos.length === 0 ? (
-                  <div style={{ padding: '16px 0', color: '#94a3b8', fontSize: '13px' }}>
-                    No hay fincas asignadas a las rutas seleccionadas aún.
-                  </div>
-                ) : (
-                  timelinePuntos.map((punto, index) => {
-                    const isCompleted = punto.estado === 'COMPLETADA';
-                    const isInProgress = punto.estado === 'EN_CURSO';
-
-                    return (
-                      <div key={punto.id} style={{ position: 'relative', marginBottom: '20px' }}>
-                        {/* NODO DEL TIMELINE */}
-                        <div
-                          style={{
-                            position: 'absolute',
-                            left: '-28px',
-                            top: '2px',
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            background: isCompleted ? '#10b981' : isInProgress ? '#0284c7' : '#e2e8f0',
-                            color: isCompleted || isInProgress ? '#ffffff' : '#64748b',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '11px',
-                            zIndex: 2,
-                            boxShadow: isInProgress ? '0 0 10px rgba(2, 132, 199, 0.6)' : 'none',
-                            animation: isInProgress ? 'pulse 1.8s infinite' : 'none',
-                          }}
-                        >
-                          {isCompleted ? (
-                            <i className="fa-solid fa-check"></i>
-                          ) : isInProgress ? (
-                            <i className="fa-solid fa-hourglass-half"></i>
-                          ) : (
-                            <span>{index + 1}</span>
-                          )}
-                        </div>
-
-                        {/* TARJETA DEL PUNTO / FINCA */}
-                        <div
-                          style={{
-                            padding: '12px 16px',
-                            borderRadius: '12px',
-                            border: isInProgress
-                              ? '1.5px solid #0284c7'
-                              : isCompleted
-                              ? '1px solid #d1fae5'
-                              : '1px solid #f1f5f9',
-                            background: isInProgress
-                              ? '#f0f9ff'
-                              : isCompleted
-                              ? '#f0fdf4'
-                              : '#f8fafc',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: '10px',
-                          }}
-                        >
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>
-                                #{index + 1} &bull; {punto.nombre}
-                              </strong>
-                              {isCompleted && (
-                                <span
-                                  className="badge"
-                                  style={{
-                                    background: '#dcfce7',
-                                    color: '#15803d',
-                                    fontSize: '10px',
-                                    fontWeight: 800,
-                                    padding: '2px 6px',
-                                  }}
-                                >
-                                  ✅ RECOLECTADA
-                                </span>
-                              )}
-                              {isInProgress && (
-                                <span
-                                  className="badge"
-                                  style={{
-                                    background: '#e0f2fe',
-                                    color: '#0369a1',
-                                    fontSize: '10px',
-                                    fontWeight: 800,
-                                    padding: '2px 6px',
-                                  }}
-                                >
-                                  ⏳ PRÓXIMA PARADA / EN CAMINO
-                                </span>
-                              )}
-                              {!isCompleted && !isInProgress && (
-                                <span
-                                  className="badge"
-                                  style={{
-                                    background: '#f1f5f9',
-                                    color: '#64748b',
-                                    fontSize: '10px',
-                                    fontWeight: 700,
-                                    padding: '2px 6px',
-                                  }}
-                                >
-                                  ⚪ PENDIENTE
-                                </span>
-                              )}
-                            </div>
-                            <span style={{ fontSize: '11.5px', color: '#64748b', display: 'block' }}>
-                              Propietario: {punto.propietario} {punto.hora ? `&bull; Registrado a las ${punto.hora}` : ''}
-                            </span>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            {/* TIPO DE LECHE Y CALIDAD */}
-                            {isCompleted && (
-                              <div style={{ display: 'flex', gap: '6px' }}>
-                                <span
-                                  className="badge"
-                                  style={{
-                                    background: punto.tipoLeche.includes('BUFAL') ? '#f3e8ff' : '#e0f2fe',
-                                    color: punto.tipoLeche.includes('BUFAL') ? '#7e22ce' : '#0369a1',
-                                    fontWeight: 800,
-                                    fontSize: '10.5px',
-                                  }}
-                                >
-                                  {punto.tipoLeche.includes('BUFAL') ? '🐃 BÚFALA' : '🥛 VACA'}
-                                </span>
-                                {punto.temperatura != null && (
-                                  <span
-                                    className="badge"
-                                    style={{ background: '#f1f5f9', color: '#334155', fontSize: '10.5px', fontWeight: 700 }}
-                                  >
-                                    🌡️ {punto.temperatura}°C
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* LITROS */}
-                            <div style={{ textAlign: 'right' }}>
-                              <span
-                                style={{
-                                  fontSize: '14px',
-                                  fontWeight: 800,
-                                  color: isCompleted ? '#059669' : isInProgress ? '#0284c7' : '#64748b',
-                                }}
-                              >
-                                {punto.litros.toLocaleString()} <small>Litros</small>
-                              </span>
-                              <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>
-                                {isCompleted ? 'Real medido' : 'Estimado'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-
-                {/* PUNTO FINAL: DESCARGA EN RECEPTORÍA O PLANTA */}
-                <div style={{ position: 'relative' }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: '-28px',
-                      top: '0px',
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: entregasViaje.length > 0 ? '#10b981' : '#64748b',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '11px',
-                      zIndex: 2,
-                    }}
-                  >
-                    <i className="fa-solid fa-warehouse"></i>
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>
-                        Destino Final: Silos Receptoría / Planta Quesera
-                      </strong>
-                      {entregasViaje.length > 0 && (
-                        <span className="badge" style={{ background: '#dcfce7', color: '#15803d', fontSize: '10.5px' }}>
-                          DESCARGADO ✅
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                      {entregasViaje.length > 0
-                        ? `Total descargado: ${entregasViaje.reduce((s, e) => s + (e.litrosEntregados || 0), 0).toLocaleString()} Lts`
-                        : 'En espera de llegada del camión y pesaje'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* SECCIÓN 2: LISTADO DE VIAJES & TICKETS (DISEÑO 1:1 SISTEMA V2_3_11_26) */}
-      {activeTab === 'tickets' && (
-        <div>
-          {/* TARJETAS MAESTRAS DE AUDITORÍA VOLUMÉTRICA (EXACTAS A V2_3_11_26) */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: '16px',
-              marginBottom: '24px',
-            }}
-          >
-            {/* CARD 1: CUSTODIA FÍSICA RECEPTORÍA (DARK NAVY) */}
-            <div
-              className="content-card"
-              style={{
-                background: 'linear-gradient(145deg, #0f172a, #1e293b)',
-                border: '1px solid rgba(59, 130, 246, 0.4)',
-                borderRadius: '16px',
-                padding: '20px',
-                color: '#fff',
-                boxShadow: '0 10px 25px rgba(15, 23, 42, 0.4)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    Custodia Física Receptoría
-                  </span>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', margin: '4px 0 0 0' }}>
-                    Stock Actual en Tanques
-                  </h3>
-                </div>
-                <div
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
-                    background: 'rgba(56, 189, 248, 0.15)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '17px',
-                    color: '#38bdf8',
-                    marginLeft: 'auto',
-                  }}
-                >
-                  <i className="fa-solid fa-cubes-stacked"></i>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
-                <span style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '-0.02em', color: '#38bdf8', fontFamily: 'monospace' }}>
-                  {kpisVolumetricos.stockTanquesActual.toLocaleString()}
-                </span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#94a3b8' }}>Lts custodia</span>
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.1)', height: '6px', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
-                <div
-                  style={{
-                    background: 'linear-gradient(90deg, #38bdf8, #3b82f6)',
-                    height: '100%',
-                    width: `${Math.min(100, Math.max(12, (kpisVolumetricos.stockTanquesActual / 30000) * 100))}%`,
-                    borderRadius: '4px',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#cbd5e1', marginBottom: '6px' }}>
-                <span>Entrado: <strong style={{ color: '#4ade80' }}>{kpisVolumetricos.entradasTanque.toLocaleString()} L</strong></span>
-                <span>Salido: <strong style={{ color: '#f87171' }}>{kpisVolumetricos.salidasTanque.toLocaleString()} L</strong></span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px dashed rgba(255,255,255,0.15)', fontSize: '11px', color: '#94a3b8' }}>
-                <span>Inicial: <strong style={{ color: '#38bdf8' }}>{stockInicial.toLocaleString()} L</strong></span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNuevoStockInicialInput(stockInicial);
-                    setModalStockInicial(true);
-                  }}
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    borderRadius: '6px',
-                    background: 'rgba(56, 189, 248, 0.2)',
-                    color: '#38bdf8',
-                    border: '1px solid rgba(56, 189, 248, 0.4)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <i className="fa-solid fa-pen-to-square"></i> Ajustar
-                </button>
-              </div>
-            </div>
-
-            {/* CARD 2: INGRESO AL CIRCUITO */}
-            <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    Ingreso al Circuito
-                  </span>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0' }}>
-                    Total Recolección Fincas
-                  </h3>
-                </div>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', color: '#f59e0b', marginLeft: 'auto' }}>
-                  <i className="fa-solid fa-cow"></i>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
-                  {kpisVolumetricos.recoleccionFincas.toLocaleString()}
-                </span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Lts brutos</span>
-              </div>
-              <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: 700 }}>
-                Merma en Ruta: {kpisVolumetricos.mermaLitros.toLocaleString()} Lts ({kpisVolumetricos.mermaPct.toFixed(2)}%)
-              </div>
-            </div>
-
-            {/* CARD 3: VENTAS & ENTREGAS */}
-            <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    Ventas & Entregas
-                  </span>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0' }}>
-                    Total Facturado Plantas
-                  </h3>
-                </div>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', color: '#10b981', marginLeft: 'auto' }}>
-                  <i className="fa-solid fa-industry"></i>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '28px', fontWeight: 900, color: '#10b981', fontFamily: 'monospace' }}>
-                  {kpisVolumetricos.entregaPlantas.toLocaleString()}
-                </span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Lts vendidos</span>
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-                Directo: <strong style={{ color: '#0f172a' }}>{kpisVolumetricos.entregaDirecto.toLocaleString()} L</strong> | Tanques: <strong style={{ color: '#0f172a' }}>{kpisVolumetricos.entregaTanques.toLocaleString()} L</strong>
-              </div>
-            </div>
-
-            {/* CARD 4: AUDITORÍA INTEGRAL */}
-            <div className="content-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#6366f1', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    Auditoría Integral
-                  </span>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0' }}>
-                    Cuadratura de Litros
-                  </h3>
-                </div>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', color: '#6366f1', marginLeft: 'auto' }}>
-                  <i className="fa-solid fa-shield-halved"></i>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '28px', fontWeight: 900, color: kpisVolumetricos.descuadreGlobal === 0 ? '#10b981' : '#f59e0b', fontFamily: 'monospace' }}>
-                  {kpisVolumetricos.descuadreGlobal.toFixed(2)}
-                </span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Lts descuadre</span>
-              </div>
-              <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 700 }}>
-                Estado: {kpisVolumetricos.descuadreGlobal === 0 ? '100% Cuadrado' : 'Diferencia en conciliación'}
-              </div>
+            <div>
+              <h3 className="text-sm font-extrabold tracking-wide uppercase">
+                Bitácora General de Viajes y Trazabilidad
+              </h3>
+              <p className="text-xs text-slate-300">
+                Historial consolidado con búsqueda, ordenamiento y paginación en tiempo real
+              </p>
             </div>
           </div>
 
-          {/* TABLA DE VIAJES / TICKETS */}
-          <DataTable
-            data={viajes}
-            columns={columns}
-            isLoading={isLoading}
-            searchPlaceholder="Buscar por ticket, chofer, camión..."
-            exportFileName="control_viajes_tickets"
-            searchFilter={(row, term) =>
-              Boolean(
-                (row.codigoTicket && row.codigoTicket.toLowerCase().includes(term)) ||
-                (row.choferNombre && row.choferNombre.toLowerCase().includes(term)) ||
-                (row.camionPlaca && row.camionPlaca.toLowerCase().includes(term)) ||
-                (row.rutaNombre && row.rutaNombre.toLowerCase().includes(term))
-              )
-            }
-          />
+          <span className="bg-slate-800/80 border border-white/20 px-3 py-1 rounded-lg text-xs font-semibold">
+            Total Registros: <strong className="text-cyan-400 font-mono">{ticketsTablaPrincipal.length}</strong>
+          </span>
         </div>
-      )}
 
-      {/* MODAL INICIAR NUEVO VIAJE CON MÚLTIPLES RUTAS Y CONTROL DE CAPACIDAD */}
+        {/* BARRA DE FILTROS RÁPIDOS Y RANGO DE FECHAS */}
+        <div className="bg-slate-50 border-b border-slate-200 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap text-xs">
+              <span className="font-bold text-slate-500 uppercase mr-1">Período rápido:</span>
+              <button
+                type="button"
+                onClick={() => setRangoFechas(7)}
+                className="px-2.5 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Últimos 7 días
+              </button>
+              <button
+                type="button"
+                onClick={() => setRangoFechas(30)}
+                className="px-2.5 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Últimos 30 días
+              </button>
+              <button
+                type="button"
+                onClick={() => setRangoFechas('mes')}
+                className="px-2.5 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Este Mes
+              </button>
+              <button
+                type="button"
+                onClick={() => setRangoFechas('2026')}
+                className="px-2.5 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Todo 2026
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-white border border-slate-300 px-2.5 py-1 rounded"
+            >
+              <FilterX className="w-3.5 h-3.5" /> Limpiar Filtros
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+            <div>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Fecha Desde</label>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Fecha Hasta</label>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Conductor</label>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'TODOS LOS CONDUCTORES' },
+                  ...choferes.map((c: any) => ({
+                    value: String(c.id || c.usuarioId),
+                    label: c.nombreCompleto || c.nombre || `Chofer #${c.id}`,
+                  })),
+                ]}
+                value={filtroChoferId}
+                onChange={(val) => setFiltroChoferId(String(val || ''))}
+                placeholder="TODOS LOS CONDUCTORES"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Origen / Módulo</label>
+              <select
+                value={filtroOrigen}
+                onChange={(e) => setFiltroOrigen(e.target.value)}
+                className="form-select w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-800 bg-white"
+              >
+                <option value="">-- Todos los Orígenes --</option>
+                <option value="RUTA">🚚 Rutas / Recolecciones</option>
+                <option value="RECEPTORIA">🏢 Receptorías / Despachos Salidas</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Estado / Proceso</label>
+              <select
+                value={filtroProceso}
+                onChange={(e) => setFiltroProceso(e.target.value)}
+                className="form-select w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-800 bg-white"
+              >
+                <option value="">-- Todos los Estados --</option>
+                <option value="1">1: Abierto (Chofer en ruta)</option>
+                <option value="2">2: Recibido (En Receptoría)</option>
+                <option value="3">3: Entregado (En Quesera / Camino)</option>
+                <option value="4">4: Finalizado (Auditado)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* TABLA PRINCIPAL MEDIANTE <DataTable /> REGLA 2 */}
+        <DataTable
+          data={ticketsTablaPrincipal}
+          columns={columns}
+          isLoading={isLoadingRutas || isLoadingComp}
+          searchPlaceholder="Buscar ticket, conductor, destino..."
+          exportFileName={`Bitacora_Control_Viajes_${fechaDesde}_al_${fechaHasta}`}
+          pageSizeDefault={25}
+          isRowExpanded={(row) => expandedRowKeys.has(row._rowKey)}
+          renderSubRow={renderSubRow}
+          footerContent={renderFooter}
+        />
+      </div>
+
+      {/* 4. MODAL INICIAR NUEVO VIAJE DIRECTO */}
       {modalIniciar && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            padding: '16px',
-          }}
-        >
-          <div
-            className="content-card"
-            style={{
-              width: '100%',
-              maxWidth: '560px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '24px',
-              borderRadius: '16px',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingBottom: '14px',
-                marginBottom: '16px',
-                borderBottom: '1px solid var(--border-color)',
-              }}
-            >
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                  <i className="fa-solid fa-truck-moving" style={{ color: '#4f46e5', marginRight: '8px' }}></i>
-                  Iniciar Nuevo Viaje / Ticket
-                </h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  Asignación de unidad cisterna y múltiples rutas logísticas
-                </span>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Truck className="w-5 h-5 text-indigo-600" />
+                Iniciar Nuevo Viaje / Ticket
+              </h3>
               <button
                 type="button"
                 onClick={() => setModalIniciar(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <i className="fa-solid fa-xmark"></i>
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!formIniciar.camionId) {
-                  toast.error('Selecciona una unidad cisterna obligatoria');
-                  return;
-                }
-                if (!formIniciar.choferId) {
-                  toast.error('Selecciona un chofer / conductor obligatorio');
+                if (!formIniciar.camionId || !formIniciar.choferId) {
+                  toast.error('Debe seleccionar camión y conductor');
                   return;
                 }
                 iniciarMutation.mutate({
@@ -1822,247 +1375,122 @@ export const ViajesTicketsPage: React.FC = () => {
                   rutaLogisticaId: formIniciar.rutasLogisticasIds[0] || formIniciar.rutaLogisticaId || 0,
                 });
               }}
+              className="space-y-4 text-xs"
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {/* FECHA */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    <i className="fa-solid fa-calendar-day" style={{ color: '#4f46e5', marginRight: '6px' }}></i>
-                    Fecha del Viaje / Ticket *
-                  </label>
-                  <input
-                    type="date"
-                    value={formIniciar.fecha}
-                    onChange={(e) => setFormIniciar({ ...formIniciar, fecha: e.target.value })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px', fontWeight: 700, color: '#0f172a' }}
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Fecha de Operación *</label>
+                <input
+                  type="date"
+                  value={formIniciar.fecha}
+                  onChange={(e) => setFormIniciar({ ...formIniciar, fecha: e.target.value })}
+                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-800"
+                  required
+                />
+              </div>
 
-                {/* UNIDAD CISTERNA */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Unidad Cisterna *
-                  </label>
-                  <CamionSelect
-                    value={formIniciar.camionId || undefined}
-                    onChange={(val, camion) => {
-                      const num = Number(val || 0);
-                      setFormIniciar((prev) => ({
-                        ...prev,
-                        camionId: num,
-                        choferId: camion?.usuarioId || prev.choferId,
-                      }));
-                    }}
-                    placeholder="-- Seleccionar Unidad Cisterna --"
-                  />
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Unidad Cisterna *</label>
+                <CamionSelect
+                  value={formIniciar.camionId || undefined}
+                  onChange={(val, camion) => {
+                    const num = Number(val || 0);
+                    setFormIniciar((prev) => ({
+                      ...prev,
+                      camionId: num,
+                      choferId: camion?.usuarioId || prev.choferId,
+                    }));
+                  }}
+                  placeholder="-- Seleccionar Unidad Cisterna --"
+                />
+              </div>
 
-                {/* CHOFER */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Chofer / Conductor Asignado
-                  </label>
-                  <ChoferSelect
-                    value={formIniciar.choferId || undefined}
-                    onChange={(val) => {
-                      const num = Number(val || 0);
-                      const camMatch = camiones.find((c) => c.usuarioId === num);
-                      setFormIniciar((prev) => ({
-                        ...prev,
-                        choferId: num,
-                        camionId: prev.camionId || camMatch?.id || 0,
-                      }));
-                    }}
-                    placeholder="-- Seleccionar o buscar chofer --"
-                    allowClear
-                  />
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Conductor Asignado *</label>
+                <ChoferSelect
+                  value={formIniciar.choferId || undefined}
+                  onChange={(val) => setFormIniciar((prev) => ({ ...prev, choferId: Number(val || 0) }))}
+                  placeholder="-- Seleccionar Chofer --"
+                />
+              </div>
 
-                {/* SELECCIÓN MÚLTIPLE DE RUTAS LOGÍSTICAS */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    <i className="fa-solid fa-route" style={{ color: '#6366f1', marginRight: '6px' }}></i>
-                    Rutas Logísticas a Realizar (Múltiple Selección)
-                  </label>
-                  <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '8px' }}>
-                    Marca una o varias rutas para combinarlas en el mismo viaje/camión
-                  </span>
-
-                  <div
-                    style={{
-                      maxHeight: '160px',
-                      overflowY: 'auto',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '10px',
-                      padding: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px',
-                      background: '#f8fafc',
-                    }}
-                  >
-                    {rutasLogistica.map((r) => {
-                      const isChecked = formIniciar.rutasLogisticasIds.includes(r.id);
-                      return (
-                        <label
-                          key={r.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '8px 10px',
-                            background: isChecked ? '#eef2ff' : '#ffffff',
-                            borderRadius: '8px',
-                            border: isChecked ? '1px solid #c7d2fe' : '1px solid #e2e8f0',
-                            cursor: 'pointer',
-                            fontSize: '12.5px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormIniciar((prev) => ({
-                                    ...prev,
-                                    rutasLogisticasIds: [...prev.rutasLogisticasIds, r.id],
-                                  }));
-                                } else {
-                                  setFormIniciar((prev) => ({
-                                    ...prev,
-                                    rutasLogisticasIds: prev.rutasLogisticasIds.filter((id) => id !== r.id),
-                                  }));
-                                }
-                              }}
-                              style={{ width: '16px', height: '16px', accentColor: '#4f46e5' }}
-                            />
-                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{r.nombre}</span>
-                          </div>
-                          <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>
-                            {r.totalFincas || 0} fincas &bull; ~{(r.totalLitrosEstimados || (r.totalFincas || 0) * 300).toLocaleString()} L
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* INDICADOR EN VIVO DE CAPACIDAD DE CISTERNA DEL CAMIÓN */}
-                {formIniciar.camionId > 0 && (
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      border: calculoCisternaInicio.esSobrecarga
-                        ? '1px solid #fecaca'
-                        : calculoCisternaInicio.esOptimo
-                        ? '1px solid #a7f3d0'
-                        : '1px solid #fed7aa',
-                      background: calculoCisternaInicio.esSobrecarga
-                        ? '#fef2f2'
-                        : calculoCisternaInicio.esOptimo
-                        ? '#ecfdf5'
-                        : '#fffbeb',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155' }}>
-                        Capacidad Cisterna ({camionSeleccionadoEnInicio?.placa}):
-                      </span>
-                      <strong
-                        style={{
-                          fontSize: '11px',
-                          color: calculoCisternaInicio.esSobrecarga
-                            ? '#dc2626'
-                            : calculoCisternaInicio.esOptimo
-                            ? '#047857'
-                            : '#d97706',
-                        }}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Rutas Logísticas (Múltiple Selección)
+                </label>
+                <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50 space-y-1.5">
+                  {rutasLogistica.map((r) => {
+                    const isChecked = formIniciar.rutasLogisticasIds.includes(r.id);
+                    return (
+                      <label
+                        key={r.id}
+                        className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer text-xs ${
+                          isChecked ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200'
+                        }`}
                       >
-                        {calculoCisternaInicio.porcentajeOcupacion}% Ocupación Estimada
-                      </strong>
-                    </div>
-
-                    <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${Math.min(100, calculoCisternaInicio.porcentajeOcupacion)}%`,
-                          background: calculoCisternaInicio.esSobrecarga
-                            ? '#ef4444'
-                            : calculoCisternaInicio.esOptimo
-                            ? '#10b981'
-                            : '#f59e0b',
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569' }}>
-                      <span>
-                        Volumen proyectado: <strong>{calculoCisternaInicio.litrosEstimados.toLocaleString()} L</strong>
-                      </span>
-                      <span>
-                        Capacidad cisterna: <strong>{calculoCisternaInicio.capacidadCisterna.toLocaleString()} L</strong>
-                      </span>
-                    </div>
-
-                    {calculoCisternaInicio.esSobrecarga && (
-                      <div style={{ marginTop: '6px', fontSize: '11px', color: '#dc2626', fontWeight: 700 }}>
-                        <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '4px' }}></i>
-                        ¡Atención! La suma de las rutas seleccionadas excede la capacidad de la cisterna en {Math.abs(calculoCisternaInicio.diferencia).toLocaleString()} Litros.
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ODÓMETRO INICIAL */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Odómetro Inicial (Km)
-                  </label>
-                  <input
-                    type="number"
-                    value={formIniciar.odometroInicialKm || ''}
-                    onChange={(e) => setFormIniciar({ ...formIniciar, odometroInicialKm: Number(e.target.value) })}
-                    className="form-input"
-                    placeholder="Ej: 145200"
-                    style={{ width: '100%', height: '38px' }}
-                  />
-                </div>
-
-                {/* OBSERVACIONES */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Observaciones Iniciales
-                  </label>
-                  <input
-                    type="text"
-                    value={formIniciar.observaciones}
-                    onChange={(e) => setFormIniciar({ ...formIniciar, observaciones: e.target.value })}
-                    className="form-input"
-                    placeholder="Turno, indicaciones especiales..."
-                    style={{ width: '100%', height: '38px' }}
-                  />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormIniciar((p) => ({
+                                  ...p,
+                                  rutasLogisticasIds: [...p.rutasLogisticasIds, r.id],
+                                }));
+                              } else {
+                                setFormIniciar((p) => ({
+                                  ...p,
+                                  rutasLogisticasIds: p.rutasLogisticasIds.filter((id) => id !== r.id),
+                                }));
+                              }
+                            }}
+                            className="rounded text-indigo-600"
+                          />
+                          <span className="font-bold text-slate-800">{r.nombre}</span>
+                        </div>
+                        <span className="text-gray-500 text-[11px]">
+                          {r.totalFincas || 0} fincas &bull; ~{((r.totalFincas || 0) * 300).toLocaleString()} L
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Odómetro Inicial (Km)</label>
+                <input
+                  type="number"
+                  value={formIniciar.odometroInicialKm || ''}
+                  onChange={(e) => setFormIniciar({ ...formIniciar, odometroInicialKm: Number(e.target.value) })}
+                  placeholder="Ej: 145000"
+                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Observaciones</label>
+                <input
+                  type="text"
+                  value={formIniciar.observaciones}
+                  onChange={(e) => setFormIniciar({ ...formIniciar, observaciones: e.target.value })}
+                  placeholder="Instrucciones del viaje..."
+                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setModalIniciar(false)}
-                  className="btn btn-outline"
-                  style={{ height: '38px' }}
+                  className="btn btn-outline h-9 px-4 rounded-lg text-slate-600"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={iniciarMutation.isPending}
-                  className="btn btn-primary"
-                  style={{ height: '38px' }}
+                  className="btn h-9 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg"
                 >
                   {iniciarMutation.isPending ? 'Iniciando...' : 'Iniciar Viaje'}
                 </button>
@@ -2072,292 +1500,297 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL AJUSTE DE STOCK INICIAL EN TANQUES */}
-      {modalStockInicial && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            padding: '16px',
-          }}
-        >
-          <div
-            className="content-card"
-            style={{
-              width: '100%',
-              maxWidth: '420px',
-              padding: '24px',
-              borderRadius: '16px',
-              backgroundColor: '#ffffff',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                <i className="fa-solid fa-pen-to-square" style={{ color: '#0284c7', marginRight: '8px' }}></i>
-                Ajustar Stock Inicial
+      {/* 5. MODAL EDITAR TICKET POR ADMIN 1:1 */}
+      {modalEditar && ticketParaEditar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-amber-600" />
+                Editar Ticket #{ticketParaEditar.id} ({ticketParaEditar._origen})
               </h3>
               <button
                 type="button"
-                onClick={() => setModalStockInicial(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}
+                onClick={() => setModalEditar(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <i className="fa-solid fa-xmark"></i>
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <p style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '16px' }}>
-              Ingrese el inventario volumétrico inicial en litros de los silos o tanques de custodia en receptoría:
-            </p>
-            <input
-              type="number"
-              value={nuevoStockInicialInput || ''}
-              onChange={(e) => setNuevoStockInicialInput(Number(e.target.value))}
-              placeholder="0 Lts"
-              className="form-input"
-              style={{ width: '100%', height: '42px', fontSize: '16px', fontWeight: 800, marginBottom: '20px' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setModalStockInicial(false)}
-                className="btn btn-outline"
-                style={{ height: '38px' }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStockInicial(nuevoStockInicialInput);
-                  setModalStockInicial(false);
-                  toast.success('Stock inicial en tanques actualizado');
-                }}
-                className="btn btn-primary"
-                style={{ height: '38px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none' }}
-              >
-                Guardar Ajuste
-              </button>
-            </div>
+
+            <form onSubmit={handleGuardarEdicion} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Fecha</label>
+                  <input
+                    type="date"
+                    value={ticketParaEditar.fechaEdit}
+                    onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, fechaEdit: e.target.value })}
+                    className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Estado</label>
+                  <select
+                    value={ticketParaEditar.estadoEdit}
+                    onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, estadoEdit: e.target.value })}
+                    className="form-select w-full h-9 rounded-lg border border-slate-300 px-2 font-bold bg-white"
+                  >
+                    <option value="ABIERTO">1: EN RUTA (ABIERTO)</option>
+                    <option value="RECEPCIONADO">2: RECEPCIONADO</option>
+                    <option value="FINALIZADO">3: FINALIZADO</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Conductor Responsable</label>
+                <ChoferSelect
+                  value={ticketParaEditar.choferEditId || undefined}
+                  onChange={(val) => setTicketParaEditar({ ...ticketParaEditar, choferEditId: Number(val || 0) })}
+                  placeholder="-- Conductor asignado --"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Litros en Fincas / Origen</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${Number(ticketParaEditar.totalLitrosFinca || 0).toLocaleString()} L`}
+                    className="form-input w-full h-9 rounded-lg border border-slate-200 bg-slate-50 px-2 font-bold text-slate-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Recibido en Receptoría</label>
+                  <input
+                    type="number"
+                    value={ticketParaEditar.litrosRecibidosEdit || ''}
+                    onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, litrosRecibidosEdit: Number(e.target.value) })}
+                    className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Observación</label>
+                <input
+                  type="text"
+                  value={ticketParaEditar.observacionEdit}
+                  onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, observacionEdit: e.target.value })}
+                  placeholder="Nota u observación del ticket..."
+                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setModalEditar(false)}
+                  className="btn btn-outline h-9 px-4 rounded-lg text-slate-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn h-9 px-5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* MODAL DETALLE DE VIAJE */}
-      {modalDetalle && viajeSeleccionado && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            padding: '16px',
-          }}
-        >
-          <div
-            className="content-card"
-            style={{
-              width: '100%',
-              maxWidth: '820px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '24px',
-              borderRadius: '16px',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingBottom: '14px',
-                marginBottom: '16px',
-                borderBottom: '1px solid var(--border-color)',
-              }}
-            >
+      {/* 6. MODAL TRAZABILIDAD COMPLETA 1:1 CON TABS */}
+      {modalTrazabilidad && ticketTrazabilidad && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                  <i className="fa-solid fa-ticket" style={{ color: '#4f46e5', marginRight: '8px' }}></i>
-                  Detalle del Viaje #{viajeSeleccionado.codigoTicket || viajeSeleccionado.id}
-                </h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  Fecha: {new Date(viajeSeleccionado.fecha).toLocaleDateString('es-VE')} &bull; Camión:{' '}
-                  <strong>{viajeSeleccionado.camionPlaca || `Cisterna #${viajeSeleccionado.camionId || ''}`}</strong> &bull; Chofer:{' '}
-                  <strong>{viajeSeleccionado.choferNombre || viajeSeleccionado.nombreConductor || 'Chofer'}</strong>
-                </span>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Trazabilidad del Ticket #{ticketTrazabilidad.id}
+                  </h3>
+                  <span className="badge bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2 py-0.5 rounded">
+                    {ticketTrazabilidad._tipoLabel}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Fecha: {(ticketTrazabilidad.fecha || '').split('T')[0]} &bull; Conductor: {ticketTrazabilidad.nombreConductor}
+                </p>
               </div>
+
               <button
                 type="button"
-                onClick={() => setModalDetalle(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}
+                onClick={() => setModalTrazabilidad(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <i className="fa-solid fa-xmark"></i>
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* SECCIÓN 1: FINCAS RECOLECTADAS */}
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0369a1' }}>
-                  <i className="fa-solid fa-cow" style={{ marginRight: '6px' }}></i>
-                  1. Fincas Recolectadas ({fincasViaje.length})
-                </h4>
-                {viajeSeleccionado.estadoProceso !== 'CERRADO' && (
-                  <button
-                    type="button"
-                    onClick={() => setModalAgregarFinca(true)}
-                    className="btn btn-sm btn-outline"
-                    style={{ fontSize: '12px', padding: '0 10px', height: '30px' }}
-                  >
-                    <i className="fa-solid fa-plus"></i> Registrar Finca
-                  </button>
-                )}
-              </div>
-
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Finca</th>
-                    <th style={{ textAlign: 'right' }}>Litros</th>
-                    <th style={{ textAlign: 'center' }}>Tipo</th>
-                    <th style={{ textAlign: 'center' }}>Calidad</th>
-                    <th style={{ textAlign: 'center' }}>Temp (°C)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fincasViaje.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', color: '#94a3b8', padding: '16px' }}>
-                        No hay recolecciones registradas en este viaje aún.
-                      </td>
-                    </tr>
-                  ) : (
-                    fincasViaje.map((f, idx) => {
-                      const lts = Number((f as any).litros ?? (f as any).Litros ?? f.litrosLeche ?? 0);
-                      const esBuf = String(f.tipoLeche || (f as any).TipoLeche || '').toUpperCase().includes('BUFAL');
-                      const esAc = Boolean((f as any).esAcida ?? (f as any).EsAcida ?? false);
-
-                      return (
-                        <tr key={idx}>
-                          <td>
-                            <strong>{f.fincaNombre || (f as any).finca || `Finca #${f.fincaId}`}</strong>
-                            <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>{f.propietarioNombre || (f as any).propietario}</span>
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb', fontSize: '14px' }}>
-                            {lts.toLocaleString()} <small>Lts</small>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span
-                              className="badge"
-                              style={{
-                                background: esBuf ? '#f3e8ff' : '#e0f2fe',
-                                color: esBuf ? '#7e22ce' : '#0369a1',
-                                border: `1px solid ${esBuf ? '#d8b4fe' : '#bae6fd'}`,
-                                fontWeight: 800,
-                                fontSize: '11px',
-                              }}
-                            >
-                              {esBuf ? '🐃 BÚFALA' : '🥛 VACA'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {esAc ? (
-                              <span className="badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 800, fontSize: '11px' }}>
-                                ÁCIDA
-                              </span>
-                            ) : (
-                              <span className="badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700, fontSize: '11px' }}>
-                                Normal
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>{f.temperatura ? `${f.temperatura}°C` : '-'}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* SECCIÓN 2: ENTREGAS A PLANTA / QUESERAS */}
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#7e22ce' }}>
-                  <i className="fa-solid fa-building-circle-check" style={{ marginRight: '6px' }}></i>
-                  2. Descargas en Silos / Queseras ({entregasViaje.length})
-                </h4>
-                {viajeSeleccionado.estadoProceso !== 'CERRADO' && (
-                  <button
-                    type="button"
-                    onClick={() => setModalEntrega(true)}
-                    className="btn btn-sm btn-outline"
-                    style={{ fontSize: '12px', padding: '0 10px', height: '30px' }}
-                  >
-                    <i className="fa-solid fa-plus"></i> Registrar Descarga
-                  </button>
-                )}
-              </div>
-
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Planta / Compañía</th>
-                    <th style={{ textAlign: 'right' }}>Litros Entregados</th>
-                    <th>Ticket / Comprobante</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entregasViaje.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} style={{ textAlign: 'center', color: '#94a3b8', padding: '16px' }}>
-                        No hay descargas registradas en este viaje aún.
-                      </td>
-                    </tr>
-                  ) : (
-                    entregasViaje.map((e, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <strong>{e.companiaNombre || `Planta #${e.companiaId}`}</strong>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
-                          {(e.litrosEntregados || 0).toLocaleString()} L
-                        </td>
-                        <td>{e.ticketReceptoria || '-'}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* BOTONES INFERIORES */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-              <div>
-                {viajeSeleccionado.estadoProceso !== 'CERRADO' && (
-                  <button
-                    type="button"
-                    onClick={() => setModalCerrar(true)}
-                    className="btn btn-primary"
-                    style={{ background: '#059669', borderColor: '#059669' }}
-                  >
-                    <i className="fa-solid fa-lock"></i> Finalizar y Cerrar Viaje
-                  </button>
-                )}
-              </div>
+            {/* Pestañas de Trazabilidad */}
+            <div className="flex gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
+              {ticketTrazabilidad._origen === 'RUTA' && (
+                <button
+                  type="button"
+                  onClick={() => setTabTrazabilidad('fincas')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    tabTrazabilidad === 'fincas' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Fincas ({fincasTrazabilidad.length})
+                </button>
+              )}
+              {ticketTrazabilidad._origen === 'RECEPTORIA' && (
+                <button
+                  type="button"
+                  onClick={() => setTabTrazabilidad('despacho')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    tabTrazabilidad === 'despacho' ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Despacho
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setModalDetalle(false)}
-                className="btn btn-outline"
+                onClick={() => setTabTrazabilidad('entregas')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  tabTrazabilidad === 'entregas' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Entregas / Descargas ({entregasTrazabilidad.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTabTrazabilidad('timeline')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  tabTrazabilidad === 'timeline' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Línea de Tiempo ({historialTrazabilidad.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTabTrazabilidad('logs')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  tabTrazabilidad === 'logs' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Auditoría / Logs ({logsTrazabilidad.length})
+              </button>
+            </div>
+
+            {/* Contenido Pestañas */}
+            {tabTrazabilidad === 'fincas' && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-700">Fincas Recolectadas:</span>
+                  <button
+                    type="button"
+                    onClick={() => setModalAgregarFincaAuditada(true)}
+                    className="btn btn-sm text-xs font-bold h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                  >
+                    + Agregar Finca Faltante
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {fincasTrazabilidad.map((f: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs shadow-2xs"
+                    >
+                      <div>
+                        <span className="text-gray-400 font-bold block text-[11px]">#{idx + 1} &bull; {f.propietarioNombre || f.propietario}</span>
+                        <strong className="text-slate-900 block font-bold">{f.fincaNombre || f.finca}</strong>
+                        <span className="text-[10.5px] text-gray-500">{f.tipoLeche || 'VACA'} &bull; {f.esAcida ? 'ÁCIDA' : 'DULCE'}</span>
+                      </div>
+                      <span className="font-mono font-extrabold text-blue-700 text-sm">
+                        {Number(f.litros || f.litrosLeche || 0).toLocaleString()} L
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tabTrazabilidad === 'entregas' && (
+              <div className="space-y-2">
+                {entregasTrazabilidad.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-6">No hay entregas registradas aún.</p>
+                ) : (
+                  entregasTrazabilidad.map((e: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl flex justify-between items-center text-xs"
+                    >
+                      <div>
+                        <strong className="text-emerald-900 block font-bold">{e.companiaNombre || 'Planta'}</strong>
+                        <span className="text-gray-500 text-[11px]">Ticket / Guía: {e.ticketReceptoria || '-'}</span>
+                      </div>
+                      <span className="font-mono font-bold text-emerald-700 text-sm">
+                        {Number(e.litrosEntregados || 0).toLocaleString()} L
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {tabTrazabilidad === 'timeline' && (
+              <div className="space-y-3 py-2">
+                {historialTrazabilidad.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-6">Sin historial de transiciones.</p>
+                ) : (
+                  historialTrazabilidad.map((h: any, idx: number) => (
+                    <div key={idx} className="flex gap-3 text-xs items-start">
+                      <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[11px] shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <div className="flex justify-between font-bold text-slate-800">
+                          <span>{h.procesoNuevoNombre || h.proceso || 'Transición de estado'}</span>
+                          <span className="text-gray-400 font-normal text-[11px]">{new Date(h.fecha).toLocaleString()}</span>
+                        </div>
+                        <span className="text-gray-600 block mt-0.5">{h.observacion || 'Sin observaciones'}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {tabTrazabilidad === 'logs' && (
+              <div className="space-y-2 py-2">
+                {logsTrazabilidad.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-6">No hay modificaciones auditadas registradas.</p>
+                ) : (
+                  logsTrazabilidad.map((l: any, idx: number) => (
+                    <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                      <div className="flex justify-between text-slate-800 font-bold">
+                        <span>{l.accion || 'Modificación'} por {l.usuarioNombre || 'Admin'}</span>
+                        <span className="text-gray-400 text-[11px]">{new Date(l.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p className="text-gray-600 mt-1">{l.detalles || l.motivo}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setModalTrazabilidad(false)}
+                className="btn btn-outline h-9 px-4 rounded-lg text-slate-700 font-bold text-xs"
               >
                 Cerrar Ventana
               </button>
@@ -2366,276 +1799,134 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL REGISTRAR FINCA EN VIAJE */}
-      {modalAgregarFinca && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(4px)',
-            padding: '16px',
-          }}
-        >
-          <div className="content-card" style={{ width: '100%', maxWidth: '440px', padding: '24px', borderRadius: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px 0', color: '#0f172a' }}>
-              <i className="fa-solid fa-cow" style={{ color: '#0284c7', marginRight: '8px' }}></i>
-              Registrar Finca en Viaje
-            </h3>
+      {/* 7. MODAL AGREGAR FINCA AUDITADA */}
+      {modalAgregarFincaAuditada && ticketTrazabilidad && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <i className="fa-solid fa-cow text-blue-600 text-base"></i>
+                Agregar Finca Faltante (Auditado)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setModalAgregarFincaAuditada(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                if (!formFinca.fincaId || formFinca.litrosLeche <= 0) {
-                  toast.error('Selecciona la finca e ingresa los litros');
+                if (!formFincaAuditada.fincaId || formFincaAuditada.litros <= 0) {
+                  toast.error('Selecciona la finca e indica los litros');
                   return;
                 }
-                agregarFincaMutation.mutate(formFinca);
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Finca *
-                  </label>
-                  <SearchableSelect
-                    options={fincas.map((f) => ({
-                      value: f.id,
-                      label: `${f.nombre} (${f.propietarioNombre || 'Sin prop.'})`,
-                      subLabel: `Precio: $${f.precioLitroUSD || 0}`,
-                    }))}
-                    value={formFinca.fincaId}
-                    onChange={(val) => setFormFinca({ ...formFinca, fincaId: Number(val) })}
-                    placeholder="-- Seleccionar Finca --"
-                    searchPlaceholder="Buscar finca o productor..."
-                  />
-                </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Litros Recogidos *
-                  </label>
-                  <input
-                    type="number"
-                    value={formFinca.litrosLeche || ''}
-                    onChange={(e) => setFormFinca({ ...formFinca, litrosLeche: Number(e.target.value) })}
-                    className="form-input"
-                    placeholder="Ej: 450"
-                    style={{ width: '100%', height: '38px', fontWeight: 800 }}
-                    required
-                  />
-                </div>
+                const { value: motivo, isConfirmed } = await Swal.fire({
+                  title: 'Motivo de Inclusión de Finca',
+                  text: 'Indique la justificación para registrar esta finca faltante en el ticket:',
+                  input: 'textarea',
+                  inputValue: 'no se agrego una finca y falto litros',
+                  icon: 'question',
+                  showCancelButton: true,
+                  confirmButtonText: 'Registrar y Guardar',
+                  cancelButtonText: 'Cancelar',
+                  confirmButtonColor: '#0284c7',
+                  inputValidator: (v) => (!v?.trim() ? '¡El motivo de la inclusión es obligatorio!' : undefined),
+                });
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Tipo de Leche
-                    </label>
-                    <select
-                      value={formFinca.tipoLeche}
-                      onChange={(e) => setFormFinca({ ...formFinca, tipoLeche: e.target.value })}
-                      className="form-select"
-                      style={{ width: '100%', height: '38px' }}
-                    >
-                      <option value="VACA">🥛 Vaca</option>
-                      <option value="BUFALA">🐃 Búfala</option>
-                    </select>
-                  </div>
+                if (!isConfirmed || !motivo) return;
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Temperatura (°C)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={formFinca.temperatura}
-                      onChange={(e) => setFormFinca({ ...formFinca, temperatura: Number(e.target.value) })}
-                      className="form-input"
-                      style={{ width: '100%', height: '38px' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" onClick={() => setModalAgregarFinca(false)} className="btn btn-outline" style={{ height: '38px' }}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={agregarFincaMutation.isPending} className="btn btn-primary" style={{ height: '38px' }}>
-                  {agregarFincaMutation.isPending ? 'Guardando...' : 'Guardar Recolección'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL REGISTRAR ENTREGA EN COMPAÑÍA */}
-      {modalEntrega && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(4px)',
-            padding: '16px',
-          }}
-        >
-          <div className="content-card" style={{ width: '100%', maxWidth: '440px', padding: '24px', borderRadius: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px 0', color: '#0f172a' }}>
-              <i className="fa-solid fa-building-circle-check" style={{ color: '#059669', marginRight: '8px' }}></i>
-              Registrar Descarga en Planta / Silo
-            </h3>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!formEntrega.companiaId || formEntrega.litrosEntregados <= 0) {
-                  toast.error('Selecciona la compañía e ingresa los litros');
-                  return;
+                try {
+                  await operacionesApi.agregarFincaViaje(ticketTrazabilidad.id, {
+                    fincaId: formFincaAuditada.fincaId,
+                    litrosLeche: formFincaAuditada.litros,
+                    tipoLeche: formFincaAuditada.tipoLeche,
+                  });
+                  toast.success('Finca agregada con éxito al ticket.');
+                  setModalAgregarFincaAuditada(false);
+                  refetchFincasTraz();
+                  queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.message || 'Error al agregar finca');
                 }
-                entregarMutation.mutate(formEntrega);
               }}
+              className="space-y-4 text-xs"
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Finca *</label>
+                <SearchableSelect
+                  options={fincas.map((f) => ({
+                    value: f.id,
+                    label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
+                  }))}
+                  value={formFincaAuditada.fincaId}
+                  onChange={(val) => setFormFincaAuditada({ ...formFincaAuditada, fincaId: Number(val) })}
+                  placeholder="-- Seleccionar Finca --"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Litros Recogidos *</label>
+                <input
+                  type="number"
+                  value={formFincaAuditada.litros || ''}
+                  onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, litros: Number(e.target.value) })}
+                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Planta / Compañía Destino *
-                  </label>
-                  <SearchableSelect
-                    options={companias.map((c) => ({
-                      value: c.id,
-                      label: c.nombre,
-                      subLabel: c.rif || undefined,
-                    }))}
-                    value={formEntrega.companiaId}
-                    onChange={(val) => setFormEntrega({ ...formEntrega, companiaId: Number(val) })}
-                    placeholder="-- Seleccionar Compañía / Planta --"
-                  />
+                  <label className="block font-bold text-slate-700 mb-1">Tipo de Leche</label>
+                  <select
+                    value={formFincaAuditada.tipoLeche}
+                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: e.target.value })}
+                    className="form-select w-full h-9 rounded-lg border border-slate-300 px-2 bg-white"
+                  >
+                    <option value="VACA">🥛 Vaca</option>
+                    <option value="BUFALA">🐃 Búfala</option>
+                  </select>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Litros Descargados / Entregados *
-                  </label>
+                <div className="flex items-center gap-2 pt-6">
                   <input
-                    type="number"
-                    value={formEntrega.litrosEntregados || ''}
-                    onChange={(e) => setFormEntrega({ ...formEntrega, litrosEntregados: Number(e.target.value) })}
-                    className="form-input"
-                    placeholder="Ej: 5200"
-                    style={{ width: '100%', height: '38px', fontWeight: 800 }}
-                    required
+                    type="checkbox"
+                    checked={formFincaAuditada.esAcida}
+                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, esAcida: e.target.checked })}
+                    id="chkEsAcida"
+                    className="rounded text-amber-600"
                   />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    N° Ticket Receptoría / Guía
+                  <label htmlFor="chkEsAcida" className="font-bold text-slate-700 cursor-pointer">
+                    ¿Es Leche Ácida?
                   </label>
-                  <input
-                    type="text"
-                    value={formEntrega.ticketReceptoria}
-                    onChange={(e) => setFormEntrega({ ...formEntrega, ticketReceptoria: e.target.value })}
-                    className="form-input"
-                    placeholder="Ej: GUIA-9821"
-                    style={{ width: '100%', height: '38px' }}
-                  />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" onClick={() => setModalEntrega(false)} className="btn btn-outline" style={{ height: '38px' }}>
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setModalAgregarFincaAuditada(false)}
+                  className="btn btn-outline h-9 px-4 rounded-lg text-slate-600"
+                >
                   Cancelar
                 </button>
-                <button type="submit" disabled={entregarMutation.isPending} className="btn btn-primary" style={{ height: '38px' }}>
-                  {entregarMutation.isPending ? 'Guardando...' : 'Guardar Descarga'}
+                <button
+                  type="submit"
+                  className="btn h-9 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg"
+                >
+                  Guardar Finca
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* MODAL CERRAR VIAJE */}
-      {modalCerrar && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(4px)',
-            padding: '16px',
-          }}
-        >
-          <div className="content-card" style={{ width: '100%', maxWidth: '440px', padding: '24px', borderRadius: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px 0', color: '#0f172a' }}>
-              <i className="fa-solid fa-lock" style={{ color: '#059669', marginRight: '8px' }}></i>
-              Finalizar y Cerrar Viaje
-            </h3>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                cerrarMutation.mutate(formCerrar);
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Odómetro Final (Km)
-                  </label>
-                  <input
-                    type="number"
-                    value={formCerrar.odometroFinalKm || ''}
-                    onChange={(e) => setFormCerrar({ ...formCerrar, odometroFinalKm: Number(e.target.value) })}
-                    className="form-input"
-                    placeholder="Ej: 145350"
-                    style={{ width: '100%', height: '38px' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Observaciones Finales
-                  </label>
-                  <input
-                    type="text"
-                    value={formCerrar.observaciones}
-                    onChange={(e) => setFormCerrar({ ...formCerrar, observaciones: e.target.value })}
-                    className="form-input"
-                    placeholder="Conclusiones del viaje..."
-                    style={{ width: '100%', height: '38px' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" onClick={() => setModalCerrar(false)} className="btn btn-outline" style={{ height: '38px' }}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={cerrarMutation.isPending} className="btn btn-primary" style={{ height: '38px', background: '#059669' }}>
-                  {cerrarMutation.isPending ? 'Cerrando...' : 'Confirmar Cierre'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </section>
+    </div>
   );
 };
 

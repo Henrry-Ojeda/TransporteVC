@@ -120,7 +120,7 @@ export const SemanasPage: React.FC = () => {
       if (estA !== 'ABIERTO' && estB === 'ABIERTO') return 1;
       const fA = new Date(a.fechaInicio || a.FechaInicio || 0).getTime();
       const fB = new Date(b.fechaInicio || b.FechaInicio || 0).getTime();
-      return fA - fB;
+      return fB - fA; // Orden descendente: la semana activa actual (más reciente) va primero
     });
     return copia;
   }, [ciclosRaw]);

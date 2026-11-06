@@ -3,510 +3,718 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Swal from 'sweetalert2';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
-import {
-  Coins,
-  Plus,
-  FileSpreadsheet,
-  Receipt,
-  Search,
-  CheckCircle2,
-  Building,
-  User,
-  Leaf,
-  Calendar,
-} from 'lucide-react';
-import apiClient from '@/api/client';
 import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { bcvApi } from '@/api/bcv.api';
-import { DataTable } from '@/components/common/DataTable';
-import type { CicloSemanalDto, AdelantoDto } from '@/types';
-
-interface AbonoDirectoItem {
-  id: number;
-  adelantoId: number;
-  tipoEntidad: string;
-  entidadNombre?: string;
-  fecha: string;
-  montoUSD: number;
-  montoBs?: number;
-  tasaBCV?: number;
-  referenciaBancaria?: string;
-  comprobanteUrl?: string;
-  observaciones?: string;
-  usuarioRegistro?: string;
-}
+import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
+import type { CicloSemanalDto, FincaDto, AdelantoDto } from '@/types';
 
 export const AbonosAmortizacionesPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const [modalNuevo, setModalNuevo] = useState(false);
-  const [filtroTipo, setFiltroTipo] = useState<string>('');
-  const [filtroCiclo, setFiltroCiclo] = useState<string>('');
-  const [busqueda, setBusqueda] = useState('');
 
-  // 1. Obtener Semanas / Ciclos
+  const [modalAbonoDirectoOpen, setModalAbonoDirectoOpen] = useState(false);
+  const [filtroTipoEntidad, setFiltroTipoEntidad] = useState<string>('');
+  const [filtroCiclo, setFiltroCiclo] = useState<string>('');
+
+  // Formulario Abono Directo
+  const [tipoEntidadAbono, setTipoEntidadAbono] = useState<'FINCA' | 'RECEPTORIA'>('FINCA');
+  const [entidadIdAbono, setEntidadIdAbono] = useState<string>('');
+  const [adelantoIdAbono, setAdelantoIdAbono] = useState<string>('');
+  const [cuotaIdAbono, setCuotaIdAbono] = useState<string>('');
+  const [montoUSD, setMontoUSD] = useState<number>(0);
+  const [tasaBcv, setTasaBcv] = useState<number>(36.5);
+  const [referenciaBancaria, setReferenciaBancaria] = useState<string>('');
+  const [observaciones, setObservaciones] = useState<string>('');
+  const [loadingAbono, setLoadingAbono] = useState(false);
+
+  // 1. Catálogos
   const { data: ciclos = [] } = useQuery<CicloSemanalDto[]>({
-    queryKey: ['ciclos-abonos'],
+    queryKey: ['ciclos-semanas'],
     queryFn: () => finanzasApi.getCiclos(),
   });
 
-  // 2. Obtener Lista de Abonos
-  const { data: abonos = [], isLoading } = useQuery<AbonoDirectoItem[]>({
-    queryKey: ['abonos-directos', filtroTipo, filtroCiclo],
-    queryFn: async () => {
-      const params: Record<string, any> = {};
-      if (filtroTipo) params.tipoEntidad = filtroTipo;
-      if (filtroCiclo) params.cicloId = filtroCiclo;
-      const res = await apiClient.get<AbonoDirectoItem[]>('/adelantos/abonos', { params }).catch(() => ({ data: [] }));
-      return Array.isArray(res.data) ? res.data : [];
-    },
+  const { data: fincas = [] } = useQuery<FincaDto[]>({
+    queryKey: ['fincas'],
+    queryFn: () => catalogosApi.getFincas(true),
   });
 
-  // 3. Tasa BCV
   const { data: bcv } = useQuery({
     queryKey: ['bcv-rate'],
     queryFn: () => bcvApi.getTasaHoy(),
   });
-  const tasaBcv = bcv?.tasa || 36.5;
+  const tasaBcvActual = bcv?.tasa || 36.5;
 
-  // 4. Formulario de nuevo abono
-  const [form, setForm] = useState({
-    tipoEntidad: 'FINCA',
-    adelantoId: 0,
-    montoUSD: 0,
-    montoBs: 0,
-    tasaBCV: tasaBcv,
-    referenciaBancaria: '',
-    observaciones: '',
-    fecha: new Date().toISOString().split('T')[0],
+  // 2. Abonos registrados
+  const { data: abonosRaw = [], isLoading } = useQuery<any[]>({
+    queryKey: ['abonos-amortizaciones', filtroTipoEntidad, filtroCiclo],
+    queryFn: () => finanzasApi.getAbonos(filtroTipoEntidad || undefined, filtroCiclo ? parseInt(filtroCiclo, 10) : undefined),
   });
 
-  // Adelantos activos disponibles para amortizar
-  const { data: adelantosActivos = [] } = useQuery<AdelantoDto[]>({
-    queryKey: ['adelantos-para-abono', form.tipoEntidad],
-    queryFn: () => finanzasApi.getAdelantos(form.tipoEntidad),
-    enabled: modalNuevo,
+  // 3. Adelantos activos para el modal
+  const { data: adelantosFincas = [] } = useQuery<AdelantoDto[]>({
+    queryKey: ['adelantos-fincas-activos'],
+    queryFn: () => finanzasApi.getAdelantos('FINCA'),
   });
 
-  // Mutación Crear Abono
-  const crearMutation = useMutation({
-    mutationFn: async (payload: typeof form) => {
-      const res = await apiClient.post('/adelantos/abonos/directo', payload);
-      return res.data;
-    },
-    onSuccess: (data: any) => {
-      Swal.fire({
-        icon: 'success',
-        title: '¡Abono Registrado!',
-        text: data?.message || 'Abono extraordinario aplicado a la deuda con éxito.',
-        confirmButtonColor: '#10b981',
-      });
-      queryClient.invalidateQueries({ queryKey: ['abonos-directos'] });
-      queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
-      queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] });
-      setModalNuevo(false);
-      setForm({
-        tipoEntidad: 'FINCA',
-        adelantoId: 0,
-        montoUSD: 0,
-        montoBs: 0,
-        tasaBCV: tasaBcv,
-        referenciaBancaria: '',
-        observaciones: '',
-        fecha: new Date().toISOString().split('T')[0],
-      });
-    },
-    onError: (err: any) => {
-      Swal.fire('Error', err?.response?.data?.message || 'No se pudo registrar el abono directo.', 'error');
-    },
-  });
+  // Normalización
+  const abonos = useMemo(() => {
+    return abonosRaw.map((ab: any, idx: number) => {
+      const id = ab.id ?? ab.Id ?? idx + 1;
+      const fecha = (ab.fechaCobro ?? ab.FechaCobro ?? ab.fecha ?? ab.Fecha ?? '').split('T')[0] || '-';
+      const semCod = ab.semanaCodigo ?? ab.SemanaCodigo ?? (ab.cicloId ? `Semana #${ab.cicloId}` : 'Ciclo general');
+      const entidad = ab.entidadNombre ?? ab.EntidadNombre ?? ab.fincaNombre ?? ab.FincaNombre ?? 'Entidad';
+      const tipoEnt = ab.tipoEntidad ?? ab.TipoEntidad ?? 'FINCA';
+      const adelantoId = ab.adelantoId ?? ab.AdelantoId ?? '-';
+      const numCuota = ab.numeroCuota ?? ab.NumeroCuota ?? '-';
+      const mUSD = Number(ab.montoUSD ?? ab.MontoUSD ?? ab.montoCobradoUSD ?? ab.MontoCobradoUSD ?? 0);
+      const tBCV = Number(ab.tasaBCV ?? ab.TasaBCV ?? ab.tasaBcvAplicada ?? ab.TasaBcvAplicada ?? tasaBcvActual);
+      const mBs = Number(ab.montoCobradoBs ?? ab.MontoCobradoBs ?? ab.montoBs ?? ab.MontoBs ?? (mUSD * tBCV));
+      const saldoRest = Number(ab.saldoRestanteUSD ?? ab.SaldoRestanteUSD ?? 0);
+      const detalle = ab.detalle ?? ab.Detalle ?? ab.concepto ?? ab.observaciones ?? '-';
+      const est = String(ab.estado ?? ab.Estado ?? 'COBRADO').toUpperCase();
 
-  // Filtrado
-  const filtrados = useMemo(() => {
-    return abonos.filter((a) => {
-      if (busqueda.trim()) {
-        const query = busqueda.toLowerCase();
-        const matchesEnt = a.entidadNombre?.toLowerCase().includes(query);
-        const matchesRef = a.referenciaBancaria?.toLowerCase().includes(query);
-        const matchesObs = a.observaciones?.toLowerCase().includes(query);
-        if (!matchesEnt && !matchesRef && !matchesObs) return false;
-      }
-      return true;
+      return {
+        id,
+        fecha,
+        semanaCodigo: semCod,
+        entidadNombre: entidad,
+        tipoEntidad: tipoEnt,
+        adelantoId,
+        numeroCuota: numCuota,
+        montoUSD: mUSD,
+        tasaBCV: tBCV,
+        montoCobradoBs: mBs,
+        saldoRestanteUSD: saldoRest,
+        detalle,
+        estado: est,
+      };
     });
-  }, [abonos, busqueda]);
+  }, [abonosRaw, tasaBcvActual]);
 
-  // KPIs
+  // KPIs 1:1 con tab-abonos
   const kpis = useMemo(() => {
-    let totalUsd = 0;
-    let totalBs = 0;
-    filtrados.forEach((a) => {
-      totalUsd += Number(a.montoUSD || 0);
-      totalBs += Number(a.montoBs || (Number(a.montoUSD || 0) * Number(a.tasaBCV || tasaBcv)));
+    let totalAbonadoUSD = 0;
+    let totalAbonadoBs = 0;
+    let cuotasCobradas = 0;
+    const entidadesSet = new Set<string>();
+
+    abonos.forEach((a) => {
+      totalAbonadoUSD += a.montoUSD;
+      totalAbonadoBs += a.montoCobradoBs;
+      cuotasCobradas++;
+      if (a.entidadNombre) entidadesSet.add(a.entidadNombre);
     });
-    return { totalUsd, totalBs, totalRegistros: filtrados.length };
-  }, [filtrados, tasaBcv]);
+
+    return {
+      totalUSD: totalAbonadoUSD,
+      totalBs: totalAbonadoBs,
+      cuotasCobradas,
+      totalEntidades: entidadesSet.size,
+    };
+  }, [abonos]);
+
+  // Fincas activas con saldo pendiente para el modal
+  const adelantosDisponiblesModal = useMemo(() => {
+    return adelantosFincas.filter((a: any) => {
+      const saldo = Number(a.montoPendienteUSD ?? a.saldoPendienteUSD ?? 0);
+      return saldo > 0.001;
+    });
+  }, [adelantosFincas]);
+
+  const adelantoSeleccionadoModal = useMemo(() => {
+    if (!adelantoIdAbono) return null;
+    return adelantosDisponiblesModal.find((a: any) => String(a.id || a.Id) === adelantoIdAbono) || null;
+  }, [adelantoIdAbono, adelantosDisponiblesModal]);
 
   // Exportar Excel
-  const exportarExcel = () => {
-    if (filtrados.length === 0) {
-      toast.error('No hay registros para exportar');
+  const exportarAbonosExcel = () => {
+    if (abonos.length === 0) {
+      toast.info('No hay abonos para exportar');
       return;
     }
-    const dataRows = filtrados.map((a, i) => ({
-      '#': i + 1,
-      'Entidad / Beneficiario': a.entidadNombre || 'N/A',
+    const dataExcel = abonos.map((a) => ({
+      'Fecha Cobro': a.fecha,
+      'Semana Operativa': a.semanaCodigo,
+      'Entidad / Finca': a.entidadNombre,
       'Tipo': a.tipoEntidad,
-      'Fecha': a.fecha,
-      'Monto Abonado USD': a.montoUSD,
-      'Monto Bs': a.montoBs || (a.montoUSD * (a.tasaBCV || tasaBcv)),
-      'Tasa BCV': a.tasaBCV || tasaBcv,
-      'Referencia Bancaria': a.referenciaBancaria || 'N/A',
-      'Observaciones': a.observaciones || 'Abono directo a deuda',
+      'Adelanto #': a.adelantoId,
+      'Cuota #': a.numeroCuota,
+      'Monto ($ USD)': a.montoUSD,
+      'Tasa BCV': a.tasaBCV,
+      'Monto (Bs)': a.montoCobradoBs,
+      'Saldo Restante ($)': a.saldoRestanteUSD,
+      'Detalle': a.detalle,
+      'Estado': a.estado,
     }));
-
-    const ws = XLSX.utils.json_to_sheet(dataRows);
+    const ws = XLSX.utils.json_to_sheet(dataExcel);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Abonos_Amortizaciones');
     XLSX.writeFile(wb, `Abonos_Amortizaciones_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Reporte exportado a Excel');
   };
 
-  const columns = [
+  // Guardar abono directo
+  const handleGuardarAbonoDirecto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adelantoIdAbono) {
+      toast.error('Debe seleccionar el adelanto a abonar.');
+      return;
+    }
+    if (montoUSD <= 0) {
+      toast.error('El monto debe ser mayor a 0.');
+      return;
+    }
+
+    setLoadingAbono(true);
+    try {
+      const payload = {
+        adelantoId: parseInt(adelantoIdAbono, 10),
+        cuotaId: cuotaIdAbono ? parseInt(cuotaIdAbono, 10) : undefined,
+        montoUSD,
+        tasaBcvAplicada: tasaBcv,
+        referenciaBancaria,
+        observaciones,
+      };
+
+      const res = await finanzasApi.registrarAbonoDirecto(payload);
+      Swal.fire({
+        icon: 'success',
+        title: '¡Abono Registrado!',
+        text: res.message || 'El abono directo se ha aplicado exitosamente.',
+        confirmButtonColor: '#f59e0b',
+      });
+      queryClient.invalidateQueries({ queryKey: ['abonos-amortizaciones'] });
+      queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
+      setModalAbonoDirectoOpen(false);
+      setAdelantoIdAbono('');
+      setCuotaIdAbono('');
+      setMontoUSD(0);
+      setReferenciaBancaria('');
+      setObservaciones('');
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Registrar Abono',
+        text: err.response?.data?.message || err.message || 'No se pudo registrar el abono.',
+        confirmButtonColor: '#ef4444',
+      });
+    } finally {
+      setLoadingAbono(false);
+    }
+  };
+
+  // Columnas 1:1 con tab-abonos
+  const columns = useMemo<ColumnDef<any>[]>(() => [
     {
-      key: 'entidadNombre',
-      header: 'Entidad / Deudor',
-      cell: (row: AbonoDirectoItem) => (
+      accessorKey: 'fecha',
+      header: 'Fecha Cobro',
+      cell: ({ row }) => (
+        <span style={{ fontWeight: 700, color: '#334155', fontSize: '12px' }}>
+          {row.fecha}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'semanaCodigo',
+      header: 'Semana',
+      cell: ({ row }) => (
+        <span style={{ fontWeight: 700, color: '#0369a1', fontSize: '11.5px' }}>
+          {row.semanaCodigo}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'entidadNombre',
+      header: 'Entidad / Finca',
+      cell: ({ row }) => (
         <div>
-          <span className="font-bold text-slate-800 text-xs block">
-            {row.entidadNombre || `Adelanto #${row.adelantoId}`}
-          </span>
-          <span className="text-[11px] text-gray-500 flex items-center gap-1">
-            {row.tipoEntidad === 'FINCA' ? (
-              <Leaf className="w-3 h-3 text-emerald-600 inline" />
-            ) : row.tipoEntidad === 'RECEPTORIA' ? (
-              <Building className="w-3 h-3 text-blue-600 inline" />
-            ) : (
-              <User className="w-3 h-3 text-amber-600 inline" />
-            )}
-            {row.tipoEntidad}
-          </span>
+          <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.entidadNombre}</div>
+          <span style={{ fontSize: '10.5px', color: '#64748b' }}>{row.tipoEntidad}</span>
         </div>
       ),
     },
     {
-      key: 'fecha',
-      header: 'Fecha',
-      cell: (row: AbonoDirectoItem) => (
-        <span className="text-xs font-mono text-slate-600">
-          {row.fecha ? new Date(row.fecha).toLocaleDateString() : 'N/A'}
-        </span>
+      accessorKey: 'adelantoId',
+      header: 'Adelanto #',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'center', fontWeight: 800, color: '#475569' }}>
+          #{row.adelantoId}
+        </div>
       ),
     },
     {
-      key: 'montoUSD',
-      header: 'Abono USD',
-      className: 'text-right',
-      cell: (row: AbonoDirectoItem) => (
-        <span className="font-mono text-xs font-black text-emerald-700">
-          +${Number(row.montoUSD || 0).toFixed(2)}
-        </span>
+      accessorKey: 'numeroCuota',
+      header: 'Cuota #',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'center', fontWeight: 800, color: '#2563eb' }}>
+          {row.numeroCuota}
+        </div>
       ),
     },
     {
-      key: 'montoBs',
-      header: 'Abono Bs',
-      className: 'text-right',
-      cell: (row: AbonoDirectoItem) => {
-        const bs = Number(row.montoBs || (Number(row.montoUSD || 0) * Number(row.tasaBCV || tasaBcv)));
-        return (
-          <span className="font-mono text-xs font-bold text-slate-700">
-            Bs. {bs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-          </span>
-        );
-      },
+      accessorKey: 'montoUSD',
+      header: 'Monto USD',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 900, color: '#059669' }}>
+          $ {row.montoUSD.toFixed(2)}
+        </div>
+      ),
     },
     {
-      key: 'tasaBCV',
+      accessorKey: 'tasaBCV',
       header: 'Tasa BCV',
-      className: 'text-right',
-      cell: (row: AbonoDirectoItem) => (
-        <span className="font-mono text-[11px] text-gray-500">
-          {Number(row.tasaBCV || tasaBcv).toFixed(2)}
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', color: '#64748b', fontSize: '11px' }}>
+          Bs. {row.tasaBCV > 0 ? row.tasaBCV.toFixed(2) : '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'montoCobradoBs',
+      header: 'Monto Cobrado (Bs)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', fontSize: '11.5px' }}>
+          Bs. {row.montoCobradoBs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'saldoRestanteUSD',
+      header: 'Saldo Restante ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#b45309' }}>
+          $ {row.saldoRestanteUSD.toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'detalle',
+      header: 'Detalle / Concepto',
+      cell: ({ row }) => (
+        <span style={{ fontSize: '11.5px', color: '#475569' }}>
+          {row.detalle}
         </span>
       ),
     },
     {
-      key: 'referenciaBancaria',
-      header: 'Referencia / Notas',
-      cell: (row: AbonoDirectoItem) => (
-        <div className="text-[11px]">
-          <span className="font-mono font-bold text-slate-700 block">
-            {row.referenciaBancaria || 'Sin Referencia'}
+      accessorKey: 'estado',
+      header: 'Estado',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'center' }}>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              display: 'inline-block',
+              background: '#dcfce7',
+              color: '#15803d',
+              border: '1px solid #86efac',
+            }}
+          >
+            {row.estado}
           </span>
-          <span className="text-gray-500 italic">{row.observaciones || 'Amortización extraordinaria'}</span>
         </div>
       ),
     },
-  ];
+  ], []);
 
   return (
-    <div className="space-y-6">
+    <div className="view-container">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-200">
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '15px',
+          marginBottom: '20px',
+        }}
+      >
         <div>
-          <h2 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-            <Coins className="w-5 h-5 text-amber-500" />
-            Abonos Directos & Amortización de Deudas
-          </h2>
-          <p className="text-xs text-gray-500">
-            Registro de cobros extraordinarios fuera de ciclo que amortizan el capital de adelantos activos
+          <h1 className="view-title">
+            <i className="fa-solid fa-coins" style={{ color: '#f59e0b', marginRight: '8px' }}></i>
+            Abonos &amp; Amortizaciones
+          </h1>
+          <p className="view-subtitle">
+            Control de cuotas cobradas en liquidaciones y registro de abonos extraordinarios directos
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={exportarExcel}
-            className="btn btn-outline text-xs font-bold h-9 px-3 flex items-center gap-1.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['abonos-amortizaciones'] })}
+            className="btn btn-outline"
+            style={{ borderColor: '#cbd5e1', color: '#475569', background: '#fff', fontWeight: 700 }}
           >
-            <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            <i className="fa-solid fa-rotate" style={{ marginRight: '6px' }}></i> Actualizar
           </button>
           <button
             type="button"
-            onClick={() => setModalNuevo(true)}
-            className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm"
+            onClick={exportarAbonosExcel}
+            className="btn btn-outline"
+            style={{ borderColor: '#10b981', color: '#047857', background: '#ecfdf5', fontWeight: 700 }}
           >
-            <Plus className="w-4 h-4" /> Registrar Abono Directo
+            <i className="fa-solid fa-file-excel" style={{ marginRight: '6px' }}></i> Exportar Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTasaBcv(tasaBcvActual);
+              setModalAbonoDirectoOpen(true);
+            }}
+            className="btn btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              border: 'none',
+              fontWeight: 800,
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.35)',
+            }}
+          >
+            <i className="fa-solid fa-plus" style={{ marginRight: '6px' }}></i> + Registrar Abono Directo
           </button>
         </div>
       </div>
 
-      {/* KPIS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Total Abonado (USD)</span>
-          <span className="text-xl font-black text-emerald-700 font-mono">
-            ${kpis.totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </span>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Total Abonado (Bs)</span>
-          <span className="text-xl font-black text-blue-900 font-mono">
-            Bs. {kpis.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-          </span>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Cantidad de Amortizaciones</span>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span className="text-xl font-bold text-slate-800">{kpis.totalRegistros}</span>
-            <span className="text-xs text-gray-400">pagos</span>
+      {/* 4 STAT CARDS 1:1 V2_3_11_26 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '12px',
+            padding: '18px',
+            color: '#fff',
+          }}
+        >
+          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+            Total Amortizado (USD)
           </div>
+          <div style={{ fontSize: '24px', fontWeight: 900, color: '#34d399' }}>
+            $ {kpis.totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <small style={{ color: '#94a3b8', fontSize: '11px' }}>Monto total recaudado en cuotas</small>
+        </div>
+
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '12px',
+            padding: '18px',
+            color: '#fff',
+          }}
+        >
+          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+            Total Amortizado (Bs)
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 900, color: '#fde047' }}>
+            Bs. {kpis.totalBs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <small style={{ color: '#94a3b8', fontSize: '11px' }}>Convertido a Tasa BCV aplicada</small>
+        </div>
+
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '12px',
+            padding: '18px',
+            color: '#fff',
+          }}
+        >
+          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+            Cuotas Cobradas
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 900, color: '#c084fc' }}>
+            {kpis.cuotasCobradas}
+          </div>
+          <small style={{ color: '#94a3b8', fontSize: '11px' }}>Descuentos procesados con éxito</small>
+        </div>
+
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '12px',
+            padding: '18px',
+            color: '#fff',
+          }}
+        >
+          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#f472b6', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+            Fincas / Entidades con Abonos
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 900, color: '#f472b6' }}>
+            {kpis.totalEntidades}
+          </div>
+          <small style={{ color: '#94a3b8', fontSize: '11px' }}>Entidades con saldo amortizado</small>
         </div>
       </div>
 
-      {/* BARRA DE FILTROS */}
-      <div className="p-4 bg-white rounded-xl shadow-xs border border-gray-200 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-gray-700">Tipo de Entidad:</label>
-            <select
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              className="form-input text-xs h-9 rounded-lg border border-slate-300 font-medium"
-            >
-              <option value="">TODAS LAS ENTIDADES</option>
-              <option value="FINCA">FINCAS</option>
-              <option value="PERSONAL">PERSONAL & CHOFERES</option>
-              <option value="RECEPTORIA">RECEPTORÍAS / PLANTAS</option>
-            </select>
+      {/* CONTENT CARD CON DATATABLE */}
+      <div className="content-card">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '14px',
+            marginBottom: '16px',
+            paddingBottom: '14px',
+            borderBottom: '1px solid #f1f5f9',
+          }}
+        >
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+              <i className="fa-solid fa-list-check" style={{ color: '#f59e0b', marginRight: '6px' }}></i>
+              Registro de Cuotas &amp; Abonos
+            </h3>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+              Trazabilidad completa por finca, semana operativa y comprobante
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-gray-700">Semana:</label>
-            <select
-              value={filtroCiclo}
-              onChange={(e) => setFiltroCiclo(e.target.value)}
-              className="form-input text-xs h-9 rounded-lg border border-slate-300 font-medium"
-            >
-              <option value="">TODAS LAS SEMANAS</option>
-              {ciclos.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.codigo || `Semana #${c.numeroSemana}`}
-                </option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+              <label>Entidad:</label>
+              <select
+                value={filtroTipoEntidad}
+                onChange={(e) => setFiltroTipoEntidad(e.target.value)}
+                className="form-input"
+                style={{ height: '38px', padding: '0 10px', fontSize: '13px', fontWeight: 700 }}
+              >
+                <option value="">TODAS</option>
+                <option value="FINCA">Fincas</option>
+                <option value="RECEPTORIA">Receptoría</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+              <label>Semana:</label>
+              <select
+                value={filtroCiclo}
+                onChange={(e) => setFiltroCiclo(e.target.value)}
+                className="form-input"
+                style={{ height: '38px', padding: '0 10px', fontSize: '13px', fontWeight: 700 }}
+              >
+                <option value="">TODAS LAS SEMANAS</option>
+                {ciclos.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.codigo || `Semana #${s.id}`} {String(s.estado || '').toUpperCase() === 'ABIERTO' ? '★ (ACTIVA)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="relative w-64">
-          <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
-          <input
-            type="text"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por beneficiario, ref..."
-            className="w-full text-xs pl-8 pr-3 h-9 rounded-lg border border-slate-300 outline-none focus:border-blue-500"
-          />
-        </div>
-      </div>
-
-      {/* TABLA PRINCIPAL */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
         <DataTable
           columns={columns}
-          data={filtrados}
+          data={abonos}
           isLoading={isLoading}
-          pageSizeDefault={10}
-          emptyMessage="No se han registrado abonos directos para los filtros seleccionados."
+          searchPlaceholder="Buscar por finca o adelanto..."
         />
       </div>
 
       {/* MODAL REGISTRAR ABONO DIRECTO */}
-      {modalNuevo && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-emerald-600" />
-              Registrar Abono Directo a Deuda
-            </h3>
-
-            <div className="space-y-4 text-xs">
+      {modalAbonoDirectoOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '540px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                padding: '16px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                color: '#fff',
+              }}
+            >
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Tipo de Deudor:</label>
-                <select
-                  value={form.tipoEntidad}
-                  onChange={(e) => setForm({ ...form, tipoEntidad: e.target.value, adelantoId: 0 })}
-                  className="w-full form-input rounded-lg border border-slate-300 p-2"
-                >
-                  <option value="FINCA">Finca / Productor</option>
-                  <option value="PERSONAL">Personal / Chofer</option>
-                  <option value="RECEPTORIA">Planta Receptoría</option>
-                </select>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800 }}>
+                  <i className="fa-solid fa-coins" style={{ marginRight: '6px' }}></i>
+                  Registrar Abono Directo
+                </h3>
+                <span style={{ fontSize: '11px', color: '#fef3c7' }}>
+                  Pago extraordinario para amortizar saldo de adelanto
+                </span>
               </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Préstamo / Adelanto a Amortizar:</label>
-                <select
-                  value={form.adelantoId}
-                  onChange={(e) => {
-                    const id = Number(e.target.value);
-                    const ad = adelantosActivos.find((a) => a.id === id);
-                    const pend = ad ? (ad.montoPendienteUSD || (ad.montoUSD - (ad.montoPagadoUSD || 0))) : 0;
-                    setForm({
-                      ...form,
-                      adelantoId: id,
-                      montoUSD: pend > 0 ? pend : form.montoUSD,
-                      montoBs: (pend > 0 ? pend : form.montoUSD) * tasaBcv,
-                    });
-                  }}
-                  className="w-full form-input rounded-lg border border-slate-300 p-2"
-                >
-                  <option value={0}>-- Seleccione un Adelanto Pendiente --</option>
-                  {adelantosActivos.map((a) => {
-                    const pend = a.montoPendienteUSD || (a.montoUSD - (a.montoPagadoUSD || 0));
-                    return (
-                      <option key={a.id} value={a.id}>
-                        {a.fincaNombre || a.usuarioNombre || a.companiaNombre || `Adelanto #${a.id}`} - Pendiente: ${pend.toFixed(2)}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Monto Abonado (USD):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.montoUSD || ''}
-                    onChange={(e) => {
-                      const usd = Number(e.target.value);
-                      setForm({ ...form, montoUSD: usd, montoBs: usd * (form.tasaBCV || tasaBcv) });
-                    }}
-                    placeholder="0.00"
-                    className="w-full form-input rounded-lg border border-slate-300 p-2 font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tasa BCV:</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.tasaBCV || tasaBcv}
-                    onChange={(e) => {
-                      const t = Number(e.target.value);
-                      setForm({ ...form, tasaBCV: t, montoBs: form.montoUSD * t });
-                    }}
-                    className="w-full form-input rounded-lg border border-slate-300 p-2 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Equivalente en Bolívares (Bs):</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={`Bs. ${Number(form.montoBs || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
-                  className="w-full form-input rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono font-bold text-emerald-800"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Referencia Bancaria:</label>
-                <input
-                  type="text"
-                  value={form.referenciaBancaria}
-                  onChange={(e) => setForm({ ...form, referenciaBancaria: e.target.value })}
-                  placeholder="Ej: Pago Móvil / Transf. 984512"
-                  className="w-full form-input rounded-lg border border-slate-300 p-2 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Observaciones:</label>
-                <textarea
-                  rows={2}
-                  value={form.observaciones}
-                  onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
-                  placeholder="Detalle o justificación de la amortización..."
-                  className="w-full form-input rounded-lg border border-slate-300 p-2"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6 pt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setModalNuevo(false)}
-                className="btn btn-outline text-xs px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (form.adelantoId <= 0 || form.montoUSD <= 0) {
-                    toast.error('Seleccione un adelanto y coloque un monto mayor a cero');
-                    return;
-                  }
-                  crearMutation.mutate(form);
+                onClick={() => setModalAbonoDirectoOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
                 }}
-                disabled={crearMutation.isPending}
-                className="btn text-xs px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg"
               >
-                Registrar y Amortizar
+                <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
+
+            <form onSubmit={handleGuardarAbonoDirecto} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Adelanto Activo a Abonar *
+                </label>
+                <select
+                  required
+                  value={adelantoIdAbono}
+                  onChange={(e) => {
+                    setAdelantoIdAbono(e.target.value);
+                    const sel = adelantosDisponiblesModal.find((a: any) => String(a.id || (a as any).Id) === e.target.value);
+                    if (sel) {
+                      setMontoUSD(Number((sel as any).cuotaUSD || (sel as any).montoPendienteUSD || 0));
+                    }
+                  }}
+                  className="form-input"
+                  style={{ height: '40px', fontWeight: 700 }}
+                >
+                  <option value="">-- Seleccionar Adelanto Activo --</option>
+                  {adelantosDisponiblesModal.map((a: any) => (
+                    <option key={a.id} value={String(a.id)}>
+                      #{a.id} - {a.fincaNombre || a.entidadNombre} (Pendiente: ${Number(a.montoPendienteUSD ?? a.saldoPendienteUSD ?? 0).toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {adelantoSeleccionadoModal && (
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Saldo Pendiente:</span>
+                    <div style={{ fontSize: '15px', fontWeight: 900, color: '#b45309' }}>
+                      $ {Number(adelantoSeleccionadoModal.montoPendienteUSD ?? adelantoSeleccionadoModal.saldoPendienteUSD ?? 0).toFixed(2)} USD
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Cuota Recomendada:</span>
+                    <div style={{ fontSize: '15px', fontWeight: 900, color: '#2563eb' }}>
+                      $ {Number((adelantoSeleccionadoModal as any).cuotaUSD || 0).toFixed(2)} USD
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Monto Abonado ($ USD) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={montoUSD || ''}
+                    onChange={(e) => setMontoUSD(parseFloat(e.target.value) || 0)}
+                    className="form-input"
+                    style={{ height: '38px', fontWeight: 800, color: '#059669' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Tasa BCV (Bs/$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min="0.0001"
+                    required
+                    value={tasaBcv || ''}
+                    onChange={(e) => setTasaBcv(parseFloat(e.target.value) || 0)}
+                    className="form-input"
+                    style={{ height: '38px', fontWeight: 800, color: '#2563eb' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Referencia Bancaria / Comprobante
+                </label>
+                <input
+                  type="text"
+                  value={referenciaBancaria}
+                  onChange={(e) => setReferenciaBancaria(e.target.value)}
+                  placeholder="Ej: Transf. 984124 / Pago móvil"
+                  className="form-input"
+                  style={{ height: '38px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Observaciones
+                </label>
+                <input
+                  type="text"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  placeholder="Ej: Pago directo en oficina..."
+                  className="form-input"
+                  style={{ height: '38px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setModalAbonoDirectoOpen(false)}
+                  disabled={loadingAbono}
+                  className="btn btn-outline"
+                  style={{ fontWeight: 700, padding: '7px 14px', background: '#fff' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingAbono}
+                  className="btn btn-primary"
+                  style={{ fontWeight: 800, padding: '7px 18px', background: '#f59e0b', border: 'none' }}
+                >
+                  {loadingAbono ? 'Registrando...' : 'Confirmar Abono'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
     </div>
   );
 };
-
-export default AbonosAmortizacionesPage;

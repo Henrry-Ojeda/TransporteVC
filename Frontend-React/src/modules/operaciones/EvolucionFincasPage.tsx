@@ -54,7 +54,14 @@ export const EvolucionFincasPage: React.FC = () => {
 
   // Modo de evaluación de 15 días: Desde Semana Operativa Activa (hacia atrás), Mes en Quincenas o Rango Personalizado
   const [modo, setModo] = useState<ModoEvaluacion>('SEMANA_OPERATIVA');
+  const [semanaSeleccionadaId, setSemanaSeleccionadaId] = useState<string>('');
   
+  // Semanas Operativas
+  const { data: semanas = [] } = useQuery<CicloSemanalDto[]>({
+    queryKey: ['ciclos-semanas'],
+    queryFn: () => finanzasApi.getCiclos(),
+  });
+
   // Query Ciclo Activo oficial (la misma consulta unificada del Header)
   const { data: cicloActivo } = useQuery<any>({
     queryKey: ['ciclo-activo'],
@@ -88,9 +95,10 @@ export const EvolucionFincasPage: React.FC = () => {
   // Cálculo de los dos rangos de 15 días para la comparativa
   const rangosEvaluacion = useMemo(() => {
     if (modo === 'SEMANA_OPERATIVA') {
+      const semanaTarget = semanas.find((s) => String(s.id || (s as any).Id) === semanaSeleccionadaId) || cicloActivo;
       let refDate = new Date();
-      if (cicloActivo?.fechaFin) {
-        refDate = new Date(cicloActivo.fechaFin.split('T')[0] + 'T23:59:59');
+      if (semanaTarget?.fechaFin) {
+        refDate = new Date(semanaTarget.fechaFin.split('T')[0] + 'T23:59:59');
       } else {
         refDate = new Date('2026-11-02T23:59:59');
       }
@@ -220,7 +228,7 @@ export const EvolucionFincasPage: React.FC = () => {
     return fincas.filter((f) => {
       const act = f.activo;
       const actObj = (f as any).Activo;
-      return act === true || actObj === true || actObj === 1;
+      return act === true || actObj === true || (act !== false && actObj !== false && act !== 0 && actObj !== 0);
     });
   }, [fincas]);
 
@@ -712,26 +720,34 @@ export const EvolucionFincasPage: React.FC = () => {
           {modo === 'SEMANA_OPERATIVA' ? (
             <div style={{ minWidth: '320px' }}>
               <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
-                📆 Semana Operativa Activa:
+                📆 Semana Operativa Evaluada:
               </label>
-              <div
+              <select
+                value={semanaSeleccionadaId || (cicloActivo?.id ? String(cicloActivo.id) : '')}
+                onChange={(e) => setSemanaSeleccionadaId(e.target.value)}
+                className="form-input"
                 style={{
                   height: '36px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  color: '#1e40af',
                   background: '#eff6ff',
                   border: '1.5px solid #bfdbfe',
                   borderRadius: '8px',
-                  padding: '0 12px',
-                  color: '#1e40af',
-                  fontWeight: 800,
-                  fontSize: '12px',
+                  padding: '0 10px',
                 }}
               >
-                <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                <span>{cicloActivo?.codigo || 'Semana 44 (27/10/2026 al 2/11/2026)'} ⭐ (Activa)</span>
-              </div>
+                {semanas.map((s) => {
+                  const sId = String(s.id || (s as any).Id);
+                  const isAct = String(s.estado || (s as any).Estado || '').toUpperCase() === 'ABIERTO';
+                  const cod = s.codigo || (s as any).Codigo || `Semana #${sId}`;
+                  return (
+                    <option key={sId} value={sId}>
+                      {cod} {isAct ? '⭐ (Activa)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
           ) : modo === 'MES_QUINCENAS' ? (
             <div>

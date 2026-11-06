@@ -1,24 +1,19 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import {
   Printer,
-  Save,
-  RotateCcw,
-  Layers,
   CheckCircle2,
-  AlertTriangle,
-  Building2,
-  Truck,
   Lock,
   ShieldCheck,
   Check,
+  Droplets,
 } from 'lucide-react';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
 import { useAuth } from '@/hooks/useAuth';
-import type { ChoferDto, ControlTanquesDiarioDto } from '@/types';
+import type { ControlTanquesDiarioDto } from '@/types';
 
 interface FilaRecepcionTanque {
   id: number;
@@ -26,16 +21,20 @@ interface FilaRecepcionTanque {
   choferRuta: string;
   litrosRuta: number;
   litrosRecepcion: number;
+  recepcionObs?: string;
   diferencia: number;
 }
 
+const TOTAL_FILAS = 22;
+
 const emptyFilas = (): FilaRecepcionTanque[] =>
-  Array.from({ length: 15 }, (_, i) => ({
+  Array.from({ length: TOTAL_FILAS }, (_, i) => ({
     id: i + 1,
     fecha: '',
     choferRuta: '',
     litrosRuta: 0,
     litrosRecepcion: 0,
+    recepcionObs: '',
     diferencia: 0,
   }));
 
@@ -43,8 +42,10 @@ export const ControlTanquesPage: React.FC = () => {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [fechaDocumento, setFechaDocumento] = useState(() => new Date().toISOString().split('T')[0]);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialLoadRef = useRef<boolean>(true);
 
-  // Tanques Iniciales (1 al 5)
+  // Tanques Iniciales (Tanque 1, Tanque 2, Tanque 3, Tanque 4, Silo)
   const [tanquesIniciales, setTanquesIniciales] = useState({
     t1: 0,
     t2: 0,
@@ -53,7 +54,7 @@ export const ControlTanquesPage: React.FC = () => {
     t5: 0,
   });
 
-  // Tanques Finales (1 al 5)
+  // Tanques Finales (Tanque 1, Tanque 2, Tanque 3, Tanque 4, Silo)
   const [tanquesFinales, setTanquesFinales] = useState({
     t1: 0,
     t2: 0,
@@ -62,25 +63,13 @@ export const ControlTanquesPage: React.FC = () => {
     t5: 0,
   });
 
-  // Total Despachado a Plantas / Cisternas
   const [totalDespachado, setTotalDespachado] = useState<number>(0);
-
-  // 15 Registros de recepción
   const [filasRecepcion, setFilasRecepcion] = useState<FilaRecepcionTanque[]>(emptyFilas);
 
   // Consulta del registro diario del backend
-  const {
-    data: controlTanques,
-    isLoading,
-    refetch,
-  } = useQuery<ControlTanquesDiarioDto | null>({
+  const { data: controlTanques } = useQuery<ControlTanquesDiarioDto | null>({
     queryKey: ['control-tanques-diario', fechaDocumento],
     queryFn: () => operacionesApi.getControlTanquesDiario(fechaDocumento),
-  });
-
-  const { data: choferes = [] } = useQuery<ChoferDto[]>({
-    queryKey: ['choferes-tanques'],
-    queryFn: () => catalogosApi.getChoferes(),
   });
 
   const { data: empresaConfig } = useQuery({
@@ -96,18 +85,23 @@ export const ControlTanquesPage: React.FC = () => {
   const autoLlenarFilasConViajes = (viajes: any[]) => {
     if (!viajes || viajes.length === 0) return emptyFilas();
     const rows: FilaRecepcionTanque[] = [];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < TOTAL_FILAS; i++) {
       if (i < viajes.length) {
         const v = viajes[i];
         const lRuta = Number(v.totalLitrosFinca ?? v.totalLitrosRecogidos ?? 0);
         const lRecep = Number(v.litrosRecibidosReceptoria ?? v.totalLitrosReceptoria ?? v.totalLitrosEntregados ?? lRuta);
+        const diff = lRecep - lRuta;
+        const fechaFormat = v.fecha
+          ? new Date(v.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : fechaDocumento;
         rows.push({
           id: i + 1,
-          fecha: v.fecha ? new Date(v.fecha).toISOString().split('T')[0] : fechaDocumento,
+          fecha: fechaFormat,
           choferRuta: `${v.choferNombre || v.nombreConductor || 'Chofer'} / ${v.rutaNombre || v.rutaLogisticaNombre || 'Ruta'}`,
           litrosRuta: lRuta,
           litrosRecepcion: lRecep,
-          diferencia: lRuta - lRecep,
+          recepcionObs: lRecep > 0 ? String(lRecep) : '',
+          diferencia: diff,
         });
       } else {
         rows.push({
@@ -116,6 +110,7 @@ export const ControlTanquesPage: React.FC = () => {
           choferRuta: '',
           litrosRuta: 0,
           litrosRecepcion: 0,
+          recepcionObs: '',
           diferencia: 0,
         });
       }
@@ -123,8 +118,6 @@ export const ControlTanquesPage: React.FC = () => {
     return rows;
   };
 
-  // Verificar si el usuario puede modificar
-  // Regla: si no es admin y (está cerrado o fecha < hoy), puedeModificar viene false
   const puedeModificar = useMemo(() => {
     if (isAdmin) return true;
     if (controlTanques?.puedeModificar === false) return false;
@@ -134,11 +127,12 @@ export const ControlTanquesPage: React.FC = () => {
 
   const esSupervisorOAdmin = useMemo(() => {
     const rol = (user?.rol || '').toUpperCase();
-    return rol === 'ADMIN' || rol === 'ADMINISTRADOR' || rol === 'SUPERVISOR';
+    return rol.includes('ADMIN') || rol === 'SUPERVISOR' || rol === 'GERENTE';
   }, [user]);
 
-  // Cargar datos recibidos de backend
+  // Cargar datos recibidos de backend o autollenar al cambiar la fecha
   useEffect(() => {
+    isInitialLoadRef.current = true;
     if (controlTanques) {
       setTanquesIniciales({
         t1: controlTanques.tanque1Inicial || 0,
@@ -148,7 +142,6 @@ export const ControlTanquesPage: React.FC = () => {
         t5: controlTanques.tanque5Inicial || 0,
       });
 
-      // Si todos son 0 pero viene total inicial calculado de arrastre
       if (
         !controlTanques.tanque1Inicial &&
         !controlTanques.tanque2Inicial &&
@@ -157,7 +150,7 @@ export const ControlTanquesPage: React.FC = () => {
         !controlTanques.tanque5Inicial &&
         controlTanques.totalInicialLitros > 0
       ) {
-        setTanquesIniciales((prev) => ({ ...prev, t1: controlTanques.totalInicialLitros }));
+        setTanquesIniciales((prev) => ({ ...prev, t5: controlTanques.totalInicialLitros }));
       }
 
       setTanquesFinales({
@@ -173,15 +166,33 @@ export const ControlTanquesPage: React.FC = () => {
       if (controlTanques.filasRecepcionJson) {
         try {
           const parsed = JSON.parse(controlTanques.filasRecepcionJson);
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed.some((p: any) => p.litrosRuta > 0 || p.litrosRecepcion > 0 || p.choferRuta)) {
-            const padded = [...parsed];
-            while (padded.length < 15) {
+          if (
+            Array.isArray(parsed) &&
+            parsed.length > 0 &&
+            parsed.some((p: any) => p.litrosRuta > 0 || p.litrosRecepcion > 0 || p.choferRuta)
+          ) {
+            const padded = parsed.slice(0, TOTAL_FILAS).map((item: any, idx: number) => ({
+              id: idx + 1,
+              fecha: item.fecha || '',
+              choferRuta: item.choferRuta || '',
+              litrosRuta: Number(item.litrosRuta) || 0,
+              litrosRecepcion: Number(item.litrosRecepcion) || 0,
+              recepcionObs:
+                item.recepcionObs !== undefined
+                  ? String(item.recepcionObs)
+                  : item.litrosRecepcion
+                  ? String(item.litrosRecepcion)
+                  : '',
+              diferencia: Number(item.diferencia) || 0,
+            }));
+            while (padded.length < TOTAL_FILAS) {
               padded.push({
                 id: padded.length + 1,
                 fecha: '',
                 choferRuta: '',
                 litrosRuta: 0,
                 litrosRecepcion: 0,
+                recepcionObs: '',
                 diferencia: 0,
               });
             }
@@ -208,7 +219,10 @@ export const ControlTanquesPage: React.FC = () => {
     } else {
       setFilasRecepcion(emptyFilas());
     }
-  }, [controlTanques, viajesDelDia]);
+    setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 300);
+  }, [controlTanques, viajesDelDia, fechaDocumento]);
 
   // Cálculos automáticos
   const totalTanquesIniciales = useMemo(() => {
@@ -231,44 +245,25 @@ export const ControlTanquesPage: React.FC = () => {
     );
   }, [tanquesFinales]);
 
-  const totalLitrosRuta = useMemo(() => {
+  const totalLitrosRecibidosTabla = useMemo(() => {
     return filasRecepcion.reduce((acc, f) => acc + (Number(f.litrosRuta) || 0), 0);
   }, [filasRecepcion]);
 
-  const totalLitrosRecepcion = useMemo(() => {
-    return filasRecepcion.reduce((acc, f) => acc + (Number(f.litrosRecepcion) || 0), 0);
-  }, [filasRecepcion]);
+  const diferenciaTanques = useMemo(() => {
+    return totalTanquesFinales - totalTanquesIniciales;
+  }, [totalTanquesFinales, totalTanquesIniciales]);
 
-  const totalDiferenciaRecepcion = useMemo(() => {
-    return totalLitrosRecepcion - totalLitrosRuta;
-  }, [totalLitrosRecepcion, totalLitrosRuta]);
-
-  // Balance Silo: Iniciales + Recibido - Despachado
   const volumenTeoricoFinal = useMemo(() => {
-    return totalTanquesIniciales + totalLitrosRecepcion - (Number(totalDespachado) || 0);
-  }, [totalTanquesIniciales, totalLitrosRecepcion, totalDespachado]);
+    return totalTanquesIniciales + totalLitrosRecibidosTabla - (Number(totalDespachado) || 0);
+  }, [totalTanquesIniciales, totalLitrosRecibidosTabla, totalDespachado]);
 
   const mermaSilo = useMemo(() => {
     return totalTanquesFinales - volumenTeoricoFinal;
   }, [totalTanquesFinales, volumenTeoricoFinal]);
 
-  // Manejo de cambio en fila de recepción
-  const handleFilaChange = (index: number, field: keyof FilaRecepcionTanque, value: any) => {
-    if (!puedeModificar) return;
-    const updated = [...filasRecepcion];
-    const item = { ...updated[index], [field]: value };
-    if (field === 'litrosRuta' || field === 'litrosRecepcion') {
-      const ruta = Number(field === 'litrosRuta' ? value : item.litrosRuta) || 0;
-      const rec = Number(field === 'litrosRecepcion' ? value : item.litrosRecepcion) || 0;
-      item.diferencia = rec - ruta;
-    }
-    updated[index] = item;
-    setFilasRecepcion(updated);
-  };
-
   // Mutación Guardar
   const guardarMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (silent?: boolean) => {
       const payload: ControlTanquesDiarioDto = {
         fecha: fechaDocumento,
         tanque1Inicial: Number(tanquesIniciales.t1) || 0,
@@ -278,7 +273,7 @@ export const ControlTanquesPage: React.FC = () => {
         tanque5Inicial: Number(tanquesIniciales.t5) || 0,
         totalInicialLitros: totalTanquesIniciales,
         aperturaConfirmada: controlTanques?.aperturaConfirmada || false,
-        totalEntradasRutasLitros: totalLitrosRecepcion,
+        totalEntradasRutasLitros: totalLitrosRecibidosTabla,
         totalSalidasPlantasLitros: Number(totalDespachado) || 0,
         tanque1Final: Number(tanquesFinales.t1) || 0,
         tanque2Final: Number(tanquesFinales.t2) || 0,
@@ -291,23 +286,58 @@ export const ControlTanquesPage: React.FC = () => {
         cierreConfirmado: controlTanques?.cierreConfirmado || false,
         filasRecepcionJson: JSON.stringify(filasRecepcion),
       };
-      return await operacionesApi.guardarControlTanquesDiario(payload);
+      const res = await operacionesApi.guardarControlTanquesDiario(payload);
+      return { res, silent };
     },
-    onSuccess: (res) => {
-      toast.success(res.message || 'Control diario guardado correctamente');
-      queryClient.invalidateQueries({ queryKey: ['control-tanques-diario'] });
+    onSuccess: ({ res, silent }) => {
+      if (!silent) {
+        toast.success(res.message || 'Control diario guardado correctamente');
+      }
       queryClient.invalidateQueries({ queryKey: ['balance-receptoria'] });
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Error al guardar control de tanques');
-    },
   });
+
+  // Autoguardado silencioso cuando el usuario edita campos
+  const triggerAutoSave = () => {
+    if (!puedeModificar || isInitialLoadRef.current) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      guardarMutation.mutate(true);
+    }, 1200);
+  };
+
+  const handleFilaChange = (index: number, field: keyof FilaRecepcionTanque, value: any) => {
+    if (!puedeModificar) return;
+    const updated = [...filasRecepcion];
+    const item = { ...updated[index], [field]: value };
+
+    if (field === 'litrosRuta') {
+      item.litrosRuta = Number(value) || 0;
+      const recNum = Number(item.recepcionObs);
+      if (!isNaN(recNum) && item.recepcionObs !== '') {
+        item.litrosRecepcion = recNum;
+        item.diferencia = recNum - item.litrosRuta;
+      }
+    } else if (field === 'recepcionObs') {
+      item.recepcionObs = String(value);
+      const recNum = Number(value);
+      if (!isNaN(recNum) && String(value).trim() !== '') {
+        item.litrosRecepcion = recNum;
+        item.diferencia = recNum - (Number(item.litrosRuta) || 0);
+      }
+    } else if (field === 'diferencia') {
+      item.diferencia = Number(value) || 0;
+    }
+
+    updated[index] = item;
+    setFilasRecepcion(updated);
+    triggerAutoSave();
+  };
 
   // Mutación Confirmar Apertura
   const confirmarAperturaMutation = useMutation({
     mutationFn: async () => {
-      // Guardar primero para que persistan los tanques iniciales actuales
-      await guardarMutation.mutateAsync();
+      await guardarMutation.mutateAsync(true);
       return await operacionesApi.confirmarAperturaTanques(fechaDocumento);
     },
     onSuccess: (res) => {
@@ -328,14 +358,15 @@ export const ControlTanquesPage: React.FC = () => {
   // Mutación Confirmar Cierre
   const confirmarCierreMutation = useMutation({
     mutationFn: async () => {
-      // Guardar primero para que persistan los tanques finales actuales
-      await guardarMutation.mutateAsync();
+      await guardarMutation.mutateAsync(true);
       return await operacionesApi.confirmarCierreTanques(fechaDocumento);
     },
     onSuccess: (res) => {
       Swal.fire({
         title: '¡Cierre Diario Confirmado!',
-        text: res.message || 'El formulario queda cerrado. Solo el Administrador podrá modificar datos a partir de este momento.',
+        text:
+          res.message ||
+          'El formulario queda cerrado. Solo el Administrador podrá modificar datos a partir de este momento.',
         icon: 'success',
         confirmButtonColor: '#1d4ed8',
       });
@@ -372,9 +403,9 @@ export const ControlTanquesPage: React.FC = () => {
       title: '¿Confirmar Cierre Diario de Tanques?',
       html: `
         <div class="text-left text-xs text-gray-600 space-y-2">
-          <p>Total Físico en Silos: <strong>${totalTanquesFinales.toLocaleString()} Lts</strong></p>
-          <p>Volumen Teórico: <strong>${volumenTeoricoFinal.toLocaleString()} Lts</strong></p>
-          <p>Merma Silo: <strong class="${mermaSilo < 0 ? 'text-red-600' : 'text-emerald-600'}">${mermaSilo.toLocaleString()} Lts</strong></p>
+          <p>Total Físico en Tanques y Silo: <strong>${totalTanquesFinales.toLocaleString()} Lts</strong></p>
+          <p>Total Litros Recibidos (Tabla): <strong>${totalLitrosRecibidosTabla.toLocaleString()} Lts</strong></p>
+          <p>Diferencia Tanques (Final - Inicial): <strong>${diferenciaTanques.toLocaleString()} Lts</strong></p>
           <p class="text-red-600 font-bold mt-2">ATENCIÓN: De aquí en adelante los datos quedarán bloqueados para edición. Solo un Administrador podrá desbloquearlos.</p>
         </div>
       `,
@@ -393,71 +424,42 @@ export const ControlTanquesPage: React.FC = () => {
     window.print();
   };
 
-  const handleLimpiar = async () => {
-    if (!puedeModificar) {
-      toast.error('Este registro está confirmado y bloqueado. Solo el Administrador puede editarlo.');
-      return;
-    }
-    const res = await Swal.fire({
-      title: '¿Limpiar formulario?',
-      text: 'Se reiniciarán los valores cargados en los tanques y recepciones para esta fecha.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, reiniciar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#2563eb',
-    });
-    if (res.isConfirmed) {
-      setTanquesIniciales({ t1: 0, t2: 0, t3: 0, t4: 0, t5: 0 });
-      setTanquesFinales({ t1: 0, t2: 0, t3: 0, t4: 0, t5: 0 });
-      setTotalDespachado(0);
-      setFilasRecepcion(emptyFilas());
-      toast.success('Formulario reiniciado');
-    }
-  };
+  const tankColumns = [
+    { key: 't1' as const, label: 'Tanque 1' },
+    { key: 't2' as const, label: 'Tanque 2' },
+    { key: 't3' as const, label: 'Tanque 3' },
+    { key: 't4' as const, label: 'Tanque 4' },
+    { key: 't5' as const, label: 'Silo' },
+  ];
+
+  const formattedHeaderDate = useMemo(() => {
+    if (!fechaDocumento) return '';
+    const [yyyy, mm, dd] = fechaDocumento.split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }, [fechaDocumento]);
 
   return (
-    <div className="space-y-6">
-      {/* BARRA DE ACCIONES SUPERIOR (Se oculta al imprimir) */}
-      <div className="actions-bar print:hidden flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-200">
-        <div>
-          <h2 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blue-600" />
-            Control Diario de Tanques y Recepción de Leche
-          </h2>
-          <p className="text-xs text-gray-500">
-            Formulario operativo de aforos de silos 1 al 5, balance de entradas de rutas y mermas diarias
-          </p>
+    <div className="space-y-4">
+      {/* BARRA DE ACCIONES (No se imprime) */}
+      <div className="actions-bar print:hidden max-w-[800px] mx-auto bg-white px-5 py-3 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+          <Droplets className="w-5 h-5 text-blue-600" />
+          <span>Formulario de Control Diario de Tanques y Recepción</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-gray-700">Fecha Operativa:</label>
-            <input
-              type="date"
-              value={fechaDocumento}
-              onChange={(e) => setFechaDocumento(e.target.value)}
-              className="form-input text-xs font-bold h-9 rounded-lg border border-slate-300 px-2"
-            />
-          </div>
-
-          {puedeModificar && (
-            <button
-              type="button"
-              onClick={() => guardarMutation.mutate()}
-              disabled={guardarMutation.isPending}
-              className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
-              title="Guardar borrador o cambios del formulario"
-            >
-              <Save className="w-4 h-4" /> Guardar
-            </button>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={fechaDocumento}
+            onChange={(e) => setFechaDocumento(e.target.value)}
+            className="h-9 px-2.5 text-xs font-bold text-slate-800 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600"
+            title="Seleccionar Fecha (Autollena automáticamente los viajes del día)"
+          />
 
           {esSupervisorOAdmin && (
             <>
-              {/* Botón Apertura */}
               {controlTanques?.aperturaConfirmada ? (
-                <div className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold rounded-lg">
+                <div className="inline-flex items-center gap-1 px-3 h-9 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold rounded-lg">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Apertura OK</span>
                 </div>
@@ -466,16 +468,14 @@ export const ControlTanquesPage: React.FC = () => {
                   type="button"
                   onClick={handleConfirmarApertura}
                   disabled={confirmarAperturaMutation.isPending}
-                  className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm"
-                  title="Validar y confirmar litros iniciales de apertura"
+                  className="h-9 px-3.5 text-xs font-bold flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm transition-colors cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4" /> Confirmar Apertura
                 </button>
               )}
 
-              {/* Botón Cierre */}
               {controlTanques?.cierreConfirmado ? (
-                <div className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg">
+                <div className="inline-flex items-center gap-1 px-3 h-9 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg">
                   <Lock className="w-3.5 h-3.5 text-slate-500" />
                   <span>Cierre OK</span>
                 </div>
@@ -484,10 +484,9 @@ export const ControlTanquesPage: React.FC = () => {
                   type="button"
                   onClick={handleConfirmarCierre}
                   disabled={confirmarCierreMutation.isPending}
-                  className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm"
-                  title="Confirmar aforos finales y bloquear edición del día"
+                  className="h-9 px-3.5 text-xs font-bold flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm transition-colors cursor-pointer"
                 >
-                  <Check className="w-4 h-4" /> Confirmar Cierre Diario
+                  <Check className="w-4 h-4" /> Confirmar Cierre
                 </button>
               )}
             </>
@@ -495,359 +494,283 @@ export const ControlTanquesPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={handleLimpiar}
-            disabled={!puedeModificar}
-            className="btn btn-outline text-xs font-bold h-9 px-3 flex items-center gap-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            title="Reiniciar valores"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-gray-500" /> Limpiar
-          </button>
-
-          <button
-            type="button"
             onClick={handlePrint}
-            className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm"
+            className="h-9 px-4 text-xs font-bold flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors cursor-pointer"
           >
-            <Printer className="w-4 h-4" /> Imprimir / PDF
+            <Printer className="w-4 h-4" /> Imprimir / Guardar en PDF
           </button>
         </div>
       </div>
 
-      {/* AVISO DE BLOQUEO SI NO ES ADMINISTRADOR Y ESTÁ CERRADO */}
+      {/* AVISO DE BLOQUEO SI ESTÁ CERRADO Y NO ES ADMIN */}
       {!puedeModificar && (
-        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center justify-between text-amber-900 text-xs font-semibold print:hidden">
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
-              <strong>Registro Diario Cerrado y Confirmado:</strong> Los aforos y recepciones de esta fecha están validados.
-              Por regla de auditoría, únicamente el <strong>Administrador</strong> tiene autorización para desbloquear y modificar datos de días anteriores o confirmados.
-            </span>
-          </div>
+        <div className="max-w-[800px] mx-auto bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center gap-2 text-amber-900 text-xs font-semibold print:hidden">
+          <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+          <span>
+            <strong>Registro Diario Cerrado:</strong> Solo el Administrador puede modificar datos confirmados.
+          </span>
         </div>
       )}
 
-      {/* DOCUMENTO PRINCIPAL (HOJA IMPRIMIBLE 1:1 CON FORMATO ORIGINAL) */}
+      {/* HOJA PRINCIPAL (Imprimible 1:1 con Formulario_Control_Tanques.html) */}
       <div
         id="hojaImpresionTanques"
-        className="bg-white rounded-xl shadow-lg border border-slate-300 mx-auto p-6 md:p-8 max-w-[850px] print:shadow-none print:border-none print:p-0"
+        className="page-sheet max-w-[800px] mx-auto bg-white rounded-xl shadow-md border border-slate-300 px-7 py-5 flex flex-col justify-between print:shadow-none print:border-none print:rounded-none print:p-0"
       >
-        {/* 1. ENCABEZADO CON MEMBRETE Y FECHA */}
-        <div className="flex justify-between items-start border-b-2 border-blue-900 pb-3 mb-4">
+        {/* 1. ENCABEZADO */}
+        <header className="flex justify-between items-center border-b-2 border-[#1e3a8a] pb-2.5 mb-2.5">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-center text-blue-900 text-xl font-black">
-              <Truck className="w-6 h-6 text-blue-800" />
+            <div className="w-10 h-10 bg-gradient-to-br from-[#1e3a8a] to-[#2563eb] rounded-lg flex items-center justify-center text-white text-lg font-extrabold shadow-sm">
+              🐄
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-wide text-blue-900 leading-tight">
-                {empresaConfig?.nombre || empresaConfig?.nombreEmpresa || 'SISTEMA DE CONTROL LOGÍSTICO'}
+              <h1 className="text-[17px] font-black text-[#1e3a8a] tracking-tight uppercase leading-tight">
+                {empresaConfig?.nombre || empresaConfig?.nombreEmpresa || 'TRANSPORTE VERGEL & CARRILLO'}
               </h1>
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                Sistema de Control Logístico y Recepción de Leche
+              <p className="text-[11px] font-semibold text-slate-500">
+                Sistema de Control y Recepción de Leche
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-1.5">
-            <span className="bg-slate-100 text-blue-900 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded border border-slate-300">
-              Formulario Silos-01
-            </span>
-            <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
+          <div className="text-right">
+            <div className="inline-block bg-slate-100 border border-slate-300 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold text-[#1e3a8a] uppercase tracking-wide mb-1">
+              Control Diario de Tanques
+            </div>
+            <div className="flex items-center justify-end gap-1.5 text-xs font-bold text-slate-700">
               <span>FECHA:</span>
-              <span className="font-mono text-blue-700 font-extrabold border-b border-slate-400 px-2">
-                {fechaDocumento}
-              </span>
+              <input
+                type="text"
+                readOnly
+                value={formattedHeaderDate}
+                className="border-none border-b border-slate-400 font-sans text-xs font-bold text-slate-900 px-1 py-0.5 w-[110px] text-center bg-transparent outline-none"
+              />
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* 2. TANQUES INICIALES (1 al 5) */}
-        <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold text-blue-900 uppercase flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-600" /> 1. Tanques Iniciales (Al Iniciar Jornada)
-              </span>
-              {controlTanques?.aperturaConfirmada && (
-                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Validado
-                </span>
-              )}
-            </div>
-            <span className="text-xs font-bold text-slate-700">
-              Total Inicial:{' '}
-              <strong className="text-blue-800 text-sm font-mono">
-                {totalTanquesIniciales.toLocaleString()} Lts
-              </strong>
+        {/* 2. LECTURA DE TANQUES (INICIAL / APERTURA) */}
+        <section className="mb-2.5">
+          <div className="flex items-center justify-between bg-slate-100 border border-slate-300 border-l-4 border-l-[#1e3a8a] px-2.5 py-1 rounded-t-md text-[11px] font-extrabold text-slate-800 uppercase tracking-wide">
+            <span className="flex items-center gap-1.5">
+              <span className="text-[#2563eb]">🛢️</span> Lectura de Tanques — Nivel Inicial (Apertura)
+            </span>
+            <span className="text-[10px] font-semibold text-slate-500 normal-case">
+              Expresado en Litros (Lts)
             </span>
           </div>
-
-          <div className="grid grid-cols-5 gap-2">
-            {[1, 2, 3, 4, 5].map((num) => {
-              const key = `t${num}` as keyof typeof tanquesIniciales;
-              return (
-                <div key={num} className="bg-white border border-slate-300 rounded-md p-1.5 text-center">
-                  <span className="text-[11px] font-bold text-slate-600 block">Tanque {num}</span>
+          <div className="grid grid-cols-5 border border-slate-300 border-t-0 rounded-b-md overflow-hidden">
+            {tankColumns.map((col, idx) => (
+              <div
+                key={`init-${col.key}`}
+                className={`flex flex-col text-center ${
+                  idx < tankColumns.length - 1 ? 'border-r border-slate-300' : ''
+                }`}
+              >
+                <div className="bg-slate-50 py-1 text-[10.5px] font-extrabold text-[#1e3a8a] uppercase border-b border-slate-200">
+                  {col.label}
+                </div>
+                <div className="p-1 bg-white">
                   <input
                     type="number"
                     disabled={!puedeModificar}
-                    value={tanquesIniciales[key] || ''}
-                    onChange={(e) =>
-                      setTanquesIniciales({ ...tanquesIniciales, [key]: Number(e.target.value) })
-                    }
-                    placeholder="0"
-                    className="w-full text-center font-mono font-bold text-xs h-7 border-b border-slate-400 outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-500"
+                    value={tanquesIniciales[col.key] || ''}
+                    onChange={(e) => {
+                      setTanquesIniciales({
+                        ...tanquesIniciales,
+                        [col.key]: Number(e.target.value),
+                      });
+                      triggerAutoSave();
+                    }}
+                    placeholder="0.00"
+                    className="w-full border-none text-center text-xs font-bold text-slate-900 py-0.5 outline-none focus:bg-blue-50 rounded disabled:bg-transparent"
                   />
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
-        </div>
+        </section>
 
-        {/* 3. TABLA DE 15 RECEPCIONES */}
-        <div className="mb-4 overflow-x-auto">
-          <div className="flex justify-between items-center mb-1.5">
-            <span className="text-xs font-extrabold text-blue-900 uppercase">
-              2. Recepción de Leche en Ruta (Entradas)
-            </span>
-            <span className="text-[11px] text-gray-500 font-semibold">15 Registros Diarios</span>
-          </div>
-
-          <table className="w-full border-collapse border border-slate-400 text-xs">
+        {/* 3. TABLA DE REGISTRO DE RECEPCIÓN (22 FILAS) */}
+        <section className="my-1.5">
+          <table className="w-full border-collapse border border-slate-400 table-fixed">
             <thead>
-              <tr className="bg-blue-900 text-white font-bold uppercase text-[10.5px]">
-                <th className="border border-slate-400 p-1.5 w-8 text-center">#</th>
-                <th className="border border-slate-400 p-1.5 w-24 text-center">Fecha</th>
-                <th className="border border-slate-400 p-1.5 text-left">Chofer / Circuito de Ruta</th>
-                <th className="border border-slate-400 p-1.5 w-24 text-right">Litros Ruta</th>
-                <th className="border border-slate-400 p-1.5 w-24 text-right">Litros Recepción</th>
-                <th className="border border-slate-400 p-1.5 w-24 text-right">Diferencia</th>
+              <tr>
+                <th className="bg-[#1e3a8a] text-white text-[10.5px] font-extrabold uppercase tracking-wide py-1.5 px-1.5 border border-[#1e3a8a] text-center w-[34px]">
+                  #
+                </th>
+                <th className="bg-[#1e3a8a] text-white text-[10.5px] font-extrabold uppercase tracking-wide py-1.5 px-1.5 border border-[#1e3a8a] text-left w-[16%]">
+                  FECHA / HORA
+                </th>
+                <th className="bg-[#1e3a8a] text-white text-[10.5px] font-extrabold uppercase tracking-wide py-1.5 px-1.5 border border-[#1e3a8a] text-left w-[32%]">
+                  CHOFER / CONDUCTOR
+                </th>
+                <th className="bg-[#1e3a8a] text-white text-[10.5px] font-extrabold uppercase tracking-wide py-1.5 px-1.5 border border-[#1e3a8a] text-right w-[16%]">
+                  LITROS
+                </th>
+                <th className="bg-[#1e3a8a] text-white text-[10.5px] font-extrabold uppercase tracking-wide py-1.5 px-1.5 border border-[#1e3a8a] text-left w-[20%]">
+                  RECEPCIÓN / OBS
+                </th>
+                <th className="bg-[#1e3a8a] text-white text-[10.5px] font-extrabold uppercase tracking-wide py-1.5 px-1.5 border border-[#1e3a8a] text-right w-[16%]">
+                  DIFERENCIA
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filasRecepcion.map((row, idx) => {
-                const diff = row.diferencia;
-                const diffColor =
-                  diff < 0
-                    ? 'text-red-600 font-bold'
-                    : diff > 0
-                    ? 'text-emerald-600 font-bold'
-                    : 'text-slate-500';
-                return (
-                  <tr key={row.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    <td className="border border-slate-300 text-center font-bold text-slate-500 p-1 text-[11px]">
-                      {row.id}
-                    </td>
-                    <td className="border border-slate-300 p-0.5 text-center">
-                      <input
-                        type="date"
-                        disabled={!puedeModificar}
-                        value={row.fecha}
-                        onChange={(e) => handleFilaChange(idx, 'fecha', e.target.value)}
-                        className="w-full text-center text-[10.5px] border-none outline-none bg-transparent disabled:text-slate-500"
-                      />
-                    </td>
-                    <td className="border border-slate-300 p-0.5">
-                      <input
-                        type="text"
-                        disabled={!puedeModificar}
-                        value={row.choferRuta}
-                        onChange={(e) => handleFilaChange(idx, 'choferRuta', e.target.value)}
-                        placeholder="Chofer / Ruta..."
-                        className="w-full text-[11px] px-1 font-medium border-none outline-none bg-transparent disabled:text-slate-500"
-                      />
-                    </td>
-                    <td className="border border-slate-300 p-0.5">
-                      <input
-                        type="number"
-                        disabled={!puedeModificar}
-                        value={row.litrosRuta || ''}
-                        onChange={(e) => handleFilaChange(idx, 'litrosRuta', e.target.value)}
-                        placeholder="0"
-                        className="w-full text-right font-mono font-semibold text-[11px] pr-1 border-none outline-none bg-transparent disabled:text-slate-500"
-                      />
-                    </td>
-                    <td className="border border-slate-300 p-0.5">
-                      <input
-                        type="number"
-                        disabled={!puedeModificar}
-                        value={row.litrosRecepcion || ''}
-                        onChange={(e) => handleFilaChange(idx, 'litrosRecepcion', e.target.value)}
-                        placeholder="0"
-                        className="w-full text-right font-mono font-semibold text-[11px] pr-1 border-none outline-none bg-transparent disabled:text-slate-500"
-                      />
-                    </td>
-                    <td className={`border border-slate-300 text-right pr-2 font-mono text-[11px] ${diffColor}`}>
-                      {diff !== 0
-                        ? diff > 0
-                          ? `+${diff.toLocaleString()}`
-                          : diff.toLocaleString()
-                        : '-'}
-                    </td>
-                  </tr>
-                );
-              })}
-              {/* FILA DE TOTALES DE RECEPCIÓN */}
-              <tr className="bg-slate-200 font-bold text-slate-800 text-[11px]">
-                <td colSpan={3} className="border border-slate-400 p-1.5 text-right uppercase">
-                  Totales Recepción Leche:
-                </td>
-                <td className="border border-slate-400 p-1.5 text-right font-mono text-blue-900">
-                  {totalLitrosRuta.toLocaleString()} Lts
-                </td>
-                <td className="border border-slate-400 p-1.5 text-right font-mono text-blue-900">
-                  {totalLitrosRecepcion.toLocaleString()} Lts
-                </td>
-                <td className="border border-slate-400 p-1.5 text-right font-mono text-blue-900">
-                  {totalDiferenciaRecepcion > 0
-                    ? `+${totalDiferenciaRecepcion.toLocaleString()}`
-                    : totalDiferenciaRecepcion.toLocaleString()}{' '}
-                  Lts
-                </td>
-              </tr>
+              {filasRecepcion.map((row, idx) => (
+                <tr key={row.id} className={idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}>
+                  <td className="border border-slate-300 h-[23px] px-1 text-center font-bold text-slate-400 text-[10px] bg-slate-50">
+                    {row.id}
+                  </td>
+                  <td className="border border-slate-300 h-[23px] px-1.5">
+                    <input
+                      type="text"
+                      disabled={!puedeModificar}
+                      value={row.fecha}
+                      onChange={(e) => handleFilaChange(idx, 'fecha', e.target.value)}
+                      className="w-full h-full border-none bg-transparent text-[11px] font-medium text-slate-800 outline-none focus:bg-blue-50"
+                    />
+                  </td>
+                  <td className="border border-slate-300 h-[23px] px-1.5">
+                    <input
+                      type="text"
+                      disabled={!puedeModificar}
+                      value={row.choferRuta}
+                      onChange={(e) => handleFilaChange(idx, 'choferRuta', e.target.value)}
+                      className="w-full h-full border-none bg-transparent text-[11px] font-medium text-slate-800 outline-none focus:bg-blue-50"
+                    />
+                  </td>
+                  <td className="border border-slate-300 h-[23px] px-1.5">
+                    <input
+                      type="number"
+                      step="any"
+                      disabled={!puedeModificar}
+                      value={row.litrosRuta || ''}
+                      onChange={(e) => handleFilaChange(idx, 'litrosRuta', e.target.value)}
+                      className="w-full h-full border-none bg-transparent text-[11px] font-bold text-slate-900 text-right outline-none focus:bg-blue-50"
+                    />
+                  </td>
+                  <td className="border border-slate-300 h-[23px] px-1.5">
+                    <input
+                      type="text"
+                      disabled={!puedeModificar}
+                      value={row.recepcionObs ?? ''}
+                      onChange={(e) => handleFilaChange(idx, 'recepcionObs', e.target.value)}
+                      className="w-full h-full border-none bg-transparent text-[11px] font-medium text-slate-800 outline-none focus:bg-blue-50"
+                    />
+                  </td>
+                  <td className="border border-slate-300 h-[23px] px-1.5">
+                    <input
+                      type="number"
+                      step="any"
+                      disabled={!puedeModificar}
+                      value={row.diferencia !== 0 ? row.diferencia : ''}
+                      onChange={(e) => handleFilaChange(idx, 'diferencia', e.target.value)}
+                      className="w-full h-full border-none bg-transparent text-[11px] font-bold text-slate-900 text-right outline-none focus:bg-blue-50"
+                    />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-        </div>
+        </section>
 
-        {/* 4. TANQUES FINALES (1 al 5) & DESPACHOS */}
-        <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold text-blue-900 uppercase flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-600" /> 3. Tanques Finales (Aforo Físico al Cierre)
-              </span>
-              {controlTanques?.cierreConfirmado && (
-                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Cierre Confirmado
-                </span>
-              )}
-            </div>
-            <span className="text-xs font-bold text-slate-700">
-              Total Final Físico:{' '}
-              <strong className="text-blue-800 text-sm font-mono">
-                {totalTanquesFinales.toLocaleString()} Lts
-              </strong>
+        {/* 4. LECTURA DE TANQUES (FINAL / CIERRE) */}
+        <section className="mt-2">
+          <div className="flex items-center justify-between bg-slate-100 border border-slate-300 border-l-4 border-l-[#059669] px-2.5 py-1 rounded-t-md text-[11px] font-extrabold text-slate-800 uppercase tracking-wide">
+            <span className="flex items-center gap-1.5">
+              <span className="text-[#059669]">🛢️</span> Lectura de Tanques — Nivel Final (Cierre del Día)
+            </span>
+            <span className="text-[10px] font-semibold text-slate-500 normal-case">
+              Expresado en Litros (Lts)
             </span>
           </div>
-
-          <div className="grid grid-cols-5 gap-2 mb-3">
-            {[1, 2, 3, 4, 5].map((num) => {
-              const key = `t${num}` as keyof typeof tanquesFinales;
-              return (
-                <div key={num} className="bg-white border border-slate-300 rounded-md p-1.5 text-center">
-                  <span className="text-[11px] font-bold text-slate-600 block">Tanque {num}</span>
+          <div className="grid grid-cols-5 border border-slate-300 border-t-0 rounded-b-md overflow-hidden">
+            {tankColumns.map((col, idx) => (
+              <div
+                key={`final-${col.key}`}
+                className={`flex flex-col text-center ${
+                  idx < tankColumns.length - 1 ? 'border-r border-slate-300' : ''
+                }`}
+              >
+                <div className="bg-slate-50 py-1 text-[10.5px] font-extrabold text-[#1e3a8a] uppercase border-b border-slate-200">
+                  {col.label}
+                </div>
+                <div className="p-1 bg-white">
                   <input
                     type="number"
                     disabled={!puedeModificar}
-                    value={tanquesFinales[key] || ''}
-                    onChange={(e) =>
-                      setTanquesFinales({ ...tanquesFinales, [key]: Number(e.target.value) })
-                    }
-                    placeholder="0"
-                    className="w-full text-center font-mono font-bold text-xs h-7 border-b border-slate-400 outline-none focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-500"
+                    value={tanquesFinales[col.key] || ''}
+                    onChange={(e) => {
+                      setTanquesFinales({
+                        ...tanquesFinales,
+                        [col.key]: Number(e.target.value),
+                      });
+                      triggerAutoSave();
+                    }}
+                    placeholder="0.00"
+                    className="w-full border-none text-center text-xs font-bold text-slate-900 py-0.5 outline-none focus:bg-blue-50 rounded disabled:bg-transparent"
                   />
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
 
-          <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs">
-            <span className="font-bold text-slate-700">
-              Total Despachado a Plantas / Compañías:
-            </span>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                disabled={!puedeModificar}
-                value={totalDespachado || ''}
-                onChange={(e) => setTotalDespachado(Number(e.target.value))}
-                placeholder="0"
-                className="w-32 text-right font-mono font-bold text-xs h-7 border border-slate-300 rounded px-2 disabled:bg-slate-100 disabled:text-slate-500"
-              />
-              <span className="font-bold text-slate-500">Lts</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 5. BALANCE GENERAL DE SILOS Y MERMA */}
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3.5 mb-6">
-          <h4 className="text-xs font-extrabold text-blue-900 uppercase mb-2">
-            4. Balance General de Silo & Cuadre de Mermas
-          </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="bg-white p-2 rounded border border-blue-100">
-              <span className="text-[10.5px] text-gray-500 block">Total Inicial:</span>
-              <strong className="font-mono text-slate-800 text-sm">
-                {totalTanquesIniciales.toLocaleString()} Lts
-              </strong>
-            </div>
-            <div className="bg-white p-2 rounded border border-blue-100">
-              <span className="text-[10.5px] text-gray-500 block">(+) Total Recibido:</span>
-              <strong className="font-mono text-emerald-700 text-sm">
-                +{totalLitrosRecepcion.toLocaleString()} Lts
-              </strong>
-            </div>
-            <div className="bg-white p-2 rounded border border-blue-100">
-              <span className="text-[10.5px] text-gray-500 block">(-) Despachos:</span>
-              <strong className="font-mono text-amber-700 text-sm">
-                -{Number(totalDespachado).toLocaleString()} Lts
-              </strong>
-            </div>
-            <div className="bg-white p-2 rounded border border-blue-100">
-              <span className="text-[10.5px] text-gray-500 block">(=) Teórico Esperado:</span>
-              <strong className="font-mono text-blue-900 text-sm">
-                {volumenTeoricoFinal.toLocaleString()} Lts
-              </strong>
-            </div>
-          </div>
-
-          <div className="mt-3 pt-2.5 border-t border-blue-200 flex justify-between items-center text-xs">
-            <span className="font-bold text-slate-800">
-              Diferencia / Merma Neta en Silos (Físico vs Teórico):
-            </span>
-            <span
-              className={`font-mono text-sm font-extrabold px-3 py-1 rounded ${
-                mermaSilo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {mermaSilo >= 0 ? `+${mermaSilo.toLocaleString()}` : mermaSilo.toLocaleString()} Lts
-            </span>
-          </div>
-        </div>
-
-        {/* 6. FIRMAS DE RESPONSABILIDAD CON VALIDACIÓN DIGITAL */}
-        <div className="grid grid-cols-2 gap-12 mt-10 pt-4 text-xs">
-          <div className="text-center">
-            <div className="border-b border-slate-700 w-3/4 mx-auto mb-1.5 h-10 flex items-end justify-center pb-1">
-              {controlTanques?.aperturaConfirmadaPorNombre && (
-                <span className="text-[11px] font-mono text-blue-900 font-bold">
-                  ✓ Validado: {controlTanques.aperturaConfirmadaPorNombre}
+          {/* PIE DE RESUMEN Y FIRMA (1:1 con Formulario_Control_Tanques.html) */}
+          <div className="grid grid-cols-2 gap-4 mt-2.5 pt-2 border-t border-dashed border-slate-300 items-end">
+            <div className="flex gap-3 bg-slate-50 border border-slate-200 px-3 py-2 rounded-md">
+              <div className="flex-1 text-xs">
+                <span className="text-slate-500 font-semibold block text-[10px] uppercase">
+                  Total Litros Recibidos (Tabla):
                 </span>
-              )}
-            </div>
-            <span className="font-bold text-slate-800 block">Supervisor de Turno / Receptoría</span>
-            <span className="text-[10.5px] text-gray-500">
-              {controlTanques?.aperturaConfirmadaAt
-                ? `Confirmado: ${new Date(controlTanques.aperturaConfirmadaAt).toLocaleString()}`
-                : 'Firma y Sello Oficial'}
-            </span>
-          </div>
-
-          <div className="text-center">
-            <div className="border-b border-slate-700 w-3/4 mx-auto mb-1.5 h-10 flex items-end justify-center pb-1">
-              {controlTanques?.cierreConfirmadoPorNombre && (
-                <span className="text-[11px] font-mono text-blue-900 font-bold">
-                  ✓ Cierre: {controlTanques.cierreConfirmadoPorNombre}
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    totalLitrosRecibidosTabla > 0
+                      ? totalLitrosRecibidosTabla.toLocaleString('es-VE', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })
+                      : ''
+                  }
+                  placeholder="0.00"
+                  className="w-full border-none border-b border-slate-400 bg-transparent font-extrabold text-[13px] text-[#1e3a8a] py-0.5 outline-none"
+                />
+              </div>
+              <div className="flex-1 text-xs">
+                <span className="text-slate-500 font-semibold block text-[10px] uppercase">
+                  Diferencia Tanques (Final - Inicial):
                 </span>
-              )}
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    totalTanquesIniciales > 0 || totalTanquesFinales > 0
+                      ? diferenciaTanques.toLocaleString('es-VE', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })
+                      : ''
+                  }
+                  placeholder="0.00"
+                  className="w-full border-none border-b border-slate-400 bg-transparent font-extrabold text-[13px] text-[#1e3a8a] py-0.5 outline-none"
+                />
+              </div>
             </div>
-            <span className="font-bold text-slate-800 block">Operador de Silos y Tanques</span>
-            <span className="text-[10.5px] text-gray-500">
-              {controlTanques?.cierreConfirmadoAt
-                ? `Cerrado: ${new Date(controlTanques.cierreConfirmadoAt).toLocaleString()}`
-                : 'Firma y Cédula'}
-            </span>
+
+            <div className="text-center pt-3">
+              <div className="border-t border-slate-600 w-[75%] mx-auto pt-1 text-[10.5px] font-bold text-slate-600 uppercase">
+                Firma del Responsable / Receptor
+                {(controlTanques?.cierreConfirmadoPorNombre || controlTanques?.aperturaConfirmadaPorNombre) && (
+                  <span className="block text-[9.5px] font-mono text-emerald-700 normal-case mt-0.5">
+                    ✓ Validado: {controlTanques?.cierreConfirmadoPorNombre || controlTanques?.aperturaConfirmadaPorNombre}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

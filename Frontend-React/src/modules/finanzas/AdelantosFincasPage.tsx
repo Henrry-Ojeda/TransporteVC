@@ -6,268 +6,483 @@ import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { bcvApi } from '@/api/bcv.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
-import { FincaSelect } from '@/components/selectors';
-import type { AdelantoDto, FincaDto } from '@/types';
+import {
+  ModalCrearAdelanto,
+  ModalActualizarValorDolar,
+  ModalEditarCuota,
+  ModalDividirCuota,
+  ModalPosponerCuota,
+  ModalReestructurarCuotas,
+  SubRowCuotas,
+} from './components/AdelantosCommonModals';
+import type { AdelantoDto, FincaDto, CicloSemanalDto } from '@/types';
 
 export const AdelantosFincasPage: React.FC = () => {
   const queryClient = useQueryClient();
 
-  const [modalNuevo, setModalNuevo] = useState(false);
-  const [modalAmortizar, setModalAmortizar] = useState(false);
-  const [adelantoSeleccionado, setAdelantoSeleccionado] = useState<AdelantoDto | null>(null);
-  const [montoAmortizar, setMontoAmortizar] = useState<number>(0);
+  // Estados de modales
+  const [modalCrearOpen, setModalCrearOpen] = useState(false);
+  const [modalTasaOpen, setModalTasaOpen] = useState(false);
+  const [modalEditarCuotaOpen, setModalEditarCuotaOpen] = useState(false);
+  const [modalDividirCuotaOpen, setModalDividirCuotaOpen] = useState(false);
+  const [modalPosponerCuotaOpen, setModalPosponerCuotaOpen] = useState(false);
+  const [modalReestructurarOpen, setModalReestructurarOpen] = useState(false);
+
+  // Selecciones activas para modales de cuotas
+  const [adelantoSeleccionado, setAdelantoSeleccionado] = useState<any | null>(null);
+  const [cuotaSeleccionada, setCuotaSeleccionada] = useState<any | null>(null);
+
+  // Filtros de barra superior
+  const [filtroSemana, setFiltroSemana] = useState<string>('');
   const [filtroEstado, setFiltroEstado] = useState<string>('');
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 
-  const initialForm = {
-    tipoEntidad: 'FINCA',
-    fincaId: 0,
-    montoUSD: 0,
-    fecha: new Date().toISOString().split('T')[0],
-    motivo: '',
-  };
-  const [form, setForm] = useState(initialForm);
-
-  const { data: adelantos = [], isLoading } = useQuery<AdelantoDto[]>({
+  // 1. Data de Adelantos a Fincas
+  const { data: adelantosRaw = [], isLoading } = useQuery<AdelantoDto[]>({
     queryKey: ['adelantos-fincas'],
     queryFn: () => finanzasApi.getAdelantos('FINCA'),
   });
 
+  // 2. Fincas Catálogo
   const { data: fincas = [] } = useQuery<FincaDto[]>({
     queryKey: ['fincas'],
     queryFn: () => catalogosApi.getFincas(true),
   });
 
+  // 3. Semanas Catálogo
+  const { data: semanas = [] } = useQuery<CicloSemanalDto[]>({
+    queryKey: ['ciclos-semanas'],
+    queryFn: () => finanzasApi.getCiclos(),
+  });
+
+  // 4. Tasa BCV Actual
   const { data: bcv } = useQuery({
     queryKey: ['bcv-rate'],
     queryFn: () => bcvApi.getTasaHoy(),
   });
   const tasaBcv = bcv?.tasa || 36.5;
 
-  const crearMutation = useMutation({
-    mutationFn: (dto: typeof initialForm) => finanzasApi.crearAdelanto(dto),
-    onSuccess: (data: any) => {
-      Swal.fire({
-        icon: 'success',
-        title: '¡Adelanto Registrado!',
-        text: data.message || 'Adelanto registrado a finca exitosamente.',
-        confirmButtonColor: '#10b981',
-      });
-      queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
-      setModalNuevo(false);
-      setForm(initialForm);
-    },
-    onError: (err: any) => {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: err.response?.data?.message || 'Error al registrar adelanto',
-        confirmButtonColor: '#ef4444',
-      });
-    },
-  });
+  const cicloActivo = useMemo(() => {
+    return semanas.find((s) => String(s.estado || '').toUpperCase() === 'ABIERTO') || semanas[0];
+  }, [semanas]);
 
-  const amortizarMutation = useMutation({
-    mutationFn: ({ id, monto }: { id: number; monto: number }) =>
-      finanzasApi.amortizarAdelanto(id, monto),
-    onSuccess: (data: any) => {
-      Swal.fire({
-        icon: 'success',
-        title: '¡Abono Procesado!',
-        text: data.message || 'Abono procesado exitosamente',
-        confirmButtonColor: '#10b981',
-      });
-      queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
-      setModalAmortizar(false);
-    },
-    onError: (err: any) => {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: err.response?.data?.message || 'Error al abonar',
-        confirmButtonColor: '#ef4444',
-      });
-    },
-  });
-
-  const adelantosNormalizados = useMemo(() => {
-    return adelantos.map((a: any) => {
+  // Normalización de adelantos para la tabla
+  const adelantos = useMemo(() => {
+    return adelantosRaw.map((a: any) => {
       const id = a.id ?? a.Id ?? 0;
       const montoTotal = Number(a.montoTotalUSD ?? a.MontoTotalUSD ?? a.montoUSD ?? a.MontoUSD ?? a.monto ?? 0);
-      const saldoPend = Number(a.montoPendienteUSD ?? a.MontoPendienteUSD ?? a.saldoPendienteUSD ?? a.SaldoPendienteUSD ?? a.saldo ?? 0);
+      const saldoPend = Number(a.montoPendienteUSD ?? a.MontoPendienteUSD ?? a.saldoPendienteUSD ?? a.SaldoPendienteUSD ?? 0);
       const montoPag = Number(a.montoPagadoUSD ?? a.MontoPagadoUSD ?? Math.max(0, montoTotal - saldoPend));
-      const fincaNom = a.entidadNombre ?? a.EntidadNombre ?? a.fincaNombre ?? a.FincaNombre ?? a.nombre ?? '';
+      const tasaAplicada = Number(a.tasaBCV ?? a.tasaBcvAplicada ?? tasaBcv);
+      const montoBs = Number(a.montoBs ?? a.montoTotalBs ?? (montoTotal * tasaAplicada));
+      const cuotasList = a.cuotas || a.Cuotas || [];
+      const numCuotas = Number(a.numeroCuotas ?? a.NumeroCuotas ?? (cuotasList.length > 0 ? cuotasList.length : 1));
+      const cuotaUSD = numCuotas > 0 ? Number((montoTotal / numCuotas).toFixed(2)) : montoTotal;
+
       const fId = a.entidadId ?? a.EntidadId ?? a.fincaId ?? a.FincaId;
       const fMatch = fincas.find((f) => f.id === fId);
-      const nombreFinal = fincaNom || fMatch?.nombre || (fId ? `Finca #${fId}` : 'Finca Productora');
-      const fecha = a.fechaSolicitud ?? a.FechaSolicitud ?? a.fecha ?? a.Fecha ?? a.createdAt;
-      const estado = String(a.estado ?? a.Estado ?? (saldoPend <= 0 ? 'PAGADO' : 'PENDIENTE')).toUpperCase();
-      const amortizado = saldoPend <= 0 || estado === 'PAGADO' || estado === 'LIQUIDADO' || a.amortizado === true;
+      const fincaNom = a.entidadNombre ?? a.EntidadNombre ?? a.fincaNombre ?? a.FincaNombre ?? fMatch?.nombre ?? 'Finca sin nombre';
+      const propNom = fMatch?.propietarioNombre || (fMatch as any)?.propietario || '';
+
+      const semNom = a.semanaOperativaCodigo || a.semanaOperativa?.codigo || a.cicloCodigo || (a.semanaOperativaId ? `Semana #${a.semanaOperativaId}` : 'Ciclo general');
+
+      const est = String(a.estado || a.Estado || (saldoPend <= 0.001 ? 'PAGADO' : 'ACTIVO')).toUpperCase();
 
       return {
         ...a,
         id,
-        montoUSD: montoTotal,
-        saldoPendienteUSD: saldoPend,
-        montoPagadoUSD: montoPag,
-        fincaNombre: nombreFinal,
         fincaId: fId,
-        fecha,
-        estado,
-        amortizado,
+        fincaNombre: fincaNom,
+        propietarioNombre: propNom,
+        montoTotalUSD: montoTotal,
+        montoPendienteUSD: saldoPend,
+        montoPagadoUSD: montoPag,
+        montoBs,
+        tasaBCV: tasaAplicada,
+        numeroCuotas: numCuotas,
+        cuotaUSD,
+        semanaCodigo: semNom,
+        estado: est,
+        cuotas: cuotasList,
       };
     });
-  }, [adelantos, fincas]);
+  }, [adelantosRaw, fincas, tasaBcv]);
 
-  const totalAdelantado = adelantosNormalizados.reduce((acc, a) => acc + (a.montoUSD || 0), 0);
-  const totalPendiente = adelantosNormalizados.reduce((acc, a) => acc + (a.saldoPendienteUSD || 0), 0);
-  const totalCobrado = Math.max(0, totalAdelantado - totalPendiente);
-  const activosCount = adelantosNormalizados.filter((a) => !a.amortizado || (a.saldoPendienteUSD || 0) > 0).length;
+  // Filtrado según toolbar
+  const adelantosFiltrados = useMemo(() => {
+    return adelantos.filter((a) => {
+      if (filtroSemana) {
+        const matchesSemana = String(a.semanaOperativaId) === filtroSemana ||
+          (a.cuotas && a.cuotas.some((c: any) => String(c.semanaOperativaId) === filtroSemana));
+        if (!matchesSemana) return false;
+      }
+      if (filtroEstado) {
+        if (filtroEstado === 'ACTIVO' && a.estado !== 'ACTIVO' && a.estado !== 'PENDIENTE') return false;
+        if (filtroEstado === 'PAGADO' && a.estado !== 'PAGADO') return false;
+        if (filtroEstado === 'POSPUESTO') {
+          const hasPospuesta = a.cuotas && a.cuotas.some((c: any) => String(c.estado).toUpperCase() === 'POSPUESTO');
+          if (!hasPospuesta) return false;
+        }
+      }
+      return true;
+    });
+  }, [adelantos, filtroSemana, filtroEstado]);
 
-  const adelantosFiltrados = adelantosNormalizados.filter((a) => {
-    if (filtroEstado === 'ACTIVO' && a.amortizado) return false;
-    if (filtroEstado === 'PAGADO' && !a.amortizado) return false;
-    return true;
+  // 4 KPIs exactos 1:1 con V2_3_11_26
+  const kpis = useMemo(() => {
+    let totalAdelantado = 0;
+    let totalCobrado = 0;
+    let totalPendiente = 0;
+    let cuotasPospuestas = 0;
+    let cantCuotasCobradas = 0;
+    let cantCuotasPendientes = 0;
+
+    adelantos.forEach((a) => {
+      totalAdelantado += a.montoTotalUSD;
+      totalCobrado += a.montoPagadoUSD;
+      totalPendiente += a.montoPendienteUSD;
+
+      (a.cuotas || []).forEach((c: any) => {
+        const est = String(c.estado || '').toUpperCase();
+        if (est === 'POSPUESTO') cuotasPospuestas++;
+        if (est === 'COBRADO') cantCuotasCobradas++;
+        if (est === 'PENDIENTE') cantCuotasPendientes++;
+      });
+    });
+
+    const activos = adelantos.filter((a) => a.estado === 'ACTIVO' || a.montoPendienteUSD > 0.001);
+
+    return {
+      totalAdelantadoUSD: totalAdelantado,
+      totalCobradoUSD: totalCobrado,
+      totalPendienteUSD: totalPendiente,
+      cuotasPospuestas,
+      cantAdelantos: adelantos.length,
+      cantActivos: activos.length,
+      cantCuotasCobradas,
+      cantCuotasPendientes,
+    };
+  }, [adelantos]);
+
+  // Eliminar adelanto completo
+  const eliminarMutation = useMutation({
+    mutationFn: (id: number) => finanzasApi.eliminarAdelanto(id),
+    onSuccess: (data: any) => {
+      Swal.fire({
+        icon: 'success',
+        title: '¡Eliminado!',
+        text: data?.message || 'Adelanto eliminado correctamente.',
+        confirmButtonColor: '#10b981',
+      });
+      queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] });
+    },
+    onError: (err: any) => {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Eliminar',
+        text: err.response?.data?.message || err.message || 'No se pudo eliminar el adelanto.',
+        confirmButtonColor: '#ef4444',
+      });
+    },
   });
 
-  const columns: ColumnDef<AdelantoDto>[] = [
+  const handleEliminarAdelanto = (id: number, finca: string) => {
+    Swal.fire({
+      title: '¿Eliminar Adelanto?',
+      text: `Se cancelará el plan de pagos y el adelanto #${id} de "${finca}". Esta acción no se puede deshacer.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    }).then((res) => {
+      if (res.isConfirmed) {
+        eliminarMutation.mutate(id);
+      }
+    });
+  };
+
+  const toggleRow = (id: number) => {
+    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Opciones de fincas para el modal
+  const fincasOptions = useMemo(() => {
+    return fincas.map((f) => ({
+      value: String(f.id),
+      label: f.nombre,
+      sublabel: f.propietarioNombre ? `Propietario: ${f.propietarioNombre}` : undefined,
+    }));
+  }, [fincas]);
+
+  // Columnas de la DataTable (12 columnas)
+  const columns = useMemo<ColumnDef<any>[]>(() => [
     {
-      header: '# ID',
-      accessorKey: 'id',
-      sortable: true,
-      cell: (row) => <span style={{ fontWeight: 800, color: '#64748b', fontFamily: 'monospace' }}>#{row.id}</span>,
+      id: 'expand',
+      header: '',
+      size: 40,
+      cell: ({ row }) => {
+        const isExp = !!expandedRows[row.id];
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleRow(row.id);
+            }}
+            title={isExp ? 'Ocultar cuotas' : 'Ver cuotas desglosadas'}
+            style={{
+              width: '26px',
+              height: '26px',
+              borderRadius: '6px',
+              border: `1px solid ${isExp ? '#93c5fd' : '#cbd5e1'}`,
+              background: isExp ? '#eff6ff' : '#ffffff',
+              color: isExp ? '#2563eb' : '#64748b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '11px',
+              fontWeight: 900,
+            }}
+          >
+            <i className={`fa-solid ${isExp ? 'fa-minus' : 'fa-plus'}`}></i>
+          </button>
+        );
+      },
     },
     {
-      header: 'Finca / Productor',
+      accessorKey: 'id',
+      header: '# ID',
+      size: 70,
+      cell: ({ row }) => <span style={{ fontWeight: 800, color: '#334155' }}>#{row.id}</span>,
+    },
+    {
       accessorKey: 'fincaNombre',
-      sortable: true,
-      cell: (row) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <i className="fa-solid fa-leaf" style={{ color: '#10b981' }}></i>
-          <div>
-            <div style={{ fontWeight: 700, color: '#0f172a' }}>{row.fincaNombre || `Finca #${row.fincaId}`}</div>
+      header: 'FINCA / PRODUCTOR',
+      cell: ({ row }) => (
+        <div>
+          <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.fincaNombre}</div>
+          {row.propietarioNombre && (
             <div style={{ fontSize: '11px', color: '#64748b' }}>
-              {row.fecha ? new Date(row.fecha).toLocaleDateString('es-VE') : '-'}
+              <i className="fa-solid fa-user" style={{ marginRight: '4px', fontSize: '10px' }}></i>
+              {row.propietarioNombre}
             </div>
-          </div>
+          )}
         </div>
       ),
     },
     {
-      header: 'Total ($)',
-      accessorKey: 'montoUSD',
-      sortable: true,
-      cell: (row) => (
-        <span style={{ fontWeight: 900, color: '#0f172a', fontFamily: 'monospace', fontSize: '13.5px' }}>
-          ${Number(row.montoUSD || 0).toFixed(2)}
+      accessorKey: 'semanaCodigo',
+      header: 'SEMANA COBRO',
+      cell: ({ row }) => (
+        <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#0369a1' }}>
+          {row.semanaCodigo}
         </span>
       ),
     },
     {
-      header: 'Monto (Bs)',
-      cell: (row) => (
-        <span style={{ fontWeight: 700, color: '#64748b', fontFamily: 'monospace', fontSize: '12px' }}>
-          Bs. {((row.montoUSD || 0) * tasaBcv).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
+      accessorKey: 'montoTotalUSD',
+      header: 'TOTAL ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>
+          $ {row.montoTotalUSD.toFixed(2)}
+        </div>
       ),
     },
     {
-      header: 'Cobrado ($)',
-      cell: (row) => {
-        const cobrado = Math.max(0, (row.montoUSD || 0) - (row.saldoPendienteUSD || 0));
-        return (
-          <span style={{ fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
-            ${cobrado.toFixed(2)}
-          </span>
-        );
-      },
+      accessorKey: 'montoBs',
+      header: 'MONTO (BS)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: '11.5px' }}>
+          Bs. {row.montoBs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      ),
     },
     {
-      header: 'Pendiente ($)',
-      accessorKey: 'saldoPendienteUSD',
-      sortable: true,
-      cell: (row) => {
-        const saldo = row.saldoPendienteUSD ?? row.montoUSD;
-        return (
-          <span style={{ fontWeight: 900, color: saldo > 0 ? '#dc2626' : '#059669', fontFamily: 'monospace' }}>
-            ${Number(saldo || 0).toFixed(2)}
-          </span>
-        );
-      },
-    },
-    {
-      header: 'Estado',
-      cell: (row) => {
-        const esPagado = row.amortizado || (row.saldoPendienteUSD || 0) <= 0;
-        return (
+      accessorKey: 'numeroCuotas',
+      header: 'CUOTAS',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'center' }}>
           <span
-            className="badge"
             style={{
-              background: esPagado ? '#ecfdf5' : '#fef3c7',
-              color: esPagado ? '#059669' : '#d97706',
-              border: `1px solid ${esPagado ? '#a7f3d0' : '#fde68a'}`,
+              background: '#f1f5f9',
+              color: '#334155',
               fontWeight: 800,
+              fontSize: '11px',
+              padding: '2px 8px',
+              borderRadius: '6px',
             }}
           >
-            <i className={`fa-solid ${esPagado ? 'fa-circle-check' : 'fa-clock'}`} style={{ marginRight: '4px' }}></i>
-            {esPagado ? 'Liquidado' : 'Activo (Pendiente)'}
+            {row.numeroCuotas} {row.numeroCuotas === 1 ? 'Cuota' : 'Cuotas'}
           </span>
-        );
-      },
+        </div>
+      ),
     },
     {
-      header: 'Acciones',
-      className: 'text-right',
-      cell: (row) => {
-        const saldo = row.saldoPendienteUSD ?? row.montoUSD;
+      accessorKey: 'cuotaUSD',
+      header: 'CUOTA ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+          $ {row.cuotaUSD.toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'montoPagadoUSD',
+      header: 'COBRADO ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
+          $ {row.montoPagadoUSD.toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'montoPendienteUSD',
+      header: 'PENDIENTE ($)',
+      cell: ({ row }) => {
+        const pend = row.montoPendienteUSD;
         return (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-            {saldo > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAdelantoSeleccionado(row);
-                  setMontoAmortizar(saldo);
-                  setModalAmortizar(true);
-                }}
-                className="btn btn-sm btn-outline"
-                style={{ height: '30px', padding: '0 8px', fontSize: '12px', color: '#0284c7', borderColor: '#bae6fd' }}
-                title="Abonar a Deuda"
-              >
-                <i className="fa-solid fa-hand-holding-dollar"></i> Abonar
-              </button>
-            )}
+          <div
+            style={{
+              textAlign: 'right',
+              fontWeight: 900,
+              color: pend > 0 ? '#b45309' : '#15803d',
+            }}
+          >
+            $ {pend.toFixed(2)}
           </div>
         );
       },
     },
-  ];
+    {
+      accessorKey: 'estado',
+      header: 'ESTADO',
+      cell: ({ row }) => {
+        const isPagado = row.estado === 'PAGADO' || row.montoPendienteUSD <= 0.001;
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 800,
+                padding: '3px 8px',
+                borderRadius: '6px',
+                display: 'inline-block',
+                background: isPagado ? '#dcfce7' : '#fef3c7',
+                color: isPagado ? '#15803d' : '#b45309',
+                border: `1px solid ${isPagado ? '#86efac' : '#fde68a'}`,
+              }}
+            >
+              {isPagado ? 'PAGADO' : 'ACTIVO'}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'acciones',
+      header: 'ACCIONES',
+      cell: ({ row }) => (
+        <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAdelantoSeleccionado(row);
+              setModalReestructurarOpen(true);
+            }}
+            title="Reestructurar plan de pagos"
+            style={{
+              background: '#f0fdfa',
+              color: '#0d9488',
+              border: '1px solid #99f6e4',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="fa-solid fa-calculator"></i>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEliminarAdelanto(row.id, row.fincaNombre);
+            }}
+            title="Eliminar adelanto"
+            style={{
+              background: '#fef2f2',
+              color: '#dc2626',
+              border: '1px solid #fecaca',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      ),
+    },
+  ], [expandedRows, handleEliminarAdelanto]);
 
   return (
-    <div>
-      {/* VISTA HEADER 1:1 */}
-      <div className="view-header">
+    <div className="view-container">
+      {/* HEADER DE LA VISTA */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '15px',
+          marginBottom: '20px',
+        }}
+      >
         <div>
           <h1 className="view-title">
             <i className="fa-solid fa-leaf" style={{ color: '#10b981', marginRight: '8px' }}></i>
-            Adelantos & Préstamos a Fincas
+            Adelantos &amp; Préstamos a Fincas
           </h1>
           <p className="view-subtitle">
-            Gestión de anticipos fijados en USD, pagaderos en cuotas por ciclo operativo con cálculo dinámico en Bs (Tasa BCV)
+            Gestión de anticipos fijados en USD, pagaderos en cuotas por ciclo operativo con cálculo dinámico editable en Bs (Tasa BCV)
           </p>
         </div>
-
-        <div className="view-actions">
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={() => setModalNuevo(true)}
+            onClick={() => setModalTasaOpen(true)}
+            className="btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 800,
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+              border: 'none',
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+              color: '#ffffff',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="fa-solid fa-dollar-sign"></i> Actualizar Valor Dólar (Solo Activos)
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalCrearOpen(true)}
             className="btn btn-primary"
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               gap: '8px',
               fontWeight: 700,
-              padding: '9px 18px',
-              borderRadius: '8px',
+              padding: '9px 16px',
               background: 'linear-gradient(135deg, #10b981, #059669)',
               border: 'none',
               boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
@@ -278,14 +493,16 @@ export const AdelantosFincasPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TARJETAS KPI ADELANTOS FINCAS */}
+      {/* 4 TARJETAS KPI ADELANTOS FINCAS (1:1 V2_3_11_26) */}
       <div className="kpi-grid" style={{ marginBottom: '24px' }}>
         <div className="kpi-card glass-blue">
           <div className="kpi-icon-wrap"><i className="fa-solid fa-hand-holding-dollar"></i></div>
           <div className="kpi-content">
             <span className="kpi-title">Total Adelantado Fincas</span>
-            <div className="kpi-value">${totalAdelantado.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <span className="kpi-foot">{adelantos.length} Adelantos registrados</span>
+            <div className="kpi-value">
+              $ {kpis.totalAdelantadoUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="kpi-foot">{kpis.cantAdelantos} Adelantos registrados</span>
           </div>
         </div>
 
@@ -293,8 +510,10 @@ export const AdelantosFincasPage: React.FC = () => {
           <div className="kpi-icon-wrap"><i className="fa-solid fa-circle-check"></i></div>
           <div className="kpi-content">
             <span className="kpi-title">Total Cobrado (Abonado)</span>
-            <div className="kpi-value">${totalCobrado.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <span className="kpi-foot">Recuperación de capital</span>
+            <div className="kpi-value">
+              $ {kpis.totalCobradoUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="kpi-foot">{kpis.cantCuotasCobradas} Cuotas abonadas</span>
           </div>
         </div>
 
@@ -302,251 +521,195 @@ export const AdelantosFincasPage: React.FC = () => {
           <div className="kpi-icon-wrap"><i className="fa-solid fa-clock-rotate-left"></i></div>
           <div className="kpi-content">
             <span className="kpi-title">Monto Pendiente por Cobrar</span>
-            <div className="kpi-value">${totalPendiente.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <span className="kpi-foot">Saldo por amortizar en nómina</span>
+            <div className="kpi-value">
+              $ {kpis.totalPendienteUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="kpi-foot">{kpis.cantCuotasPendientes} Cuotas por cobrar</span>
           </div>
         </div>
 
         <div className="kpi-card glass-purple">
           <div className="kpi-icon-wrap"><i className="fa-solid fa-calendar-minus"></i></div>
           <div className="kpi-content">
-            <span className="kpi-title">Adelantos Activos</span>
-            <div className="kpi-value">{activosCount}</div>
-            <span className="kpi-foot">Productores con saldo</span>
+            <span className="kpi-title">Cuotas Pospuestas</span>
+            <div className="kpi-value">{kpis.cuotasPospuestas}</div>
+            <span className="kpi-foot">Reprogramadas a solicitud</span>
           </div>
         </div>
       </div>
 
-      {/* BARRA DE FILTROS */}
-      <div className="content-card" style={{ padding: '16px 20px', marginBottom: '18px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
-              <i className="fa-solid fa-filter" style={{ color: '#0284c7', marginRight: '4px' }}></i> Estado del Préstamo:
-            </label>
-            <select
-              value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="form-input"
-              style={{ height: '38px', fontSize: '13px', fontWeight: 600, minWidth: '200px' }}
-            >
-              <option value="">TODOS LOS ESTADOS</option>
-              <option value="ACTIVO">SOLO ACTIVOS (PENDIENTES)</option>
-              <option value="PAGADO">SOLO PAGADOS (LIQUIDADOS)</option>
-            </select>
+      {/* CARD PRINCIPAL CON DATATABLE */}
+      <div className="content-card">
+        {/* TOOLBAR */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '16px',
+            paddingBottom: '14px',
+            borderBottom: '1px solid #f1f5f9',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div>
+              <select
+                value={filtroSemana}
+                onChange={(e) => setFiltroSemana(e.target.value)}
+                className="form-input"
+                style={{
+                  height: '38px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                }}
+              >
+                <option value="">TODOS LOS CICLOS / SEMANAS</option>
+                {semanas.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.codigo || `Semana #${s.id}`} {String(s.estado || '').toUpperCase() === 'ABIERTO' ? '★ (ACTIVA)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <select
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value)}
+                className="form-input"
+                style={{
+                  height: '38px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                }}
+              >
+                <option value="">TODOS LOS ESTADOS</option>
+                <option value="ACTIVO">SOLO ACTIVOS (PENDIENTES)</option>
+                <option value="PAGADO">SOLO PAGADOS (LIQUIDADOS)</option>
+                <option value="POSPUESTO">CON CUOTAS POSPUESTAS</option>
+              </select>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
+            className="btn btn-outline"
+            title="Refrescar lista"
+            style={{ fontWeight: 700, height: '38px', padding: '0 12px', background: '#fff', border: '1.5px solid #cbd5e1' }}
+          >
+            <i className="fa-solid fa-rotate-right" style={{ marginRight: '6px' }}></i>
+            Actualizar
+          </button>
         </div>
+
+        {/* TABLA PRINCIPAL DE ADELANTOS CON EXPANDIBLE */}
+        <DataTable
+          columns={columns}
+          data={adelantosFiltrados}
+          isLoading={isLoading}
+          searchPlaceholder="Buscar por finca, observaciones..."
+          isRowExpanded={(row) => !!expandedRows[row.id]}
+          renderSubRow={(row) => (
+            <SubRowCuotas
+              adelanto={row}
+              onEditarCuota={(c) => {
+                setAdelantoSeleccionado(row);
+                setCuotaSeleccionada(c);
+                setModalEditarCuotaOpen(true);
+              }}
+              onDividirCuota={(c) => {
+                setAdelantoSeleccionado(row);
+                setCuotaSeleccionada(c);
+                setModalDividirCuotaOpen(true);
+              }}
+              onPosponerCuota={(c) => {
+                setAdelantoSeleccionado(row);
+                setCuotaSeleccionada(c);
+                setModalPosponerCuotaOpen(true);
+              }}
+              onReestructurar={() => {
+                setAdelantoSeleccionado(row);
+                setModalReestructurarOpen(true);
+              }}
+            />
+          )}
+        />
       </div>
 
-      {/* Tabla Principal */}
-      <DataTable
-        data={adelantosFiltrados}
-        columns={columns}
-        isLoading={isLoading}
-        searchPlaceholder="Buscar por finca, observaciones..."
-        exportFileName="adelantos_fincas"
-        searchFilter={(row, term) =>
-          Boolean(
-            (row.fincaNombre && row.fincaNombre.toLowerCase().includes(term)) ||
-            (row.motivo && row.motivo.toLowerCase().includes(term)) ||
-            row.id.toString().includes(term)
-          )
-        }
+      {/* MODAL CREAR ADELANTO A FINCA */}
+      <ModalCrearAdelanto
+        isOpen={modalCrearOpen}
+        onClose={() => setModalCrearOpen(false)}
+        tipoEntidad="FINCA"
+        entidades={fincasOptions}
+        semanas={semanas}
+        tasaBcvActual={tasaBcv}
+        cicloActivoId={cicloActivo?.id}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
       />
 
-      {/* Modal Nuevo Adelanto */}
-      {modalNuevo && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          <div className="content-card" style={{ width: '100%', maxWidth: '480px', padding: '0', overflow: 'hidden', borderRadius: '16px' }}>
-            <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
-                <i className="fa-solid fa-hand-holding-dollar" style={{ color: '#10b981', marginRight: '8px' }}></i>
-                Registrar Nuevo Adelanto a Finca
-              </h3>
-              <button type="button" onClick={() => setModalNuevo(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>
-                &times;
-              </button>
-            </div>
+      {/* MODAL ACTUALIZAR TASA BCV ACTIVOS */}
+      <ModalActualizarValorDolar
+        isOpen={modalTasaOpen}
+        onClose={() => setModalTasaOpen(false)}
+        tipoEntidad="FINCA"
+        cantActivos={kpis.cantActivos}
+        totalPendienteUSD={kpis.totalPendienteUSD}
+        tasaBcvActual={tasaBcv}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
+      />
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!form.fincaId || form.fincaId === 0) {
-                  toast.error('Debe seleccionar la finca');
-                  return;
-                }
-                if (form.montoUSD <= 0) {
-                  toast.error('El monto debe ser mayor a 0');
-                  return;
-                }
-                crearMutation.mutate(form);
-              }}
-              style={{ padding: '20px' }}
-            >
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                  Finca / Productor *
-                </label>
-                <FincaSelect
-                  value={form.fincaId}
-                  onChange={(id) => setForm({ ...form, fincaId: id })}
-                  placeholder="-- Seleccionar Finca / Productor --"
-                  required
-                />
-              </div>
+      {/* MODAL EDITAR CUOTA */}
+      <ModalEditarCuota
+        isOpen={modalEditarCuotaOpen}
+        onClose={() => setModalEditarCuotaOpen(false)}
+        cuota={cuotaSeleccionada}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
+      />
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Monto en Dólares ($) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.montoUSD || ''}
-                    onChange={(e) => setForm({ ...form, montoUSD: Number(e.target.value) })}
-                    placeholder="0.00"
-                    className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px', fontWeight: 800, color: '#059669' }}
-                    required
-                  />
-                </div>
+      {/* MODAL DIVIDIR CUOTA */}
+      <ModalDividirCuota
+        isOpen={modalDividirCuotaOpen}
+        onClose={() => setModalDividirCuotaOpen(false)}
+        cuota={cuotaSeleccionada}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
+      />
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    value={form.fecha}
-                    onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px', borderRadius: '8px' }}
-                    required
-                  />
-                </div>
-              </div>
+      {/* MODAL POSPONER CUOTA */}
+      <ModalPosponerCuota
+        isOpen={modalPosponerCuotaOpen}
+        onClose={() => setModalPosponerCuotaOpen(false)}
+        cuota={cuotaSeleccionada}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
+      />
 
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                  Motivo / Concepto del Préstamo
-                </label>
-                <input
-                  type="text"
-                  value={form.motivo}
-                  onChange={(e) => setForm({ ...form, motivo: e.target.value })}
-                  placeholder="Ej: Anticipo para insumos o concentrado..."
-                  className="form-input"
-                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setModalNuevo(false)} className="btn btn-outline" style={{ height: '38px', padding: '0 16px', borderRadius: '8px' }}>
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={crearMutation.isPending}
-                  className="btn btn-primary"
-                  style={{ height: '38px', padding: '0 20px', borderRadius: '8px', background: '#10b981', border: 'none', fontWeight: 700 }}
-                >
-                  {crearMutation.isPending ? 'Guardando...' : 'Registrar Adelanto'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Abonar */}
-      {modalAmortizar && adelantoSeleccionado && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          <div className="content-card" style={{ width: '100%', maxWidth: '420px', padding: '0', overflow: 'hidden', borderRadius: '16px' }}>
-            <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
-                <i className="fa-solid fa-coins" style={{ color: '#0284c7', marginRight: '8px' }}></i>
-                Abonar a Deuda de Finca
-              </h3>
-              <button type="button" onClick={() => setModalAmortizar(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>
-                &times;
-              </button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (montoAmortizar <= 0) {
-                  toast.error('El monto debe ser mayor a 0');
-                  return;
-                }
-                amortizarMutation.mutate({ id: adelantoSeleccionado.id, monto: montoAmortizar });
-              }}
-              style={{ padding: '20px' }}
-            >
-              <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: '#475569' }}>
-                Abonar al préstamo <strong>#{adelantoSeleccionado.id}</strong> ({adelantoSeleccionado.fincaNombre}):
-              </p>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Monto a Abonar ($)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  max={adelantoSeleccionado.saldoPendienteUSD || adelantoSeleccionado.montoUSD}
-                  value={montoAmortizar}
-                  onChange={(e) => setMontoAmortizar(Number(e.target.value))}
-                  className="form-input"
-                  style={{ width: '100%', height: '40px', fontSize: '16px', fontWeight: 800, color: '#059669', borderRadius: '8px' }}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setModalAmortizar(false)} className="btn btn-outline" style={{ height: '36px', padding: '0 14px', borderRadius: '8px' }}>
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={amortizarMutation.isPending}
-                  className="btn btn-primary"
-                  style={{ height: '36px', padding: '0 18px', borderRadius: '8px', background: '#0284c7', border: 'none', fontWeight: 700 }}
-                >
-                  {amortizarMutation.isPending ? 'Abonando...' : 'Confirmar Abono'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL REESTRUCTURAR CUOTAS */}
+      <ModalReestructurarCuotas
+        isOpen={modalReestructurarOpen}
+        onClose={() => setModalReestructurarOpen(false)}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-fincas'] })}
+      />
     </div>
   );
 };
-
-export default AdelantosFincasPage;

@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { LoginPage } from '@/modules/auth/LoginPage';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { SessionMonitor } from '@/components/common/SessionMonitor';
 
 // Dashboard
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
@@ -73,6 +74,7 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <SessionMonitor />
         <Routes>
           {/* Ruta Pública de Login */}
           <Route path="/login" element={<LoginPage />} />

@@ -22,6 +22,9 @@ interface DataTableProps<T> {
   actions?: React.ReactNode;
   exportFileName?: string;
   pageSizeDefault?: number;
+  isRowExpanded?: (row: T) => boolean;
+  renderSubRow?: (row: T) => React.ReactNode;
+  footerContent?: (filteredData: T[]) => React.ReactNode;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -34,6 +37,9 @@ export function DataTable<T extends Record<string, any>>({
   actions,
   exportFileName,
   pageSizeDefault = 10,
+  isRowExpanded,
+  renderSubRow,
+  footerContent,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -225,32 +231,49 @@ export function DataTable<T extends Record<string, any>>({
               </tr>
             </thead>
             <tbody>
-              {paginatedData.map((row, rIdx) => (
-                <tr key={rIdx} style={{ transition: 'background-color 0.15s' }}>
-                  {columns.map((col, cIdx) => (
-                    <td
-                      key={cIdx}
-                      className={col.className}
-                      style={{
-                        padding: '13px 16px',
-                        borderBottom: '1px solid #f1f5f9',
-                        verticalAlign: 'middle',
-                        fontSize: '13px',
-                        width: col.width,
-                        minWidth: col.minWidth,
-                        ...col.style,
-                      }}
-                    >
-                      {col.cell
-                        ? col.cell(row)
-                        : col.accessorKey
-                        ? String(row[col.accessorKey as string] ?? '')
-                        : null}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {paginatedData.map((row, rIdx) => {
+                const expanded = isRowExpanded ? isRowExpanded(row) : false;
+                return (
+                  <React.Fragment key={row._rowKey || row.id || rIdx}>
+                    <tr style={{ transition: 'background-color 0.15s', background: expanded ? '#f8fafc' : undefined }}>
+                      {columns.map((col, cIdx) => (
+                        <td
+                          key={cIdx}
+                          className={col.className}
+                          style={{
+                            padding: '13px 16px',
+                            borderBottom: '1px solid #f1f5f9',
+                            verticalAlign: 'middle',
+                            fontSize: '13px',
+                            width: col.width,
+                            minWidth: col.minWidth,
+                            ...col.style,
+                          }}
+                        >
+                          {col.cell
+                            ? col.cell(row)
+                            : col.accessorKey
+                            ? String(row[col.accessorKey as string] ?? '')
+                            : null}
+                        </td>
+                      ))}
+                    </tr>
+                    {expanded && renderSubRow && (
+                      <tr className="dt-child-row">
+                        <td colSpan={columns.length} style={{ padding: 0, borderBottom: '2px solid #cbd5e1' }}>
+                          {renderSubRow(row)}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
+            {footerContent && (
+              <tfoot className="dt-footer-summary" style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 700, fontSize: '12.5px' }}>
+                {footerContent(sortedData)}
+              </tfoot>
+            )}
           </table>
         )}
       </div>

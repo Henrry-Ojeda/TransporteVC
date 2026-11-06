@@ -18,12 +18,12 @@ export const TiempoSesionPage: React.FC = () => {
   const { user, isAdmin } = useAuth();
 
   const [minutosInactividad, setMinutosInactividad] = useState<number>(() => {
-    const saved = localStorage.getItem('inactivity_timeout_minutes');
-    return saved ? Number(saved) : 10;
+    const saved = localStorage.getItem('inactivity_timeout_minutes') || localStorage.getItem('app_session_timeout');
+    return saved !== null ? Number(saved) : 10;
   });
 
   const [avisoPrevio, setAvisoPrevio] = useState<boolean>(() => {
-    const saved = localStorage.getItem('inactivity_warning_enabled');
+    const saved = localStorage.getItem('inactivity_warning_enabled') || localStorage.getItem('app_session_warning');
     return saved !== null ? saved === 'true' : true;
   });
 
@@ -31,11 +31,17 @@ export const TiempoSesionPage: React.FC = () => {
 
   const guardarConfiguracion = () => {
     localStorage.setItem('inactivity_timeout_minutes', String(minutosInactividad));
+    localStorage.setItem('app_session_timeout', String(minutosInactividad));
     localStorage.setItem('inactivity_warning_enabled', String(avisoPrevio));
+    localStorage.setItem('app_session_warning', String(avisoPrevio));
+    localStorage.setItem('transporte_last_activity', String(Date.now()));
 
     Swal.fire({
       title: '¡Configuración Guardada!',
-      text: `El tiempo de inactividad de sesión se ha establecido en ${minutosInactividad} minutos.`,
+      text:
+        minutosInactividad === 0
+          ? 'El cierre automático de sesión por inactividad ha sido desactivado (Sesión Permanente).'
+          : `El tiempo de inactividad de sesión se ha establecido en ${minutosInactividad} minutos.`,
       icon: 'success',
       confirmButtonColor: '#2563eb',
     });
@@ -122,7 +128,7 @@ export const TiempoSesionPage: React.FC = () => {
           </div>
 
           <span className="text-xs font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-            Estado Actual: {minutosInactividad} Minutos
+            Estado Actual: {minutosInactividad === 0 ? 'Permanente (Desactivado)' : `${minutosInactividad} Minutos`}
           </span>
         </div>
 
@@ -137,6 +143,7 @@ export const TiempoSesionPage: React.FC = () => {
               { val: 15, label: '15 Minutos', desc: 'Estándar administrativo' },
               { val: 30, label: '30 Minutos', desc: 'Jornadas de carga continua de datos' },
               { val: 60, label: '60 Minutos (1 Hora)', desc: 'Recomendado para equipos exclusivos' },
+              { val: 0, label: 'Desactivar (Permanente)', desc: 'Mantiene la sesión activa sin cierre por inactividad' },
             ].map((op) => (
               <div
                 key={op.val}

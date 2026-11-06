@@ -87,8 +87,90 @@ export const finanzasApi = {
     const res = await apiClient.get<AdelantoDto[]>('/adelantos', { params });
     return Array.isArray(res.data) ? res.data : [];
   },
-  crearAdelanto: async (dto: { tipoEntidad: string; fincaId?: number; usuarioId?: number; montoUSD: number; fecha: string; motivo?: string }): Promise<{ id: number; message: string }> => {
+  getAdelantoPorId: async (id: number): Promise<any> => {
+    const res = await apiClient.get(`/adelantos/${id}`);
+    return res.data;
+  },
+  crearAdelanto: async (dto: {
+    tipoEntidad: string;
+    entidadId?: number;
+    fincaId?: number;
+    usuarioId?: number;
+    companiaId?: number;
+    montoTotalUSD: number;
+    numeroCuotas: number;
+    semanaOperativaIdInicio?: number;
+    observaciones?: string;
+    cuotasPersonalizadas?: { semanaOperativaId: number; cuotaPactadaUSD: number }[];
+    [key: string]: any;
+  }): Promise<any> => {
     const res = await apiClient.post('/adelantos', dto);
+    return res.data;
+  },
+  actualizarCuota: async (cuotaId: number, dto: any): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/adelantos/cuotas/${cuotaId}`, dto);
+    return res.data;
+  },
+  posponerCuota: async (cuotaId: number, semanaDestinoOrDto: any, motivo?: string): Promise<{ message: string }> => {
+    let payload: any = {};
+    if (typeof semanaDestinoOrDto === 'object' && semanaDestinoOrDto !== null) {
+      payload = semanaDestinoOrDto;
+    } else {
+      payload = {
+        semanaOperativaIdDestino: semanaDestinoOrDto,
+        motivo,
+      };
+    }
+    const res = await apiClient.post(`/adelantos/cuotas/${cuotaId}/posponer`, payload);
+    return res.data;
+  },
+  dividirCuota: async (cuotaId: number, dto: any): Promise<{ success: boolean; message: string }> => {
+    const payload = {
+      montoDescontarUSD: dto.montoDescontarUSD ?? dto.montoCobrarActual ?? 0,
+      semanaOperativaIdDestino: dto.semanaOperativaIdDestino ?? dto.cicloDestinoId ?? 0,
+      motivo: dto.motivo,
+      ...dto,
+    };
+    const res = await apiClient.post(`/adelantos/cuotas/${cuotaId}/dividir`, payload);
+    return res.data;
+  },
+  reestructurarCuotas: async (id: number, dto: any): Promise<{ message: string }> => {
+    const payload = {
+      numeroCuotas: dto.numeroCuotas ?? dto.nuevasCuotas ?? 1,
+      semanaOperativaIdInicio: dto.semanaOperativaIdInicio ?? dto.cicloInicialId ?? 0,
+      ...dto,
+    };
+    const res = await apiClient.post(`/adelantos/${id}/reestructurar-cuotas`, payload);
+    return res.data;
+  },
+  actualizarTasaActivos: async (tipoEntidadOrDto: any, tasaBcv?: number): Promise<{ success: boolean; message: string; actualizados?: number }> => {
+    const payload = typeof tipoEntidadOrDto === 'object' && tipoEntidadOrDto !== null
+      ? tipoEntidadOrDto
+      : { tipoEntidad: tipoEntidadOrDto, tasaBcv };
+    const res = await apiClient.post('/adelantos/actualizar-tasa-activos', payload);
+    return res.data;
+  },
+  getAbonos: async (tipoEntidadOrParams?: any, cicloId?: number): Promise<any[]> => {
+    let params: Record<string, any> = {};
+    if (typeof tipoEntidadOrParams === 'object' && tipoEntidadOrParams !== null) {
+      params = tipoEntidadOrParams;
+    } else {
+      if (tipoEntidadOrParams) params.tipoEntidad = tipoEntidadOrParams;
+      if (cicloId) params.cicloId = cicloId;
+    }
+    const res = await apiClient.get<any[]>('/adelantos/abonos', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  registrarAbonoDirecto: async (dto: any): Promise<{ success: boolean; message: string }> => {
+    const payload = {
+      adelantoId: dto.adelantoId,
+      cuotaId: dto.cuotaId,
+      montoAbonoUSD: dto.montoAbonoUSD ?? dto.montoUSD ?? 0,
+      numeroReferencia: dto.numeroReferencia ?? dto.referenciaBancaria,
+      notas: dto.notas ?? dto.observaciones,
+      ...dto,
+    };
+    const res = await apiClient.post('/adelantos/abonos/directo', payload);
     return res.data;
   },
   amortizarAdelanto: async (id: number, montoUSD: number): Promise<{ success: boolean; message: string }> => {

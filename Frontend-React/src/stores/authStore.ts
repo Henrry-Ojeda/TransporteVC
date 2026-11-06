@@ -32,6 +32,7 @@ export const useAuthStore = create<AuthState>()(
 
       login: (token: string, user: AuthUser) => {
         localStorage.setItem(AUTH_TOKEN_KEY, token);
+        localStorage.setItem('transporte_last_activity', String(Date.now()));
         set({
           token,
           user,
@@ -42,6 +43,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: (message?: string) => {
         localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem('transporte_last_activity');
         set({
           token: null,
           user: null,
@@ -146,7 +148,6 @@ export const useAuthStore = create<AuthState>()(
 
         const requiredPerms = tabPermissionMap[tabId.toLowerCase()];
         if (!requiredPerms || requiredPerms.length === 0) return true;
-        // Si el usuario tiene al menos un permiso o rol supervisor/admin, mostrar
         const user = get().user;
         const rol = (user?.rol || '').toUpperCase();
         if (rol === 'SUPERVISOR' || rol.includes('ADMIN')) return true;
@@ -168,4 +169,3 @@ export const useAuthStore = create<AuthState>()(
 setSessionExpiredHandler((msg: string) => {
   useAuthStore.getState().logout(msg);
 });
-

@@ -1,507 +1,696 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Swal from 'sweetalert2';
-import { toast } from 'sonner';
-import {
-  Truck,
-  Plus,
-  FileSpreadsheet,
-  Building,
-  DollarSign,
-  AlertCircle,
-  CheckCircle2,
-  Trash2,
-  HandCoins,
-} from 'lucide-react';
 import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { bcvApi } from '@/api/bcv.api';
-import { DataTable } from '@/components/common/DataTable';
-import * as XLSX from 'xlsx';
-import type { AdelantoDto, CompaniaDto } from '@/types';
+import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import {
+  ModalCrearAdelanto,
+  ModalActualizarValorDolar,
+  ModalEditarCuota,
+  ModalDividirCuota,
+  ModalPosponerCuota,
+  ModalReestructurarCuotas,
+  SubRowCuotas,
+} from './components/AdelantosCommonModals';
+import type { AdelantoDto, CompaniaDto, CicloSemanalDto } from '@/types';
 
 export const AdelantosReceptoriaPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const [modalNuevo, setModalNuevo] = useState(false);
-  const [modalAmortizar, setModalAmortizar] = useState(false);
-  const [adelantoSeleccionado, setAdelantoSeleccionado] = useState<AdelantoDto | null>(null);
-  const [montoAmortizar, setMontoAmortizar] = useState<number>(0);
+
+  const [modalCrearOpen, setModalCrearOpen] = useState(false);
+  const [modalTasaOpen, setModalTasaOpen] = useState(false);
+  const [modalEditarCuotaOpen, setModalEditarCuotaOpen] = useState(false);
+  const [modalDividirCuotaOpen, setModalDividirCuotaOpen] = useState(false);
+  const [modalPosponerCuotaOpen, setModalPosponerCuotaOpen] = useState(false);
+  const [modalReestructurarOpen, setModalReestructurarOpen] = useState(false);
+
+  const [adelantoSeleccionado, setAdelantoSeleccionado] = useState<any | null>(null);
+  const [cuotaSeleccionada, setCuotaSeleccionada] = useState<any | null>(null);
+
+  const [filtroSemana, setFiltroSemana] = useState<string>('');
   const [filtroEstado, setFiltroEstado] = useState<string>('');
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 
-  const initialForm = {
-    tipoEntidad: 'RECEPTORIA',
-    companiaId: 0,
-    montoUSD: 0,
-    fecha: new Date().toISOString().split('T')[0],
-    motivo: '',
-  };
-  const [form, setForm] = useState(initialForm);
-
-  // 1. Cargar Adelantos a Receptorías
-  const { data: adelantos = [], isLoading } = useQuery<AdelantoDto[]>({
+  // 1. Data de Adelantos a Receptoría
+  const { data: adelantosRaw = [], isLoading } = useQuery<AdelantoDto[]>({
     queryKey: ['adelantos-receptoria'],
     queryFn: () => finanzasApi.getAdelantos('RECEPTORIA'),
   });
 
-  // 2. Cargar Compañías
+  // 2. Compañías Catálogo
   const { data: companias = [] } = useQuery<CompaniaDto[]>({
-    queryKey: ['companias-adelantos'],
-    queryFn: () => catalogosApi.getCompanias(),
+    queryKey: ['companias'],
+    queryFn: () => catalogosApi.getCompanias(true),
   });
 
-  // 3. Tasa BCV
+  // 3. Semanas Catálogo
+  const { data: semanas = [] } = useQuery<CicloSemanalDto[]>({
+    queryKey: ['ciclos-semanas'],
+    queryFn: () => finanzasApi.getCiclos(),
+  });
+
+  // 4. Tasa BCV Actual
   const { data: bcv } = useQuery({
     queryKey: ['bcv-rate'],
     queryFn: () => bcvApi.getTasaHoy(),
   });
   const tasaBcv = bcv?.tasa || 36.5;
 
-  // Mutación Crear
-  const crearMutation = useMutation({
-    mutationFn: (dto: any) => finanzasApi.crearAdelanto(dto),
-    onSuccess: (data: any) => {
-      Swal.fire({
-        icon: 'success',
-        title: '¡Anticipo Registrado!',
-        text: data.message || 'Anticipo registrado a receptoría exitosamente.',
-        confirmButtonColor: '#2563eb',
-      });
-      queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] });
-      setModalNuevo(false);
-      setForm(initialForm);
-    },
-    onError: (err: any) => {
-      Swal.fire('Error', err?.response?.data?.message || 'Error al registrar anticipo', 'error');
-    },
-  });
+  const cicloActivo = useMemo(() => {
+    return semanas.find((s) => String(s.estado || '').toUpperCase() === 'ABIERTO') || semanas[0];
+  }, [semanas]);
 
-  // Mutación Amortizar
-  const amortizarMutation = useMutation({
-    mutationFn: ({ id, monto }: { id: number; monto: number }) =>
-      finanzasApi.amortizarAdelanto(id, monto),
-    onSuccess: () => {
-      toast.success('Amortización registrada con éxito');
-      queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] });
-      setModalAmortizar(false);
-      setAdelantoSeleccionado(null);
-      setMontoAmortizar(0);
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Error al amortizar anticipo');
-    },
-  });
+  // Normalización
+  const adelantos = useMemo(() => {
+    return adelantosRaw.map((a: any) => {
+      const id = a.id ?? a.Id ?? 0;
+      const montoTotal = Number(a.montoTotalUSD ?? a.MontoTotalUSD ?? a.montoUSD ?? a.MontoUSD ?? a.monto ?? 0);
+      const saldoPend = Number(a.montoPendienteUSD ?? a.MontoPendienteUSD ?? a.saldoPendienteUSD ?? a.SaldoPendienteUSD ?? 0);
+      const montoPag = Number(a.montoPagadoUSD ?? a.MontoPagadoUSD ?? Math.max(0, montoTotal - saldoPend));
+      const tasaAplicada = Number(a.tasaBCV ?? a.tasaBcvAplicada ?? tasaBcv);
+      const montoBs = Number(a.montoBs ?? a.montoTotalBs ?? (montoTotal * tasaAplicada));
+      const cuotasList = a.cuotas || a.Cuotas || [];
+      const numCuotas = Number(a.numeroCuotas ?? a.NumeroCuotas ?? (cuotasList.length > 0 ? cuotasList.length : 1));
+      const cuotaUSD = numCuotas > 0 ? Number((montoTotal / numCuotas).toFixed(2)) : montoTotal;
 
-  // Mutación Eliminar
-  const eliminarMutation = useMutation({
-    mutationFn: (id: number) => finanzasApi.eliminarAdelanto(id),
-    onSuccess: () => {
-      toast.success('Anticipo eliminado');
-      queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] });
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Error al eliminar');
-    },
-  });
+      const cId = a.entidadId ?? a.EntidadId ?? a.companiaId ?? a.CompaniaId;
+      const cMatch = companias.find((c) => c.id === cId);
+      const compNom = a.entidadNombre ?? a.EntidadNombre ?? a.companiaNombre ?? a.CompaniaNombre ?? cMatch?.nombre ?? 'Receptoría / Planta';
 
-  const handleEliminar = async (id: number) => {
-    const res = await Swal.fire({
-      title: '¿Eliminar anticipo?',
-      text: 'Esta acción anulará el registro y sus cuotas pendientes.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#ef4444',
+      const semNom = a.semanaOperativaCodigo || a.semanaOperativa?.codigo || a.cicloCodigo || (a.semanaOperativaId ? `Semana #${a.semanaOperativaId}` : 'Ciclo general');
+
+      const est = String(a.estado || a.Estado || (saldoPend <= 0.001 ? 'PAGADO' : 'ACTIVO')).toUpperCase();
+
+      return {
+        ...a,
+        id,
+        companiaId: cId,
+        companiaNombre: compNom,
+        entidadNombre: compNom,
+        montoTotalUSD: montoTotal,
+        montoPendienteUSD: saldoPend,
+        montoPagadoUSD: montoPag,
+        montoBs,
+        tasaBCV: tasaAplicada,
+        numeroCuotas: numCuotas,
+        cuotaUSD,
+        semanaCodigo: semNom,
+        estado: est,
+        cuotas: cuotasList,
+      };
     });
-    if (res.isConfirmed) {
-      eliminarMutation.mutate(id);
-    }
-  };
+  }, [adelantosRaw, companias, tasaBcv]);
 
-  const filtrados = useMemo(() => {
+  const adelantosFiltrados = useMemo(() => {
     return adelantos.filter((a) => {
-      if (filtroEstado === 'PENDIENTES' && a.estado !== 'PENDIENTE' && a.estado !== 'ACTIVO') return false;
-      if (filtroEstado === 'PAGADOS' && a.estado !== 'PAGADO' && a.estado !== 'LIQUIDADO') return false;
+      if (filtroSemana) {
+        const matchesSemana = String(a.semanaOperativaId) === filtroSemana ||
+          (a.cuotas && a.cuotas.some((c: any) => String(c.semanaOperativaId) === filtroSemana));
+        if (!matchesSemana) return false;
+      }
+      if (filtroEstado) {
+        if (filtroEstado === 'ACTIVO' && a.estado !== 'ACTIVO' && a.estado !== 'PENDIENTE') return false;
+        if (filtroEstado === 'PAGADO' && a.estado !== 'PAGADO') return false;
+        if (filtroEstado === 'POSPUESTO') {
+          const hasPospuesta = a.cuotas && a.cuotas.some((c: any) => String(c.estado).toUpperCase() === 'POSPUESTO');
+          if (!hasPospuesta) return false;
+        }
+      }
       return true;
     });
-  }, [adelantos, filtroEstado]);
+  }, [adelantos, filtroSemana, filtroEstado]);
 
   const kpis = useMemo(() => {
     let totalAdelantado = 0;
-    let totalPagado = 0;
+    let totalCobrado = 0;
     let totalPendiente = 0;
+    let cuotasPospuestas = 0;
+    let cantCuotasCobradas = 0;
+    let cantCuotasPendientes = 0;
 
-    filtrados.forEach((a) => {
-      totalAdelantado += Number(a.montoUSD || 0);
-      totalPagado += Number(a.montoPagadoUSD || 0);
-      totalPendiente += Number(a.montoPendienteUSD || (Number(a.montoUSD || 0) - Number(a.montoPagadoUSD || 0)));
+    adelantos.forEach((a) => {
+      totalAdelantado += a.montoTotalUSD;
+      totalCobrado += a.montoPagadoUSD;
+      totalPendiente += a.montoPendienteUSD;
+
+      (a.cuotas || []).forEach((c: any) => {
+        const est = String(c.estado || '').toUpperCase();
+        if (est === 'POSPUESTO') cuotasPospuestas++;
+        if (est === 'COBRADO') cantCuotasCobradas++;
+        if (est === 'PENDIENTE') cantCuotasPendientes++;
+      });
     });
 
-    return { totalAdelantado, totalPagado, totalPendiente, count: filtrados.length };
-  }, [filtrados]);
+    const activos = adelantos.filter((a) => a.estado === 'ACTIVO' || a.montoPendienteUSD > 0.001);
 
-  const exportarExcel = () => {
-    if (filtrados.length === 0) {
-      toast.error('No hay datos para exportar');
-      return;
-    }
-    const dataRows = filtrados.map((a, i) => ({
-      '#': i + 1,
-      'Receptoría / Compañía': a.companiaNombre || 'Receptoría',
-      'Fecha': a.fecha,
-      'Monto USD': a.montoUSD,
-      'Amortizado USD': a.montoPagadoUSD || 0,
-      'Pendiente USD': a.montoPendienteUSD || (a.montoUSD - (a.montoPagadoUSD || 0)),
-      'Estado': a.estado || 'ACTIVO',
-      'Motivo': a.motivo || 'N/A',
-    }));
+    return {
+      totalAdelantadoUSD: totalAdelantado,
+      totalCobradoUSD: totalCobrado,
+      totalPendienteUSD: totalPendiente,
+      cuotasPospuestas,
+      cantAdelantos: adelantos.length,
+      cantActivos: activos.length,
+      cantCuotasCobradas,
+      cantCuotasPendientes,
+    };
+  }, [adelantos]);
 
-    const ws = XLSX.utils.json_to_sheet(dataRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Anticipos_Receptoria');
-    XLSX.writeFile(wb, `Anticipos_Receptoria_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Reporte exportado a Excel');
+  const eliminarMutation = useMutation({
+    mutationFn: (id: number) => finanzasApi.eliminarAdelanto(id),
+    onSuccess: (data: any) => {
+      Swal.fire({
+        icon: 'success',
+        title: '¡Eliminado!',
+        text: data?.message || 'Registro eliminado exitosamente.',
+        confirmButtonColor: '#10b981',
+      });
+      queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] });
+    },
+    onError: (err: any) => {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al Eliminar',
+        text: err.response?.data?.message || err.message || 'No se pudo eliminar el registro.',
+        confirmButtonColor: '#ef4444',
+      });
+    },
+  });
+
+  const handleEliminarAdelanto = (id: number, compania: string) => {
+    Swal.fire({
+      title: '¿Eliminar Anticipo Receptoría?',
+      text: `Se cancelará el registro #${id} de "${compania}".`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    }).then((res) => {
+      if (res.isConfirmed) {
+        eliminarMutation.mutate(id);
+      }
+    });
   };
 
-  const columns = [
+  const toggleRow = (id: number) => {
+    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const companiasOptions = useMemo(() => {
+    return companias.map((c) => ({
+      value: String(c.id),
+      label: c.nombre,
+      sublabel: c.contacto ? `Contacto: ${c.contacto}` : undefined,
+    }));
+  }, [companias]);
+
+  const columns = useMemo<ColumnDef<any>[]>(() => [
     {
-      key: 'companiaNombre',
-      header: 'Receptoría / Compañía',
-      cell: (row: AdelantoDto) => (
-        <div>
-          <span className="font-bold text-slate-800 text-xs block">
-            {row.companiaNombre || 'Receptoría Destino'}
-          </span>
-          <span className="text-[11px] text-gray-500">{row.motivo || 'Anticipo operativo'}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'fecha',
-      header: 'Fecha',
-      cell: (row: AdelantoDto) => (
-        <span className="text-xs font-mono text-slate-600">
-          {row.fecha ? new Date(row.fecha).toLocaleDateString() : 'N/A'}
-        </span>
-      ),
-    },
-    {
-      key: 'montoUSD',
-      header: 'Monto Total USD',
-      className: 'text-right',
-      cell: (row: AdelantoDto) => (
-        <span className="font-mono text-xs font-bold text-slate-800">
-          ${Number(row.montoUSD || 0).toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      key: 'montoPagadoUSD',
-      header: 'Amortizado USD',
-      className: 'text-right',
-      cell: (row: AdelantoDto) => (
-        <span className="font-mono text-xs font-semibold text-emerald-700">
-          ${Number(row.montoPagadoUSD || 0).toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      key: 'montoPendienteUSD',
-      header: 'Saldo Pendiente',
-      className: 'text-right',
-      cell: (row: AdelantoDto) => {
-        const pend = Number(row.montoPendienteUSD || (row.montoUSD - (row.montoPagadoUSD || 0)));
+      id: 'expand',
+      header: '',
+      size: 40,
+      cell: ({ row }) => {
+        const isExp = !!expandedRows[row.id];
         return (
-          <span className={`font-mono text-xs font-black ${pend > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
-            ${pend.toFixed(2)}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'estado',
-      header: 'Estado',
-      className: 'text-center',
-      cell: (row: AdelantoDto) => {
-        const isPagado = (row.montoPendienteUSD === 0 && (row.montoPagadoUSD || 0) > 0) || row.estado === 'PAGADO' || row.estado === 'LIQUIDADO';
-        return isPagado ? (
-          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            Completado
-          </span>
-        ) : (
-          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-            En Cuotas
-          </span>
-        );
-      },
-    },
-    {
-      key: 'acciones',
-      header: 'Acciones',
-      className: 'text-center',
-      cell: (row: AdelantoDto) => (
-        <div className="flex items-center justify-center gap-1.5">
           <button
             type="button"
-            onClick={() => {
-              setAdelantoSeleccionado(row);
-              setMontoAmortizar(row.montoPendienteUSD || (row.montoUSD - (row.montoPagadoUSD || 0)));
-              setModalAmortizar(true);
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleRow(row.id);
             }}
-            className="p-1 hover:bg-emerald-50 text-emerald-700 rounded border border-emerald-200"
-            title="Amortizar Cuota / Saldo"
+            title={isExp ? 'Ocultar cuotas' : 'Ver cuotas desglosadas'}
+            style={{
+              width: '26px',
+              height: '26px',
+              borderRadius: '6px',
+              border: `1px solid ${isExp ? '#bfdbfe' : '#cbd5e1'}`,
+              background: isExp ? '#eff6ff' : '#ffffff',
+              color: isExp ? '#2563eb' : '#64748b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '11px',
+              fontWeight: 900,
+            }}
           >
-            <HandCoins className="w-4 h-4" />
+            <i className={`fa-solid ${isExp ? 'fa-minus' : 'fa-plus'}`}></i>
+          </button>
+        );
+      },
+    },
+    {
+      accessorKey: 'id',
+      header: '# ID',
+      size: 70,
+      cell: ({ row }) => <span style={{ fontWeight: 800, color: '#334155' }}>#{row.id}</span>,
+    },
+    {
+      accessorKey: 'companiaNombre',
+      header: 'COMPAÑÍA / PLANTA',
+      cell: ({ row }) => (
+        <div>
+          <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.companiaNombre}</div>
+          {row.observacion && (
+            <div style={{ fontSize: '11px', color: '#64748b' }}>
+              {row.observacion}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'semanaCodigo',
+      header: 'SEMANA COBRO',
+      cell: ({ row }) => (
+        <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb' }}>
+          {row.semanaCodigo}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'montoTotalUSD',
+      header: 'TOTAL ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>
+          $ {row.montoTotalUSD.toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'montoBs',
+      header: 'MONTO (BS)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: '11.5px' }}>
+          Bs. {row.montoBs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'numeroCuotas',
+      header: 'CUOTAS',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'center' }}>
+          <span
+            style={{
+              background: '#f1f5f9',
+              color: '#334155',
+              fontWeight: 800,
+              fontSize: '11px',
+              padding: '2px 8px',
+              borderRadius: '6px',
+            }}
+          >
+            {row.numeroCuotas} {row.numeroCuotas === 1 ? 'Cuota' : 'Cuotas'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'cuotaUSD',
+      header: 'CUOTA ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+          $ {row.cuotaUSD.toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'montoPagadoUSD',
+      header: 'COBRADO ($)',
+      cell: ({ row }) => (
+        <div style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
+          $ {row.montoPagadoUSD.toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'montoPendienteUSD',
+      header: 'PENDIENTE ($)',
+      cell: ({ row }) => {
+        const pend = row.montoPendienteUSD;
+        return (
+          <div
+            style={{
+              textAlign: 'right',
+              fontWeight: 900,
+              color: pend > 0 ? '#b45309' : '#15803d',
+            }}
+          >
+            $ {pend.toFixed(2)}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'estado',
+      header: 'ESTADO',
+      cell: ({ row }) => {
+        const isPagado = row.estado === 'PAGADO' || row.montoPendienteUSD <= 0.001;
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 800,
+                padding: '3px 8px',
+                borderRadius: '6px',
+                display: 'inline-block',
+                background: isPagado ? '#dcfce7' : '#fef3c7',
+                color: isPagado ? '#15803d' : '#b45309',
+                border: `1px solid ${isPagado ? '#86efac' : '#fde68a'}`,
+              }}
+            >
+              {isPagado ? 'PAGADO' : 'ACTIVO'}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'acciones',
+      header: 'ACCIONES',
+      cell: ({ row }) => (
+        <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAdelantoSeleccionado(row);
+              setModalReestructurarOpen(true);
+            }}
+            title="Reestructurar cuotas"
+            style={{
+              background: '#eff6ff',
+              color: '#2563eb',
+              border: '1px solid #bfdbfe',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="fa-solid fa-calculator"></i>
           </button>
           <button
             type="button"
-            onClick={() => handleEliminar(row.id)}
-            className="p-1 hover:bg-red-50 text-red-600 rounded border border-red-200"
-            title="Eliminar Anticipo"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEliminarAdelanto(row.id, row.companiaNombre);
+            }}
+            title="Eliminar anticipo"
+            style={{
+              background: '#fef2f2',
+              color: '#dc2626',
+              border: '1px solid #fecaca',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
           >
-            <Trash2 className="w-4 h-4" />
+            <i className="fa-solid fa-trash-can"></i>
           </button>
         </div>
       ),
     },
-  ];
+  ], [expandedRows, handleEliminarAdelanto]);
 
   return (
-    <div className="space-y-6">
+    <div className="view-container">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-200">
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '15px',
+          marginBottom: '20px',
+        }}
+      >
         <div>
-          <h2 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-            <Truck className="w-5 h-5 text-blue-600" />
-            Anticipos & Descuentos a Receptoría
-          </h2>
-          <p className="text-xs text-gray-500">
-            Control de anticipos de dinero o leche otorgados a plantas receptoras y cuotas fijadas por ciclo
+          <h1 className="view-title">
+            <i className="fa-solid fa-truck-ramp-box" style={{ color: '#2563eb', marginRight: '8px' }}></i>
+            Anticipos &amp; Descuentos Receptoría
+          </h1>
+          <p className="view-subtitle">
+            Anticipos de dinero o leche otorgados a plantas receptoras / compañías en cuotas por ciclo
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={exportarExcel}
-            className="btn btn-outline text-xs font-bold h-9 px-3 flex items-center gap-1.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50"
+            onClick={() => setModalTasaOpen(true)}
+            className="btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 800,
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+              border: 'none',
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+              color: '#ffffff',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
           >
-            <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            <i className="fa-solid fa-dollar-sign"></i> Actualizar Valor Dólar (Solo Activos)
           </button>
           <button
             type="button"
-            onClick={() => setModalNuevo(true)}
-            className="btn text-xs font-bold h-9 px-3 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
+            onClick={() => setModalCrearOpen(true)}
+            className="btn btn-primary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 700,
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              border: 'none',
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+            }}
           >
-            <Plus className="w-4 h-4" /> Nuevo Anticipo
+            <i className="fa-solid fa-plus-circle"></i> + Nuevo Adelanto Receptoría
           </button>
         </div>
       </div>
 
-      {/* KPIS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Total Otorgado USD</span>
-          <span className="text-xl font-black text-blue-900 font-mono">
-            ${kpis.totalAdelantado.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </span>
+      {/* 4 KPIS RECEPTORIA (1:1 V2_3_11_26) */}
+      <div className="kpi-grid" style={{ marginBottom: '24px' }}>
+        <div className="kpi-card glass-blue">
+          <div className="kpi-icon-wrap"><i className="fa-solid fa-building-flag"></i></div>
+          <div className="kpi-content">
+            <span className="kpi-title">Total Adelantado Receptoría</span>
+            <div className="kpi-value">
+              $ {kpis.totalAdelantadoUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="kpi-foot">{kpis.cantAdelantos} Anticipos a plantas</span>
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Total Cobrado / Amortizado</span>
-          <span className="text-xl font-black text-emerald-700 font-mono">
-            ${kpis.totalPagado.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </span>
+        <div className="kpi-card glass-emerald">
+          <div className="kpi-icon-wrap"><i className="fa-solid fa-circle-check"></i></div>
+          <div className="kpi-content">
+            <span className="kpi-title">Total Conciliado / Cobrado</span>
+            <div className="kpi-value">
+              $ {kpis.totalCobradoUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="kpi-foot">{kpis.cantCuotasCobradas} Cuotas saldadas</span>
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Saldo por Cobrar USD</span>
-          <span className="text-xl font-black text-amber-700 font-mono">
-            ${kpis.totalPendiente.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </span>
+        <div className="kpi-card glass-amber">
+          <div className="kpi-icon-wrap"><i className="fa-solid fa-clock-rotate-left"></i></div>
+          <div className="kpi-content">
+            <span className="kpi-title">Saldo Pendiente Planta</span>
+            <div className="kpi-value">
+              $ {kpis.totalPendienteUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="kpi-foot">{kpis.cantCuotasPendientes} Cuotas pendientes</span>
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-gray-500 block font-medium">Equivalente en Bolívares (Bs)</span>
-          <span className="text-base font-bold text-slate-800 font-mono">
-            Bs. {(kpis.totalPendiente * tasaBcv).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-          </span>
-          <span className="text-[10px] text-gray-400 block mt-0.5">Tasa BCV: {tasaBcv.toFixed(2)}</span>
+        <div className="kpi-card glass-purple">
+          <div className="kpi-icon-wrap"><i className="fa-solid fa-calendar-minus"></i></div>
+          <div className="kpi-content">
+            <span className="kpi-title">Cuotas Pospuestas</span>
+            <div className="kpi-value">{kpis.cuotasPospuestas}</div>
+            <span className="kpi-foot">Reprogramadas</span>
+          </div>
         </div>
       </div>
 
-      {/* FILTROS */}
-      <div className="p-4 bg-white rounded-xl shadow-xs border border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-gray-700">Estado de Saldo:</label>
-          <select
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-            className="form-input text-xs h-9 rounded-lg border border-slate-300 font-medium"
+      {/* DATATABLE */}
+      <div className="content-card">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '16px',
+            paddingBottom: '14px',
+            borderBottom: '1px solid #f1f5f9',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div>
+              <select
+                value={filtroSemana}
+                onChange={(e) => setFiltroSemana(e.target.value)}
+                className="form-input"
+                style={{
+                  height: '38px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                }}
+              >
+                <option value="">TODOS LOS CICLOS / SEMANAS</option>
+                {semanas.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.codigo || `Semana #${s.id}`} {String(s.estado || '').toUpperCase() === 'ABIERTO' ? '★ (ACTIVA)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <select
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value)}
+                className="form-input"
+                style={{
+                  height: '38px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                }}
+              >
+                <option value="">TODOS LOS ESTADOS</option>
+                <option value="ACTIVO">SOLO ACTIVOS (PENDIENTES)</option>
+                <option value="PAGADO">SOLO PAGADOS (LIQUIDADOS)</option>
+                <option value="POSPUESTO">CON CUOTAS POSPUESTAS</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+            className="btn btn-outline"
+            title="Refrescar lista"
+            style={{ fontWeight: 700, height: '38px', padding: '0 12px', background: '#fff', border: '1.5px solid #cbd5e1' }}
           >
-            <option value="">TODOS LOS ANTICIPOS</option>
-            <option value="PENDIENTES">SOLO CON SALDO PENDIENTE</option>
-            <option value="PAGADOS">TOTALMENTE LIQUIDADOS</option>
-          </select>
+            <i className="fa-solid fa-rotate-right" style={{ marginRight: '6px' }}></i>
+            Actualizar
+          </button>
         </div>
-      </div>
 
-      {/* TABLA PRINCIPAL */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
         <DataTable
           columns={columns}
-          data={filtrados}
+          data={adelantosFiltrados}
           isLoading={isLoading}
-          pageSizeDefault={10}
-          emptyMessage="No hay anticipos a receptorías registrados."
+          searchPlaceholder="Buscar por compañía, observaciones..."
+          isRowExpanded={(row) => !!expandedRows[row.id]}
+          renderSubRow={(row) => (
+            <SubRowCuotas
+              adelanto={row}
+              onEditarCuota={(c) => {
+                setAdelantoSeleccionado(row);
+                setCuotaSeleccionada(c);
+                setModalEditarCuotaOpen(true);
+              }}
+              onDividirCuota={(c) => {
+                setAdelantoSeleccionado(row);
+                setCuotaSeleccionada(c);
+                setModalDividirCuotaOpen(true);
+              }}
+              onPosponerCuota={(c) => {
+                setAdelantoSeleccionado(row);
+                setCuotaSeleccionada(c);
+                setModalPosponerCuotaOpen(true);
+              }}
+              onReestructurar={() => {
+                setAdelantoSeleccionado(row);
+                setModalReestructurarOpen(true);
+              }}
+            />
+          )}
         />
       </div>
 
-      {/* MODAL NUEVO ANTICIPO */}
-      {modalNuevo && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-600" />
-              Registrar Anticipo a Receptoría
-            </h3>
+      <ModalCrearAdelanto
+        isOpen={modalCrearOpen}
+        onClose={() => setModalCrearOpen(false)}
+        tipoEntidad="RECEPTORIA"
+        entidades={companiasOptions}
+        semanas={semanas}
+        tasaBcvActual={tasaBcv}
+        cicloActivoId={cicloActivo?.id}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+      />
 
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Compañía / Receptoría:</label>
-                <select
-                  value={form.companiaId}
-                  onChange={(e) => setForm({ ...form, companiaId: Number(e.target.value) })}
-                  className="w-full form-input rounded-lg border border-slate-300 p-2"
-                >
-                  <option value={0}>-- Seleccione una Planta Receptoría --</option>
-                  {companias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      <ModalActualizarValorDolar
+        isOpen={modalTasaOpen}
+        onClose={() => setModalTasaOpen(false)}
+        tipoEntidad="RECEPTORIA"
+        cantActivos={kpis.cantActivos}
+        totalPendienteUSD={kpis.totalPendienteUSD}
+        tasaBcvActual={tasaBcv}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+      />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Monto en Dólares (USD):</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.montoUSD || ''}
-                  onChange={(e) => setForm({ ...form, montoUSD: Number(e.target.value) })}
-                  placeholder="0.00"
-                  className="w-full form-input rounded-lg border border-slate-300 p-2 font-mono font-bold"
-                />
-                {form.montoUSD > 0 && (
-                  <span className="text-[11px] text-emerald-700 font-semibold block mt-1">
-                    ≈ Bs. {(form.montoUSD * tasaBcv).toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Tasa: {tasaBcv.toFixed(2)})
-                  </span>
-                )}
-              </div>
+      <ModalEditarCuota
+        isOpen={modalEditarCuotaOpen}
+        onClose={() => setModalEditarCuotaOpen(false)}
+        cuota={cuotaSeleccionada}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+      />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Fecha de Otorgamiento:</label>
-                <input
-                  type="date"
-                  value={form.fecha}
-                  onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-                  className="w-full form-input rounded-lg border border-slate-300 p-2"
-                />
-              </div>
+      <ModalDividirCuota
+        isOpen={modalDividirCuotaOpen}
+        onClose={() => setModalDividirCuotaOpen(false)}
+        cuota={cuotaSeleccionada}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+      />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Motivo / Observaciones:</label>
-                <textarea
-                  rows={2}
-                  value={form.motivo}
-                  onChange={(e) => setForm({ ...form, motivo: e.target.value })}
-                  placeholder="Ej: Anticipo para insumos o compra de volumen de leche..."
-                  className="w-full form-input rounded-lg border border-slate-300 p-2"
-                />
-              </div>
-            </div>
+      <ModalPosponerCuota
+        isOpen={modalPosponerCuotaOpen}
+        onClose={() => setModalPosponerCuotaOpen(false)}
+        cuota={cuotaSeleccionada}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+      />
 
-            <div className="flex justify-end gap-2 mt-6 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setModalNuevo(false)}
-                className="btn btn-outline text-xs px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (form.companiaId <= 0 || form.montoUSD <= 0) {
-                    toast.error('Debe seleccionar la compañía y colocar un monto válido');
-                    return;
-                  }
-                  crearMutation.mutate(form);
-                }}
-                disabled={crearMutation.isPending}
-                className="btn text-xs px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg"
-              >
-                Guardar Anticipo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL AMORTIZAR SALDO */}
-      {modalAmortizar && adelantoSeleccionado && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
-              <HandCoins className="w-5 h-5 text-emerald-600" />
-              Amortizar Anticipo
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">
-              {adelantoSeleccionado.companiaNombre || 'Receptoría'}
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Monto a Amortizar (USD):</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={montoAmortizar || ''}
-                  onChange={(e) => setMontoAmortizar(Number(e.target.value))}
-                  className="w-full form-input rounded-lg border border-slate-300 p-2 font-mono font-bold"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setModalAmortizar(false)}
-                className="btn btn-outline text-xs px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (montoAmortizar <= 0) {
-                    toast.error('Ingrese un monto válido');
-                    return;
-                  }
-                  amortizarMutation.mutate({ id: adelantoSeleccionado.id, monto: montoAmortizar });
-                }}
-                disabled={amortizarMutation.isPending}
-                className="btn text-xs px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg"
-              >
-                Aplicar Amortización
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalReestructurarCuotas
+        isOpen={modalReestructurarOpen}
+        onClose={() => setModalReestructurarOpen(false)}
+        adelanto={adelantoSeleccionado}
+        semanas={semanas}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adelantos-receptoria'] })}
+      />
     </div>
   );
 };
-
-export default AdelantosReceptoriaPage;

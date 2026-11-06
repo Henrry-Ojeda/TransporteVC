@@ -11,18 +11,55 @@ import type {
 
 export const operacionesApi = {
   // CONTROL DE RUTAS / VIAJES / TICKETS
-  getControles: async (fecha?: string, choferId?: number, estado?: string): Promise<ControlRutaDto[]> => {
+  getControles: async (fecha?: string, choferId?: number, estado?: string, fechaInicio?: string, fechaFin?: string): Promise<ControlRutaDto[]> => {
     const params: Record<string, any> = {};
 
     if (fecha) params.fecha = fecha;
     if (choferId) params.choferId = choferId;
     if (estado) params.estado = estado;
-    const res = await apiClient.get<ControlRutaDto[]>('/controlrutas', { params });
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+    const res = await apiClient.get<ControlRutaDto[]>('/control-rutas', { params });
     return Array.isArray(res.data) ? res.data : [];
   },
 
   getControlPorId: async (id: number): Promise<ControlRutaDto> => {
-    const res = await apiClient.get<ControlRutaDto>(`/controlrutas/${id}`);
+    const res = await apiClient.get<ControlRutaDto>(`/control-rutas/${id}`);
+    return res.data;
+  },
+
+  editarControl: async (id: number, dto: any): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/control-rutas/${id}`, dto);
+    return res.data;
+  },
+
+  finalizarViajeAdmin: async (id: number, observacion?: string): Promise<{ message: string }> => {
+    const res = await apiClient.post(`/control-rutas/${id}/finalizar`, { observacion });
+    return res.data;
+  },
+
+  revertirProcesoViaje: async (id: number, dto: { procesoDestinoId: number; motivo: string }): Promise<{ message: string }> => {
+    const res = await apiClient.post(`/control-rutas/${id}/revertir-proceso`, dto);
+    return res.data;
+  },
+
+  getHistorialViaje: async (id: number): Promise<any[]> => {
+    const res = await apiClient.get<any[]>(`/control-rutas/${id}/historial`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getLogsModificacionesViaje: async (id: number): Promise<any[]> => {
+    const res = await apiClient.get<any[]>(`/control-rutas/${id}/logs-modificaciones`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  editarFincaViajeAuditado: async (id: number, rutaId: number, dto: { fincaId: number; litros: number; esAcida: boolean; tipoLeche: string; motivoModificacion: string }): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/control-rutas/${id}/fincas/${rutaId}/editar-auditado`, dto);
+    return res.data;
+  },
+
+  eliminarFincaViajeAuditado: async (id: number, rutaId: number, motivo: string): Promise<{ message: string }> => {
+    const res = await apiClient.delete(`/control-rutas/${id}/fincas/${rutaId}/eliminar-auditado`, { params: { motivo } });
     return res.data;
   },
 
@@ -130,13 +167,25 @@ export const operacionesApi = {
   },
 
   // CONTROL COMPAÑÍAS / RECEPTORÍA
-  getDespachosCompanias: async (fecha?: string, companiaId?: number): Promise<DespachoCompaniaDto[]> => {
+  getDespachosCompanias: async (fecha?: string, companiaId?: number, fechaInicio?: string, fechaFin?: string): Promise<DespachoCompaniaDto[]> => {
     const params: Record<string, any> = {};
 
     if (fecha) params.fecha = fecha;
     if (companiaId) params.companiaId = companiaId;
-    const res = await apiClient.get<DespachoCompaniaDto[]>('/controlcompanias', { params });
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+    const res = await apiClient.get<DespachoCompaniaDto[]>('/control-companias', { params });
     return Array.isArray(res.data) ? res.data : [];
+  },
+
+  getDespachoCompaniaPorId: async (id: number): Promise<any> => {
+    const res = await apiClient.get(`/control-companias/${id}`);
+    return res.data;
+  },
+
+  eliminarDespachoCompania: async (id: number): Promise<{ message: string }> => {
+    const res = await apiClient.delete(`/control-companias/${id}`);
+    return res.data;
   },
 
   crearDespachoCompania: async (dto: {
