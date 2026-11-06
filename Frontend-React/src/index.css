@@ -254,6 +254,10 @@ table.dataTable tbody tr:hover td,
     text-overflow: ellipsis !important;
   }
 
+  .ciclo-fechas-rango {
+    display: none !important;
+  }
+
   /* ÁREA DE CONTENIDO Y WRAPPER */
   .main-layout {
     min-height: calc(100vh - 95px) !important;

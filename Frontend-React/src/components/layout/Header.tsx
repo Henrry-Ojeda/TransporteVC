@@ -220,7 +220,18 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           <div>
             <span className="ciclo-label">SEMANA OPERATIVA ACTIVA</span>
             <span className="ciclo-value" id="cicloActivoTexto">
-              {loadingCiclo ? 'Cargando...' : textoCiclo}
+              {loadingCiclo ? (
+                'Cargando...'
+              ) : (
+                <>
+                  <span className="ciclo-semana-title" style={{ fontWeight: 800 }}>{nombreSemana}</span>
+                  {fechaIniStr && (
+                    <span className="ciclo-fechas-rango text-slate-500 font-normal">
+                      {' '}({fechaIniStr} al {fechaFinStr})
+                    </span>
+                  )}
+                </>
+              )}
             </span>
           </div>
         </div>

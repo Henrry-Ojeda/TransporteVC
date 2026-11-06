@@ -890,34 +890,52 @@ export const RecoleccionRutasPage: React.FC = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', maxWidth: '100%' }}>
           <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginRight: '4px' }}>
             <i className="fa-solid fa-layer-group" style={{ color: '#4f46e5', marginRight: '4px' }}></i>
             Vista Operativa:
           </span>
-          <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '3px', borderRadius: '10px', border: '1px solid #e2e8f0', gap: '4px' }}>
+          <div
+            className="vista-operativa-switcher"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              background: '#f1f5f9',
+              padding: '3px',
+              borderRadius: '10px',
+              border: '1px solid #e2e8f0',
+              gap: '4px',
+              width: '100%',
+              maxWidth: '520px',
+            }}
+          >
             <button
               type="button"
               className="btn btn-sm"
               onClick={() => setModoVista('viajes')}
               style={{
-                height: '34px',
-                padding: '0 16px',
+                minHeight: '38px',
+                height: 'auto',
+                padding: '6px 10px',
                 borderRadius: '7px',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: '12px',
                 fontWeight: modoVista === 'viajes' ? 800 : 600,
                 background: modoVista === 'viajes' ? '#ffffff' : 'transparent',
                 color: modoVista === 'viajes' ? '#1e293b' : '#64748b',
                 boxShadow: modoVista === 'viajes' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
+                justifyContent: 'center',
+                gap: '6px',
                 cursor: 'pointer',
+                textAlign: 'center',
               }}
             >
-              <i className="fa-solid fa-truck-moving" style={{ color: modoVista === 'viajes' ? '#2563eb' : '#64748b' }}></i>
-              Control de Rutas & Camiones
+              <i className="fa-solid fa-truck-moving" style={{ color: modoVista === 'viajes' ? '#2563eb' : '#64748b', flexShrink: 0 }}></i>
+              <span>
+                <span className="hidden sm:inline">Control </span>Rutas & Camiones
+              </span>
               <span
                 className="badge"
                 style={{
@@ -927,6 +945,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   padding: '2px 7px',
                   borderRadius: '10px',
                   fontWeight: 800,
+                  flexShrink: 0,
                 }}
               >
                 {viajesFiltrados.length}
@@ -938,23 +957,28 @@ export const RecoleccionRutasPage: React.FC = () => {
               className="btn btn-sm"
               onClick={() => setModoVista('fincas')}
               style={{
-                height: '34px',
-                padding: '0 16px',
+                minHeight: '38px',
+                height: 'auto',
+                padding: '6px 10px',
                 borderRadius: '7px',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: '12px',
                 fontWeight: modoVista === 'fincas' ? 800 : 600,
                 background: modoVista === 'fincas' ? '#ffffff' : 'transparent',
                 color: modoVista === 'fincas' ? '#1e293b' : '#64748b',
                 boxShadow: modoVista === 'fincas' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
+                justifyContent: 'center',
+                gap: '6px',
                 cursor: 'pointer',
+                textAlign: 'center',
               }}
             >
-              <i className="fa-solid fa-list-check" style={{ color: modoVista === 'fincas' ? '#2563eb' : '#64748b' }}></i>
-              Detalle por Fincas (Historial / Buscador)
+              <i className="fa-solid fa-list-check" style={{ color: modoVista === 'fincas' ? '#2563eb' : '#64748b', flexShrink: 0 }}></i>
+              <span>
+                Detalle Fincas<span className="hidden md:inline"> (Historial)</span>
+              </span>
               <span
                 className="badge"
                 style={{
@@ -964,6 +988,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   padding: '2px 7px',
                   borderRadius: '10px',
                   fontWeight: 800,
+                  flexShrink: 0,
                 }}
               >
                 {filtroDetalleChoferId || filtroDetalleFincaId ? `${recoleccionesFiltradas.length}/${recolecciones.length}` : recolecciones.length}
