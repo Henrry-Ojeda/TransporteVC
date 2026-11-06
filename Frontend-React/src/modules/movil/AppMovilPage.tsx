@@ -91,6 +91,51 @@ export const AppMovilPage: React.FC = () => {
   // Estado de Sincronización
   const [sincronizando, setSincronizando] = useState(false);
 
+  // Estado de Instalación PWA (Descarga en el Teléfono)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [esInstalada, setEsInstalada] = useState<boolean>(() => {
+    return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+  });
+  const [mostrarGuiaIos, setMostrarGuiaIos] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    const handleInstalled = () => {
+      setEsInstalada(true);
+      setDeferredPrompt(null);
+      toast.success('¡App instalada exitosamente en tu teléfono!');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleInstalled);
+    };
+  }, []);
+
+  const handleInstalarApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setEsInstalada(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      if (isIos) {
+        setMostrarGuiaIos(true);
+      } else {
+        toast.info('Para instalar en Android: pulsa los 3 puntos ⋮ en tu navegador y selecciona "Instalar aplicación" o "Agregar a la pantalla principal".');
+      }
+    }
+  };
+
   // Detectar cambios de conectividad
   useEffect(() => {
     const handleOnline = () => {
@@ -512,6 +557,111 @@ export const AppMovilPage: React.FC = () => {
             </button>
           </form>
 
+          {/* Botón de Descarga / Instalación en Teléfono */}
+          {!esInstalada && (
+            <div style={{ marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={handleInstalarApp}
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                  color: '#34d399',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <i className="fa-solid fa-download"></i>
+                <span>Descargar / Instalar en mi Teléfono</span>
+              </button>
+            </div>
+          )}
+
+          {/* Guía Modal para iOS */}
+          {mostrarGuiaIos && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                background: 'rgba(0,0,0,0.8)',
+                backdropFilter: 'blur(5px)',
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'center',
+                padding: '16px',
+              }}
+            >
+              <div
+                style={{
+                  background: '#1e293b',
+                  borderRadius: '20px',
+                  padding: '24px',
+                  width: '100%',
+                  maxWidth: '380px',
+                  textAlign: 'left',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#ffffff',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>
+                    📲 Instalar en iPhone / iPad
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarGuiaIos(false)}
+                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '22px', cursor: 'pointer' }}
+                  >
+                    &times;
+                  </button>
+                </div>
+                <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
+                  <p style={{ margin: '0 0 10px 0' }}>
+                    Para tener la aplicación con su icono en tu pantalla de inicio:
+                  </p>
+                  <ol style={{ paddingLeft: '20px', margin: 0 }}>
+                    <li style={{ marginBottom: '8px' }}>
+                      Toca el botón <strong>Compartir</strong> <i className="fa-solid fa-arrow-up-from-bracket text-sky-400"></i> en la barra inferior de Safari.
+                    </li>
+                    <li style={{ marginBottom: '8px' }}>
+                      Baja y selecciona <strong>«Agregar a la pantalla de inicio»</strong> <i className="fa-solid fa-square-plus text-emerald-400"></i>.
+                    </li>
+                    <li>
+                      Pulsa <strong>«Agregar»</strong> en la esquina superior derecha.
+                    </li>
+                  </ol>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarGuiaIos(false)}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    borderRadius: '10px',
+                    background: '#0284c7',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    marginTop: '16px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Información del Modo Offline */}
           <div
             style={{
@@ -628,6 +778,45 @@ export const AppMovilPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Barra de Instalación si aún no está instalada como PWA */}
+      {!esInstalada && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #065f46, #047857)',
+            padding: '9px 16px',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12px',
+            fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <i className="fa-solid fa-mobile-screen text-emerald-300"></i>
+            <span>Instala la app en tu pantalla para abrirla directo</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleInstalarApp}
+            style={{
+              background: '#ffffff',
+              color: '#065f46',
+              border: 'none',
+              padding: '4px 12px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+            }}
+          >
+            📥 Instalar
+          </button>
+        </div>
+      )}
 
       {/* Contenedor Principal */}
       <main style={{ padding: '16px', maxWidth: '600px', margin: '0 auto' }}>

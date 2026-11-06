@@ -12,7 +12,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Transporte.Core.DTOs;
 using Transporte.Infrastructure.Repositories;
-using Transporte.API.Multitenancy;
 
 namespace Transporte.API.Controllers
 {
@@ -201,8 +200,7 @@ namespace Transporte.API.Controllers
             string codigo = random.Next(100000, 999999).ToString();
 
             // Guardar en DB_SAAS_MASTER para resolución ciega e inmediata
-            string rawMasterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;";
-            string masterConn = TenantService.AdjustConnectionStringForEnvironment(rawMasterConn);
+            string masterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;";
             using var db = new Microsoft.Data.SqlClient.SqlConnection(masterConn);
             
             // Vigencia de 48 horas
@@ -248,8 +246,7 @@ namespace Transporte.API.Controllers
 
             string cleanCode = dto.Codigo.Trim().Replace("-", "").Replace(" ", "");
 
-            string rawMasterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Encrypt=False;";
-            string masterConn = TenantService.AdjustConnectionStringForEnvironment(rawMasterConn);
+            string masterConn = "Server=84.247.178.194,1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;";
             using var db = new Microsoft.Data.SqlClient.SqlConnection(masterConn);
 
             var registro = await db.QueryFirstOrDefaultAsync<dynamic>(@"
