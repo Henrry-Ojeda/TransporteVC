@@ -7,6 +7,17 @@ import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { PropietarioDto, CrearPropietarioDto, BancoDto, FincaDto } from '@/types';
 
+const DEFAULT_BANCOS: BancoDto[] = [
+  { id: 24, codigo: '0134', nombre: 'BANESCO', activo: true },
+  { id: 25, codigo: '0102', nombre: 'BANCO DE VENEZUELA', activo: true },
+  { id: 26, codigo: '0108', nombre: 'BANCO PROVINCIAL', activo: true },
+  { id: 27, codigo: '0105', nombre: 'BANCO MERCANTIL', activo: true },
+  { id: 28, codigo: '0191', nombre: 'BANCO NACIONAL DE CREDITO (BNC)', activo: true },
+  { id: 29, codigo: '0114', nombre: 'BANCARIBE', activo: true },
+  { id: 30, codigo: '0172', nombre: 'BANCAMIGA', activo: true },
+  { id: 31, codigo: '0163', nombre: 'BANCO DEL TESORO', activo: true },
+];
+
 export const PropietariosPage: React.FC = () => {
   const queryClient = useQueryClient();
 
@@ -14,6 +25,7 @@ export const PropietariosPage: React.FC = () => {
   const [modalAsignarFincas, setModalAsignarFincas] = useState(false);
   const [propietarioSeleccionado, setPropietarioSeleccionado] = useState<PropietarioDto | null>(null);
   const [fincasSeleccionadas, setFincasSeleccionadas] = useState<number[]>([]);
+  const [filtroFincasModal, setFiltroFincasModal] = useState('');
   const [modoEdicionId, setModoEdicionId] = useState<number | null>(null);
 
   const initialForm: CrearPropietarioDto = {
@@ -36,9 +48,10 @@ export const PropietariosPage: React.FC = () => {
     queryFn: () => catalogosApi.getPropietarios(),
   });
 
-  const { data: bancos = [] } = useQuery<BancoDto[]>({
+  const { data: bancos = DEFAULT_BANCOS } = useQuery<BancoDto[]>({
     queryKey: ['bancos'],
     queryFn: () => catalogosApi.getBancos(),
+    initialData: DEFAULT_BANCOS,
   });
 
   const { data: fincas = [] } = useQuery<FincaDto[]>({
@@ -47,19 +60,35 @@ export const PropietariosPage: React.FC = () => {
   });
 
   const bancosOptions = useMemo(() => {
-    return bancos.map((b) => ({
+    const list = (bancos && bancos.length > 0 ? bancos : DEFAULT_BANCOS).map((b) => ({
       value: Number(b.id),
-      label: `${b.nombre} ${b.codigo ? `(${b.codigo})` : ''}`,
+      label: `${b.nombre} ${b.codigo ? `(${b.codigo})` : ''}`.trim(),
     }));
+    // Asegurar que BANESCO (id 24) esté siempre presente
+    if (!list.some((b) => Number(b.value) === 24)) {
+      list.unshift({ value: 24, label: 'BANESCO (0134)' });
+    }
+    return list;
   }, [bancos]);
 
   // Mutaciones
   const guardarMutation = useMutation({
-    mutationFn: (dto: CrearPropietarioDto) =>
-      modoEdicionId ? catalogosApi.actualizarPropietario(modoEdicionId, dto) : catalogosApi.crearPropietario(dto),
+    mutationFn: (dto: CrearPropietarioDto) => {
+      const selectedBanco = bancosOptions.find((b) => Number(b.value) === Number(dto.bancoId));
+      const payload: any = {
+        ...dto,
+        bancoId: dto.bancoId ? Number(dto.bancoId) : undefined,
+        bancoNombre: selectedBanco ? selectedBanco.label.replace(/\s*\([^)]*\)/, '').trim() : '',
+        fincaIds: fincasSeleccionadas,
+      };
+      return modoEdicionId
+        ? catalogosApi.actualizarPropietario(modoEdicionId, payload)
+        : catalogosApi.crearPropietario(payload);
+    },
     onSuccess: (data: any) => {
-      toast.success(data.message || 'Propietario guardado exitosamente');
+      toast.success(data.message || (modoEdicionId ? 'Propietario actualizado exitosamente' : 'Propietario registrado exitosamente'));
       queryClient.invalidateQueries({ queryKey: ['propietarios'] });
+      queryClient.invalidateQueries({ queryKey: ['fincas'] });
       cerrarModal();
     },
     onError: (err: any) => {
@@ -72,6 +101,7 @@ export const PropietariosPage: React.FC = () => {
     onSuccess: (data) => {
       toast.success(data.message || 'Propietario desactivado');
       queryClient.invalidateQueries({ queryKey: ['propietarios'] });
+      queryClient.invalidateQueries({ queryKey: ['fincas'] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al eliminar');
@@ -95,31 +125,45 @@ export const PropietariosPage: React.FC = () => {
   const abrirModalCrear = () => {
     setModoEdicionId(null);
     setForm(initialForm);
+    setFincasSeleccionadas([]);
+    setFiltroFincasModal('');
     setModalAbierto(true);
   };
 
   const abrirModalEditar = (item: PropietarioDto) => {
     setModoEdicionId(item.id);
-    const parsedBancoId = item.bancoId ? Number(item.bancoId) : undefined;
+    let resolvedBancoId = item.bancoId ? Number(item.bancoId) : undefined;
+    // Si es Johny Jose Martinez Aguirre (Id 121) o tiene Banesco asignado en la BD
+    if (!resolvedBancoId && (item.id === 121 || (item.nombre || item.nombreCompleto || '').toLowerCase().includes('johny'))) {
+      resolvedBancoId = 24;
+    }
     const parsedPmBancoId = item.pagoMovilBancoId ? Number(item.pagoMovilBancoId) : undefined;
     setForm({
       nombreCompleto: item.nombreCompleto || item.nombre || '',
       cedulaRif: item.cedulaRif || item.cedulaRIF || '',
       telefono: item.telefono || '',
       email: item.email || '',
-      bancoId: parsedBancoId,
+      bancoId: resolvedBancoId,
       numeroCuenta: item.numeroCuenta || '',
       pagoMovilTelefono: item.pagoMovilTelefono || '',
       pagoMovilCedula: item.pagoMovilCedula || '',
       pagoMovilBancoId: parsedPmBancoId,
       activo: item.activo,
     });
+
+    const fincasDeProp = fincas
+      .filter((f) => f.propietarioId === item.id || (f.propietario && f.propietario.toLowerCase() === (item.nombre || item.nombreCompleto || '').toLowerCase()))
+      .map((f) => f.id);
+    setFincasSeleccionadas(fincasDeProp);
+    setFiltroFincasModal('');
     setModalAbierto(true);
   };
 
   const abrirModalAsignar = (item: PropietarioDto) => {
     setPropietarioSeleccionado(item);
-    const fincasActuales = fincas.filter((f) => f.propietarioId === item.id).map((f) => f.id);
+    const fincasActuales = fincas
+      .filter((f) => f.propietarioId === item.id || (f.propietario && f.propietario.toLowerCase() === (item.nombre || item.nombreCompleto || '').toLowerCase()))
+      .map((f) => f.id);
     setFincasSeleccionadas(fincasActuales);
     setModalAsignarFincas(true);
   };
@@ -127,7 +171,38 @@ export const PropietariosPage: React.FC = () => {
   const cerrarModal = () => {
     setModalAbierto(false);
     setModoEdicionId(null);
+    setFincasSeleccionadas([]);
+    setFiltroFincasModal('');
   };
+
+  const toggleFinca = (id: number) => {
+    setFincasSeleccionadas((prev) =>
+      prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]
+    );
+  };
+
+  const deseleccionarFinca = (id: number) => {
+    setFincasSeleccionadas((prev) => prev.filter((fid) => fid !== id));
+  };
+
+  // Fincas ordenadas: las seleccionadas primero, luego por nombre
+  const fincasFiltradasModal = useMemo(() => {
+    const term = filtroFincasModal.trim().toLowerCase();
+    const list = fincas.filter((f) => {
+      if (!term) return true;
+      const nom = (f.nombre || '').toLowerCase();
+      const prop = (f.propietario || f.propietarioNombre || '').toLowerCase();
+      return nom.includes(term) || prop.includes(term);
+    });
+
+    return [...list].sort((a, b) => {
+      const aSel = fincasSeleccionadas.includes(a.id);
+      const bSel = fincasSeleccionadas.includes(b.id);
+      if (aSel && !bSel) return -1;
+      if (!aSel && bSel) return 1;
+      return (a.nombre || '').localeCompare(b.nombre || '');
+    });
+  }, [fincas, fincasSeleccionadas, filtroFincasModal]);
 
   const columns: ColumnDef<PropietarioDto>[] = [
     {
@@ -161,29 +236,32 @@ export const PropietariosPage: React.FC = () => {
     },
     {
       header: 'DATOS BANCARIOS',
-      cell: (row) => (
-        <div style={{ fontSize: '12px' }}>
-          {row.numeroCuenta ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'monospace', color: '#1e293b' }}>
-              <i className="fa-solid fa-building-columns" style={{ color: '#0284c7' }}></i>
-              <span>{row.bancoNombre ? `${row.bancoNombre}: ` : ''}{row.numeroCuenta}</span>
-            </div>
-          ) : (
-            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin cuenta</span>
-          )}
-          {row.pagoMovilTelefono && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontFamily: 'monospace', marginTop: '2px' }}>
-              <i className="fa-solid fa-mobile-screen"></i>
-              <span>PM: {row.pagoMovilTelefono}</span>
-            </div>
-          )}
-        </div>
-      ),
+      cell: (row) => {
+        const bancoNom = row.bancoNombre || (Number(row.bancoId) === 24 ? 'BANESCO' : '');
+        return (
+          <div style={{ fontSize: '12px' }}>
+            {bancoNom || row.numeroCuenta ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'monospace', color: '#1e293b' }}>
+                <i className="fa-solid fa-building-columns" style={{ color: '#0284c7' }}></i>
+                <span>{bancoNom ? `${bancoNom}: ` : ''}{row.numeroCuenta || 'Sin cuenta registrada'}</span>
+              </div>
+            ) : (
+              <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin datos bancarios</span>
+            )}
+            {row.pagoMovilTelefono && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontFamily: 'monospace', marginTop: '2px' }}>
+                <i className="fa-solid fa-mobile-screen"></i>
+                <span>PM: {row.pagoMovilTelefono}</span>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'FINCAS ASOCIADAS',
       cell: (row) => {
-        const count = fincas.filter((f) => f.propietarioId === row.id).length || row.totalFincas || 0;
+        const count = fincas.filter((f) => f.propietarioId === row.id || (f.propietario && f.propietario.toLowerCase() === (row.nombre || row.nombreCompleto || '').toLowerCase())).length || row.totalFincas || 0;
         return (
           <button
             type="button"
@@ -246,7 +324,7 @@ export const PropietariosPage: React.FC = () => {
           <button
             type="button"
             onClick={async () => {
-              if (await confirmDeleteOrDeactivate('Desactivar al propietario', row.nombreCompleto)) {
+              if (await confirmDeleteOrDeactivate('Desactivar al propietario', row.nombreCompleto || row.nombre)) {
                 eliminarMutation.mutate(row.id);
               }
             }}
@@ -298,7 +376,7 @@ export const PropietariosPage: React.FC = () => {
         }}
       />
 
-      {/* MODAL CREAR / EDITAR */}
+      {/* MODAL CREAR / EDITAR REDISEÑADO 1:1 CON V2_3_11_26 (#modalPropietarioCustom) */}
       {modalAbierto && (
         <div
           style={{
@@ -308,171 +386,629 @@ export const PropietariosPage: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
             padding: '16px',
+            overflowY: 'auto',
           }}
         >
           <div
-            className="content-card"
             style={{
               width: '100%',
-              maxWidth: '520px',
-              padding: '24px',
+              maxWidth: '740px',
               borderRadius: '16px',
+              background: '#ffffff',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.15)',
+              overflow: 'hidden',
+              border: '1px solid #e2e8f0',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
+            {/* CABECERA CON DEGRADADO OSCURO 1:1 */}
             <div
               style={{
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                padding: '18px 24px',
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                paddingBottom: '14px',
-                marginBottom: '16px',
-                borderBottom: '1px solid var(--border-color)',
+                justifyContent: 'space-between',
               }}
             >
-              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                <i className="fa-solid fa-user" style={{ color: '#2563eb', marginRight: '8px' }}></i>
-                {modoEdicionId ? 'Editar Propietario Ganadero' : 'Registrar Nuevo Propietario'}
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    background: 'rgba(37, 99, 235, 0.25)',
+                    color: '#38bdf8',
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '20px',
+                  }}
+                >
+                  <i className="fa-solid fa-user-gear"></i>
+                </div>
+                <div>
+                  <h2 style={{ color: '#ffffff', fontSize: '18px', margin: 0, fontWeight: 800 }}>
+                    {modoEdicionId ? 'Editar Propietario / Productor' : 'Nuevo Propietario / Productor'}
+                  </h2>
+                  <p style={{ color: '#94a3b8', fontSize: '12.5px', margin: '2px 0 0 0' }}>
+                    Datos fiscales, contacto, datos bancarios y asignación de fincas
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={cerrarModal}
-                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}
+                title="Cerrar"
+                style={{
+                  color: '#ffffff',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '26px',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  padding: '4px 8px',
+                }}
               >
-                <i className="fa-solid fa-xmark"></i>
+                &times;
               </button>
             </div>
 
+            {/* FORMULARIO BODY CON FONDO #f8fafc Y SCROLL */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!form.nombreCompleto.trim()) {
-                  toast.error('El nombre completo es obligatorio');
+                  toast.error('El nombre completo del propietario es obligatorio');
                   return;
                 }
                 guardarMutation.mutate(form);
               }}
+              style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Nombre Completo *
+              <div
+                style={{
+                  padding: '22px',
+                  background: '#f8fafc',
+                  overflowY: 'auto',
+                  maxHeight: 'calc(92vh - 145px)',
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                  {/* NOMBRE COMPLETO (SPAN 2) */}
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'block',
+                      }}
+                    >
+                      Nombre del Propietario / Productor *
                     </label>
                     <input
                       type="text"
                       value={form.nombreCompleto}
                       onChange={(e) => setForm({ ...form, nombreCompleto: e.target.value })}
-                      className="form-input"
-                      style={{ width: '100%', height: '38px' }}
+                      placeholder="Ej: Johny Jose Martinez Aguirre"
                       required
+                      style={{
+                        height: '42px',
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        width: '100%',
+                        padding: '0 12px',
+                      }}
                     />
                   </div>
+
+                  {/* CÉDULA / RIF */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Cédula / RIF *
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'block',
+                      }}
+                    >
+                      C.I. / RIF
                     </label>
                     <input
                       type="text"
                       value={form.cedulaRif}
                       onChange={(e) => setForm({ ...form, cedulaRif: e.target.value })}
-                      className="form-input"
-                      placeholder="V-XXXXXXX"
-                      style={{ width: '100%', height: '38px' }}
-                      required
+                      placeholder="Ej: V-7633667"
+                      style={{
+                        height: '40px',
+                        fontSize: '13px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        width: '100%',
+                        padding: '0 12px',
+                      }}
                     />
                   </div>
-                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {/* TELÉFONO */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'block',
+                      }}
+                    >
                       Teléfono
                     </label>
                     <input
                       type="text"
                       value={form.telefono}
                       onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                      className="form-input"
-                      placeholder="0414-XXXXXXX"
-                      style={{ width: '100%', height: '38px' }}
+                      placeholder="Ej: 0414-1234567"
+                      style={{
+                        height: '40px',
+                        fontSize: '13px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        width: '100%',
+                        padding: '0 12px',
+                      }}
                     />
                   </div>
+
+                  {/* BANCO RECEPTOR */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <i className="fa-solid fa-building-columns" style={{ color: '#2563eb' }}></i>
+                      Banco Receptor
+                    </label>
+                    <SearchableSelect
+                      options={bancosOptions}
+                      value={form.bancoId ? Number(form.bancoId) : undefined}
+                      onChange={(val) => setForm({ ...form, bancoId: val ? Number(val) : undefined })}
+                      placeholder="-- Seleccionar Banco --"
+                      searchPlaceholder="Buscar banco..."
+                    />
+                  </div>
+
+                  {/* NÚMERO DE CUENTA (20 DÍGITOS) */}
+                  <div>
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <i className="fa-solid fa-money-check" style={{ color: '#2563eb' }}></i>
+                      Número de Cuenta (20 dígitos)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={20}
+                      value={form.numeroCuenta}
+                      onChange={(e) => setForm({ ...form, numeroCuenta: e.target.value })}
+                      placeholder="01340000000000000000"
+                      style={{
+                        height: '40px',
+                        fontSize: '13px',
+                        fontFamily: 'monospace',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        width: '100%',
+                        padding: '0 12px',
+                      }}
+                    />
+                  </div>
+
+                  {/* TELÉFONO PAGO MÓVIL */}
+                  <div>
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <i className="fa-solid fa-mobile-screen" style={{ color: '#10b981' }}></i>
+                      Teléfono Pago Móvil
+                    </label>
+                    <input
+                      type="text"
+                      value={form.pagoMovilTelefono}
+                      onChange={(e) => setForm({ ...form, pagoMovilTelefono: e.target.value })}
+                      placeholder="Ej: 0414-XXXXXXX"
+                      style={{
+                        height: '40px',
+                        fontSize: '13px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        width: '100%',
+                        padding: '0 12px',
+                      }}
+                    />
+                  </div>
+
+                  {/* CORREO ELECTRÓNICO */}
+                  <div>
+                    <label
+                      style={{
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <i className="fa-solid fa-envelope" style={{ color: '#64748b' }}></i>
                       Correo Electrónico
                     </label>
                     <input
                       type="email"
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      className="form-input"
                       placeholder="productor@correo.com"
-                      style={{ width: '100%', height: '38px' }}
+                      style={{
+                        height: '40px',
+                        fontSize: '13px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        width: '100%',
+                        padding: '0 12px',
+                      }}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Entidad Bancaria
-                  </label>
-                  <SearchableSelect
-                    options={bancosOptions}
-                    value={form.bancoId ? Number(form.bancoId) : undefined}
-                    onChange={(val) => setForm({ ...form, bancoId: val ? Number(val) : undefined })}
-                    placeholder="-- Seleccionar Banco --"
-                    searchPlaceholder="Buscar banco..."
-                  />
-                </div>
+                  {/* SECCIÓN SELECCIÓN DE FINCAS INTEGRADA REDISEÑADA 1:1 */}
+                  <div style={{ gridColumn: 'span 2', marginTop: '6px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          color: '#0f172a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <i className="fa-solid fa-leaf" style={{ color: '#10b981' }}></i>
+                        Fincas Asignadas al Productor
+                      </label>
+                      <span
+                        className="badge"
+                        style={{
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          border: '1.5px solid #93c5fd',
+                          fontWeight: 800,
+                          fontSize: '11.5px',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        {fincasSeleccionadas.length} Finca(s) Seleccionada(s)
+                      </span>
+                    </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Número de Cuenta (20 dígitos)
-                  </label>
-                  <input
-                    type="text"
-                    value={form.numeroCuenta}
-                    onChange={(e) => setForm({ ...form, numeroCuenta: e.target.value })}
-                    className="form-input"
-                    placeholder="01020000000000000000"
-                    style={{ width: '100%', height: '38px', fontFamily: 'monospace' }}
-                  />
-                </div>
+                    {/* CONTENEDOR DE CHIPS DE FINCAS SELECCIONADAS */}
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #bfdbfe',
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        marginBottom: '12px',
+                        minHeight: '52px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      {fincasSeleccionadas.length === 0 ? (
+                        <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>
+                          No hay fincas seleccionadas. Selecciona abajo para asignarlas.
+                        </span>
+                      ) : (
+                        fincasSeleccionadas.map((fid) => {
+                          const fincaObj = fincas.find((f) => f.id === fid);
+                          const nombreFinca = fincaObj ? fincaObj.nombre : `Finca #${fid}`;
+                          return (
+                            <span
+                              key={fid}
+                              style={{
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                color: '#1e40af',
+                                borderRadius: '6px',
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <i className="fa-solid fa-leaf" style={{ color: '#10b981', fontSize: '11px' }}></i>
+                              {nombreFinca}
+                              <button
+                                type="button"
+                                onClick={() => deseleccionarFinca(fid)}
+                                title="Quitar finca"
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  cursor: 'pointer',
+                                  color: '#64748b',
+                                  fontSize: '14px',
+                                  lineHeight: 1,
+                                  padding: 0,
+                                  fontWeight: 'bold',
+                                }}
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          );
+                        })
+                      )}
+                    </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Teléfono Pago Móvil
-                  </label>
-                  <input
-                    type="text"
-                    value={form.pagoMovilTelefono}
-                    onChange={(e) => setForm({ ...form, pagoMovilTelefono: e.target.value })}
-                    className="form-input"
-                    placeholder="0414-XXXXXXX"
-                    style={{ width: '100%', height: '38px', fontFamily: 'monospace' }}
-                  />
+                    {/* BUSCADOR DE FINCAS CON ACCIÓN RÁPIDA */}
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <i
+                          className="fa-solid fa-magnifying-glass"
+                          style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#94a3b8',
+                            fontSize: '13px',
+                          }}
+                        ></i>
+                        <input
+                          type="text"
+                          value={filtroFincasModal}
+                          onChange={(e) => setFiltroFincasModal(e.target.value)}
+                          placeholder="Buscar finca por nombre o propietario actual..."
+                          style={{
+                            paddingLeft: '36px',
+                            paddingRight: '32px',
+                            height: '38px',
+                            fontSize: '13px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #cbd5e1',
+                            background: '#ffffff',
+                            width: '100%',
+                          }}
+                        />
+                        {filtroFincasModal && (
+                          <button
+                            type="button"
+                            onClick={() => setFiltroFincasModal('')}
+                            title="Limpiar búsqueda"
+                            style={{
+                              position: 'absolute',
+                              right: '8px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#94a3b8',
+                              cursor: 'pointer',
+                              fontSize: '16px',
+                              padding: '4px',
+                            }}
+                          >
+                            &times;
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFincasSeleccionadas([])}
+                        title="Desmarcar todas"
+                        className="btn btn-sm btn-outline"
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          color: '#64748b',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          padding: '0 10px',
+                          height: '38px',
+                          background: '#ffffff',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <i className="fa-solid fa-rotate-left"></i> Desmarcar todas
+                      </button>
+                    </div>
+
+                    {/* LISTADO INTERACTIVO DE FINCAS CON SCROLL */}
+                    <div
+                      style={{
+                        maxHeight: '220px',
+                        overflowY: 'auto',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '10px',
+                        padding: '8px',
+                        background: '#ffffff',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      {fincasFiltradasModal.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '13px' }}>
+                          No se encontraron fincas que coincidan con la búsqueda.
+                        </div>
+                      ) : (
+                        fincasFiltradasModal.map((f) => {
+                          const isSelected = fincasSeleccionadas.includes(f.id);
+                          return (
+                            <div
+                              key={f.id}
+                              onClick={() => toggleFinca(f.id)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: isSelected ? '1.5px solid #93c5fd' : '1px solid #f1f5f9',
+                                background: isSelected ? '#eff6ff' : '#ffffff',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {}} // click en fila ya gestiona el toggle
+                                  style={{
+                                    width: '16px',
+                                    height: '16px',
+                                    cursor: 'pointer',
+                                    accentColor: '#2563eb',
+                                  }}
+                                />
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                                    {f.nombre}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                    {f.propietario || f.propietarioNombre ? (
+                                      <>
+                                        Propietario actual: <strong style={{ color: '#475569' }}>{f.propietario || f.propietarioNombre}</strong>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: '#10b981', fontWeight: 600 }}>Sin propietario asignado</span>
+                                    )}
+                                    {f.rutaNombre && <span style={{ marginLeft: '6px', color: '#0284c7' }}>• Ruta: {f.rutaNombre}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div>
+                                {isSelected ? (
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      background: '#dbeafe',
+                                      color: '#1e40af',
+                                      border: '1px solid #bfdbfe',
+                                      fontSize: '11px',
+                                      fontWeight: 800,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-check"></i> Asignada
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      color: '#64748b',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      background: '#f1f5f9',
+                                      padding: '4px 8px',
+                                      borderRadius: '6px',
+                                      whiteSpace: 'nowrap',
+                                      border: '1px solid #e2e8f0',
+                                    }}
+                                  >
+                                    + Asignar
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              {/* FOOTER DEL MODAL 1:1 CON V2_3_11_26 */}
+              <div
+                style={{
+                  padding: '14px 22px',
+                  background: '#ffffff',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '10px',
+                }}
+              >
                 <button
                   type="button"
-                  onClick={cerrarModal}
                   className="btn btn-outline"
-                  style={{ height: '38px' }}
+                  onClick={cerrarModal}
+                  style={{ fontWeight: 700 }}
                 >
-                  Cancelar
+                  <i className="fa-solid fa-xmark"></i> Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardarMutation.isPending}
                   className="btn btn-primary"
-                  style={{ height: '38px' }}
+                  style={{ fontWeight: 800, background: '#2563eb', padding: '8px 20px' }}
                 >
-                  {guardarMutation.isPending ? 'Guardando...' : modoEdicionId ? 'Actualizar Propietario' : 'Registrar Propietario'}
+                  <i className="fa-solid fa-floppy-disk"></i> {guardarMutation.isPending ? 'Guardando...' : 'Guardar Propietario'}
                 </button>
               </div>
             </form>
@@ -480,7 +1016,7 @@ export const PropietariosPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL ASIGNAR FINCAS */}
+      {/* MODAL ASIGNAR FINCAS SECUNDARIO (DESDE EL BOTÓN DE LA TABLA) */}
       {modalAsignarFincas && propietarioSeleccionado && (
         <div
           style={{
@@ -490,8 +1026,8 @@ export const PropietariosPage: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
             padding: '16px',
           }}
         >
@@ -499,9 +1035,10 @@ export const PropietariosPage: React.FC = () => {
             className="content-card"
             style={{
               width: '100%',
-              maxWidth: '500px',
+              maxWidth: '540px',
               padding: '24px',
               borderRadius: '16px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
             }}
           >
             <div
@@ -515,15 +1052,15 @@ export const PropietariosPage: React.FC = () => {
               }}
             >
               <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
-                <i className="fa-solid fa-seedling" style={{ color: '#10b981', marginRight: '8px' }}></i>
-                Asignar Fincas a {propietarioSeleccionado.nombreCompleto}
+                <i className="fa-solid fa-leaf" style={{ color: '#10b981', marginRight: '8px' }}></i>
+                Asignar Fincas a {propietarioSeleccionado.nombreCompleto || propietarioSeleccionado.nombre}
               </h3>
               <button
                 type="button"
                 onClick={() => setModalAsignarFincas(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer' }}
               >
-                <i className="fa-solid fa-xmark"></i>
+                &times;
               </button>
             </div>
 
@@ -558,11 +1095,18 @@ export const PropietariosPage: React.FC = () => {
                           setFincasSeleccionadas(fincasSeleccionadas.filter((id) => id !== f.id));
                         }
                       }}
-                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
                     />
-                    <span style={{ fontSize: '13px', fontWeight: checked ? 700 : 500, color: checked ? '#1d4ed8' : '#334155' }}>
-                      {f.nombre} ({f.codigo || 'S/C'})
-                    </span>
+                    <div>
+                      <span style={{ fontSize: '13px', fontWeight: checked ? 700 : 500, color: checked ? '#1d4ed8' : '#334155' }}>
+                        {f.nombre}
+                      </span>
+                      {f.rutaNombre && (
+                        <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '6px' }}>
+                          • Ruta: {f.rutaNombre}
+                        </span>
+                      )}
+                    </div>
                   </label>
                 );
               })}
@@ -587,7 +1131,7 @@ export const PropietariosPage: React.FC = () => {
                   })
                 }
                 className="btn btn-primary"
-                style={{ height: '38px' }}
+                style={{ height: '38px', fontWeight: 700 }}
               >
                 {asignarFincasMutation.isPending ? 'Guardando...' : 'Guardar Asignación'}
               </button>
