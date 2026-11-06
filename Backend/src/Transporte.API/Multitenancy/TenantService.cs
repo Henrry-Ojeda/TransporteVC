@@ -43,8 +43,6 @@ namespace Transporte.API.Multitenancy
             {
                 if (File.Exists("/.dockerenv")) return true;
                 if (string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)) return true;
-                var entry = System.Net.Dns.GetHostEntry("sql_instancia");
-                if (entry != null && entry.AddressList.Length > 0) return true;
             }
             catch { }
             return false;
@@ -174,8 +172,8 @@ namespace Transporte.API.Multitenancy
                 Modulos = new List<string> { "MOD_DASHBOARD", "MOD_LECHE_VACA", "MOD_LECHE_BUFALA", "MOD_LOGISTICA_RUTAS", "MOD_RECEPTORIA", "MOD_COMBUSTIBLE", "MOD_MANTENIMIENTO", "MOD_REPUESTOS", "MOD_LIQUIDACIONES", "MOD_HISTORIAL_BCV" }
             };
 
-            // Cachear fallback por 1 minuto para evitar reintentos continuos y congelamientos
-            _tenantCache[host] = (_currentTenant, DateTime.UtcNow.AddMinutes(-9));
+            // Cachear fallback por 10 minutos para evitar reintentos continuos y congelamientos
+            _tenantCache[host] = (_currentTenant, DateTime.UtcNow);
         }
 
         private static void cleanHost(ref string host)

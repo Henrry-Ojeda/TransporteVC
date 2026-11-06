@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import apiClient from '@/api/client';
@@ -57,6 +57,25 @@ export const RecoleccionRutasPage: React.FC = () => {
 
   // Ticket seleccionado actualmente
   const [viajeActivo, setViajeActivo] = useState<ControlRutaDto | null>(null);
+
+  // Cache reactivo de fincas/paradas por ticket para garantizar sincronización 100% en vivo
+  const [fincasTicketsMap, setFincasTicketsMap] = useState<Record<number, any[]>>({});
+  const [loadingFincasMap, setLoadingFincasMap] = useState<Record<number, boolean>>({});
+
+  const cargarFincasTicket = async (ticketId: number) => {
+    if (!ticketId) return [];
+    try {
+      setLoadingFincasMap((prev) => ({ ...prev, [ticketId]: true }));
+      const paradas = await operacionesApi.getFincasViaje(ticketId);
+      setFincasTicketsMap((prev) => ({ ...prev, [ticketId]: paradas || [] }));
+      return paradas || [];
+    } catch (err) {
+      console.error(`Error cargando paradas para ticket #${ticketId}:`, err);
+      return [];
+    } finally {
+      setLoadingFincasMap((prev) => ({ ...prev, [ticketId]: false }));
+    }
+  };
 
   // Modal Timelapse & Recorrido en Ruta
   const [modalTimelapse, setModalTimelapse] = useState(false);
@@ -137,6 +156,17 @@ export const RecoleccionRutasPage: React.FC = () => {
     queryFn: () => operacionesApi.getControles(fechaFiltro),
     refetchInterval: 8000,
   });
+
+  // Precargar paradas reales para todos los viajes visibles (garantiza ver fincas de cualquier fecha)
+  useEffect(() => {
+    if (viajes && viajes.length > 0) {
+      viajes.forEach((v) => {
+        if (v.id) {
+          cargarFincasTicket(v.id);
+        }
+      });
+    }
+  }, [viajes]);
 
   const { data: despachos = [], refetch: refetchDespachos } = useQuery<DespachoCompaniaDto[]>({
     queryKey: ['rutas-despachos-hoy', fechaFiltro],
@@ -259,13 +289,14 @@ export const RecoleccionRutasPage: React.FC = () => {
       };
       return operacionesApi.agregarFincaViaje(viajeActivo.id, payload);
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success(data.message || 'Finca agregada al viaje exitosamente');
-      queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
-      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       if (viajeActivo?.id) {
+        await cargarFincasTicket(viajeActivo.id);
         queryClient.invalidateQueries({ queryKey: ['fincas-ticket', viajeActivo.id] });
       }
+      queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalRegistroFinca(false);
       setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' });
     },
@@ -283,8 +314,13 @@ export const RecoleccionRutasPage: React.FC = () => {
         esAcida: dto.esAcida,
         observacion: dto.observacion,
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success(data.message || 'Parada actualizada exitosamente');
+      if (viajeActivo?.id) {
+        await cargarFincasTicket(viajeActivo.id);
+      } else {
+        viajes.forEach((v) => cargarFincasTicket(v.id));
+      }
       queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalEditarRecoleccion(false);
@@ -296,8 +332,9 @@ export const RecoleccionRutasPage: React.FC = () => {
 
   const eliminarRecoleccionMutation = useMutation({
     mutationFn: (id: number) => operacionesApi.eliminarRecoleccion(id),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success(data.message || 'Parada removida del viaje exitosamente');
+      viajes.forEach((v) => cargarFincasTicket(v.id));
       queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
     },
@@ -511,10 +548,16 @@ export const RecoleccionRutasPage: React.FC = () => {
 
   // TOGGLE DE ACORDEÓN EN TARJETAS
   const toggleAcordeonFincas = (ticketId: number) => {
-    setFincasExpandidas((prev) => ({
-      ...prev,
-      [ticketId]: !prev[ticketId],
-    }));
+    setFincasExpandidas((prev) => {
+      const willExpand = !prev[ticketId];
+      if (willExpand) {
+        cargarFincasTicket(ticketId);
+      }
+      return {
+        ...prev,
+        [ticketId]: willExpand,
+      };
+    });
   };
 
   // TIMELAPSE DATA COMPUTED
@@ -525,8 +568,11 @@ export const RecoleccionRutasPage: React.FC = () => {
     const camionMatch = camiones.find((c) => c.id === viajeTimelapse.camionId || c.placa === viajeTimelapse.camionPlaca);
     const capacidadMax = camionMatch?.capacidadLitros || viajeTimelapse.capacidadCamionLitros || 10000;
 
-    const visitadas = recolecciones
-      .filter((r) => r.controlRutaId === viajeTimelapse.id || r.ticketCodigo === viajeTimelapse.codigoTicket || r.ticketCodigo === String(viajeTimelapse.id))
+    const paradasDelTicket = (fincasTicketsMap[viajeTimelapse.id] && fincasTicketsMap[viajeTimelapse.id].length > 0)
+      ? fincasTicketsMap[viajeTimelapse.id]
+      : recolecciones.filter((r) => r.controlRutaId === viajeTimelapse.id || r.ticketCodigo === viajeTimelapse.codigoTicket || r.ticketCodigo === String(viajeTimelapse.id));
+
+    const visitadas = [...paradasDelTicket]
       .sort((a, b) => {
         const timeA = new Date(a.createdAt || (a as any).CreatedAt || a.fecha).getTime();
         const timeB = new Date(b.createdAt || (b as any).CreatedAt || b.fecha).getTime();
@@ -535,7 +581,7 @@ export const RecoleccionRutasPage: React.FC = () => {
 
     let acumulado = 0;
     const paradasConIntervalo = visitadas.map((item, idx) => {
-      acumulado += Number(item.litros || 0);
+      acumulado += Number(item.litros || (item as any).Litros || 0);
       const fechaActual = new Date(item.createdAt || (item as any).CreatedAt || item.fecha);
       let minutosDesdeAnterior: number | null = null;
       if (idx > 0) {
@@ -553,7 +599,7 @@ export const RecoleccionRutasPage: React.FC = () => {
 
     let pendientes: FincaDto[] = [];
     if (tieneRuta) {
-      const idsVisitadas = new Set(visitadas.map((v) => v.fincaId));
+      const idsVisitadas = new Set(visitadas.map((v) => v.fincaId || (v as any).FincaId));
       pendientes = fincas.filter((f) => f.rutaId === viajeTimelapse.rutaLogisticaId && !idsVisitadas.has(f.id));
     }
 
@@ -572,11 +618,12 @@ export const RecoleccionRutasPage: React.FC = () => {
       pendientes,
       totalParadasEstimadas: paradasConIntervalo.length + pendientes.length,
     };
-  }, [viajeTimelapse, recolecciones, fincas, camiones]);
+  }, [viajeTimelapse, fincasTicketsMap, recolecciones, fincas, camiones]);
 
-  const abrirTimelapse = (viaje: ControlRutaDto) => {
+  const abrirTimelapse = async (viaje: ControlRutaDto) => {
     setViajeTimelapse(viaje);
     setModalTimelapse(true);
+    await cargarFincasTicket(viaje.id);
   };
 
   // =========================================================================
@@ -1061,10 +1108,12 @@ export const RecoleccionRutasPage: React.FC = () => {
                 const tieneRutaLogistica = Boolean((item.rutaLogisticaId && item.rutaLogisticaId > 0) || item.rutaLogisticaNombre || item.rutaNombre);
 
                 const fincasTicket = esRuta
-                  ? recolecciones.filter((r) => r.controlRutaId === item.id || r.ticketCodigo === item.codigoTicket || r.ticketCodigo === String(item.id))
+                  ? ((fincasTicketsMap[item.id] && fincasTicketsMap[item.id].length > 0)
+                      ? fincasTicketsMap[item.id]
+                      : recolecciones.filter((r) => r.controlRutaId === item.id || r.ticketCodigo === item.codigoTicket || r.ticketCodigo === String(item.id)))
                   : [];
 
-                const sumFincasLts = fincasTicket.reduce((acc, f) => acc + Number(f.litros || 0), 0);
+                const sumFincasLts = fincasTicket.reduce((acc, f: any) => acc + Number(f.litros ?? f.Litros ?? 0), 0);
                 const ltsRecolectados = item._litrosRecogidos > 0 ? item._litrosRecogidos : sumFincasLts;
                 const ltsEntregados = item._litrosEntregados || 0;
                 const mermaLitros = ltsRecolectados > 0 && ltsEntregados > 0 ? (ltsRecolectados - ltsEntregados) : 0;
@@ -1357,8 +1406,8 @@ export const RecoleccionRutasPage: React.FC = () => {
                                 <i className={`fa-solid fa-chevron-${estaExpandido ? 'up' : 'down'}`} style={{ color: '#94a3b8', fontSize: '11px', marginLeft: 'auto' }}></i>
                               </button>
 
-                              {/* BOTÓN + AGREGAR FINCA (SI ES MODO LIBRE Y ESTÁ ABIERTO) */}
-                              {puedeEditarTicket && !tieneRutaLogistica && (
+                              {/* BOTÓN + AGREGAR FINCA (DISPONIBLE TANTO EN RUTA COMO EN MODO LIBRE SI ESTÁ ABIERTO) */}
+                              {puedeEditarTicket && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1382,9 +1431,9 @@ export const RecoleccionRutasPage: React.FC = () => {
                                     cursor: 'pointer',
                                     marginLeft: '8px',
                                   }}
-                                  title="Añadir parada a este ticket abierto"
+                                  title={tieneRutaLogistica ? 'Añadir finca faltante a esta ruta' : 'Añadir parada a este ticket abierto'}
                                 >
-                                  <i className="fa-solid fa-plus"></i> + Finca
+                                  <i className="fa-solid fa-plus"></i> {tieneRutaLogistica ? '+ Finca Faltante' : '+ Finca'}
                                 </button>
                               )}
                             </div>
@@ -1395,27 +1444,35 @@ export const RecoleccionRutasPage: React.FC = () => {
                                 {fincasTicket.length === 0 ? (
                                   <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '14px' }}>
                                     No hay paradas registradas aún.
-                                    {puedeEditarTicket && !tieneRutaLogistica && (
+                                    {puedeEditarTicket && (
                                       <div style={{ marginTop: '6px' }}>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             setViajeActivo(item);
+                                            setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' });
                                             setModalRegistroFinca(true);
                                           }}
                                           className="btn btn-xs btn-primary"
                                         >
-                                          <i className="fa-solid fa-plus"></i> Añadir primera finca
+                                          <i className="fa-solid fa-plus"></i> {tieneRutaLogistica ? 'Añadir Finca Faltante' : 'Añadir primera finca'}
                                         </button>
                                       </div>
                                     )}
                                   </div>
                                 ) : (
-                                  fincasTicket.map((f, idx) => {
-                                    const esBufala = (f.tipoLeche || '').toUpperCase().includes('BUFAL');
+                                  fincasTicket.map((f: any, idx: number) => {
+                                    const fId = f.id || f.Id || f.rutaId;
+                                    const fLitros = Number(f.litros ?? f.Litros ?? 0);
+                                    const fNombre = f.fincaNombre || f.FincaNombre || f.finca || `Finca #${f.fincaId || f.FincaId}`;
+                                    const fProp = f.propietarioNombre || f.propietario || f.Propietario || 'Productor';
+                                    const fTipo = (f.tipoLeche || f.TipoLeche || 'VACA').toUpperCase();
+                                    const esBufala = fTipo.includes('BUFAL');
+                                    const esAcida = Boolean(f.esAcida || f.EsAcida);
+
                                     return (
                                       <div
-                                        key={f.id}
+                                        key={fId || idx}
                                         style={{
                                           display: 'flex',
                                           justifyContent: 'space-between',
@@ -1429,17 +1486,17 @@ export const RecoleccionRutasPage: React.FC = () => {
                                       >
                                         <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
                                           <strong style={{ color: '#0f172a', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                            #{idx + 1} • {f.fincaNombre || `Finca #${f.fincaId}`}
+                                            #{idx + 1} • {fNombre}
                                           </strong>
                                           <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                            {f.propietarioNombre || f.propietario || 'Productor'} • {esBufala ? '🐃 Búfala' : '🥛 Vaca'}
-                                            {f.esAcida ? ' • ⚠️ Ácida' : ''}
+                                            {fProp} • {esBufala ? '🐃 Búfala' : '🥛 Vaca'}
+                                            {esAcida ? ' • ⚠️ Ácida' : ''}
                                           </span>
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                           <span style={{ fontWeight: 800, color: '#2563eb', fontSize: '13px' }}>
-                                            {f.litros.toLocaleString()} L
+                                            {fLitros.toLocaleString()} L
                                           </span>
 
                                           {/* BOTONES DE EDICIÓN Y ELIMINACIÓN DENTRO DEL TICKET ABIERTO */}
@@ -1449,13 +1506,14 @@ export const RecoleccionRutasPage: React.FC = () => {
                                               <button
                                                 type="button"
                                                 onClick={() => {
+                                                  setViajeActivo(item);
                                                   setFormEditar({
-                                                    id: f.id,
-                                                    fincaId: f.fincaId,
-                                                    litros: f.litros,
-                                                    tipoLeche: (f.tipoLeche || 'VACA').toUpperCase(),
-                                                    esAcida: Boolean(f.esAcida),
-                                                    observacion: f.observacion || '',
+                                                    id: fId,
+                                                    fincaId: f.fincaId || f.FincaId,
+                                                    litros: fLitros,
+                                                    tipoLeche: fTipo,
+                                                    esAcida: esAcida,
+                                                    observacion: f.observacion || f.Observacion || '',
                                                   });
                                                   setModalEditarRecoleccion(true);
                                                 }}
@@ -1466,21 +1524,22 @@ export const RecoleccionRutasPage: React.FC = () => {
                                                 <i className="fa-solid fa-pen-to-square"></i>
                                               </button>
 
-                                              {/* Quitar Parada (solo para modo libre sin ruta logística) */}
-                                              {!tieneRutaLogistica && (
+                                              {/* Quitar Parada (modo libre o admin/supervisor en ruta) */}
+                                              {(esAdminOSup || !tieneRutaLogistica) && (
                                                 <button
                                                   type="button"
                                                   onClick={async () => {
                                                     if (
                                                       await confirmDialog({
                                                         title: '¿Quitar Finca del Viaje?',
-                                                        text: `¿Seguro que deseas remover la parada de "${f.fincaNombre || 'Finca'}" (${f.litros} Lts) del ticket #${item.codigoTicket || item.id}?`,
+                                                        text: `¿Seguro que deseas remover la parada de "${fNombre}" (${fLitros.toLocaleString()} Lts) del ticket #${item.codigoTicket || item.id}?`,
                                                         icon: 'warning',
                                                         confirmButtonText: 'Sí, remover',
                                                         danger: true,
                                                       })
                                                     ) {
-                                                      eliminarRecoleccionMutation.mutate(f.id);
+                                                      setViajeActivo(item);
+                                                      eliminarRecoleccionMutation.mutate(fId);
                                                     }
                                                   }}
                                                   className="btn btn-xs btn-outline"
