@@ -698,7 +698,7 @@ export const UsuariosPage: React.FC = () => {
                       type="text"
                       value={form.cedula || ''}
                       onChange={(e) => setForm({ ...form, cedula: e.target.value })}
-                      placeholder="Ej: 18408156"
+                      placeholder="Ej: 1111111"
                       style={{
                         height: '42px',
                         fontSize: '13.5px',
@@ -724,7 +724,7 @@ export const UsuariosPage: React.FC = () => {
                       type="text"
                       value={form.telefono || ''}
                       onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                      placeholder="Ej: 0412-7869868"
+                      placeholder="Ej: 0412-1234567"
                       style={{
                         height: '42px',
                         fontSize: '13.5px',
@@ -746,7 +746,7 @@ export const UsuariosPage: React.FC = () => {
                       type="email"
                       value={form.email || ''}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="Ej: ana.cabrera@correo.com"
+                      placeholder="Ej: jose.perez@correo.com"
                       style={{
                         height: '42px',
                         fontSize: '13.5px',
