@@ -202,56 +202,104 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     }));
   };
 
+  // En móvil con drawer abierto, forzar vista interactiva completa (no achicada a 78px)
+  const isMobileDrawer = isOpen;
+  const effectiveCollapsed = isSidebarCollapsed && !isMobileDrawer;
+
   return (
     <aside
-      className={`sidebar ${isOpen ? 'mobile-open' : ''} ${isSidebarCollapsed ? 'is-collapsed' : 'hover-accordion-sidebar'}`}
+      className={`sidebar ${isOpen ? 'open mobile-open' : ''} ${effectiveCollapsed ? 'is-collapsed' : 'hover-accordion-sidebar'}`}
       id="mainSidebar"
       style={{
-        width: isSidebarCollapsed ? '78px' : '250px',
-        minWidth: isSidebarCollapsed ? '78px' : '250px',
-        maxWidth: isSidebarCollapsed ? '78px' : '250px',
-        padding: isSidebarCollapsed ? '12px 6px' : '16px 12px 12px 12px',
+        width: effectiveCollapsed ? '78px' : '260px',
+        minWidth: effectiveCollapsed ? '78px' : '260px',
+        maxWidth: effectiveCollapsed ? '78px' : '280px',
+        padding: effectiveCollapsed ? '12px 6px' : '16px 12px 12px 12px',
         flexShrink: 0,
         height: '100%',
-        overflowY: isSidebarCollapsed ? 'visible' : 'auto',
+        overflowY: effectiveCollapsed ? 'visible' : 'auto',
         overflowX: 'visible',
         transition: 'width 0.25s cubic-bezier(0.25, 1, 0.5, 1), min-width 0.25s, max-width 0.25s',
       }}
     >
-      {/* Botón para achicar/expandir menú lateral */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: isSidebarCollapsed ? 'center' : 'flex-end',
-          padding: isSidebarCollapsed ? '2px 0 10px 0' : '4px 6px 10px 6px',
-          borderBottom: '1px solid #f1f5f9',
-          marginBottom: '8px',
-        }}
-      >
-        {isSidebarCollapsed ? (
+      {/* Cabecera Móvil con botón para cerrar menú en pantallas táctiles */}
+      {isOpen && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '4px 6px 12px 6px',
+            borderBottom: '1.5px solid #e2e8f0',
+            marginBottom: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+              <i className="fa-solid fa-bars" style={{ fontSize: '13px' }}></i>
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>Menú del Sistema</span>
+          </div>
           <button
             type="button"
-            onClick={() => setIsSidebarCollapsed(false)}
-            title="Expandir menú lateral"
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/90 text-slate-500 hover:text-blue-600 transition-all shadow-xs cursor-pointer"
+            onClick={onClose}
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#f8fafc',
+              color: '#475569',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: 800,
+            }}
+            title="Cerrar menú"
           >
-            <i className="fa-solid fa-chevron-right text-xs"></i>
+            &times;
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsSidebarCollapsed(true)}
-            title="Achicar menú lateral"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 hover:text-slate-900 transition-all text-xs font-semibold shadow-xs cursor-pointer"
-          >
-            <i className="fa-solid fa-chevron-left text-[10px] text-slate-400"></i>
-            <span>Achicar</span>
-          </button>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Botón para achicar/expandir menú lateral (solo en escritorio) */}
+      {!isMobileDrawer && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: effectiveCollapsed ? 'center' : 'flex-end',
+            padding: effectiveCollapsed ? '2px 0 10px 0' : '4px 6px 10px 6px',
+            borderBottom: '1px solid #f1f5f9',
+            marginBottom: '8px',
+          }}
+        >
+          {effectiveCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(false)}
+              title="Expandir menú lateral"
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/90 text-slate-500 hover:text-blue-600 transition-all shadow-xs cursor-pointer"
+            >
+              <i className="fa-solid fa-chevron-right text-xs"></i>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(true)}
+              title="Achicar menú lateral"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 hover:text-slate-900 transition-all text-xs font-semibold shadow-xs cursor-pointer"
+            >
+              <i className="fa-solid fa-chevron-left text-[10px] text-slate-400"></i>
+              <span>Achicar</span>
+            </button>
+          )}
+        </div>
+      )}
 
       <nav className="sidebar-nav" style={{ overflow: 'visible' }}>
-        {isSidebarCollapsed ? (
+        {effectiveCollapsed ? (
           /* MODO ACHICADO (78px): Ícono con categoría elegante + Menú flotante al pasar el mouse */
           <div className="flex flex-col items-center space-y-1.5" style={{ position: 'relative' }}>
             {groups.map((grp, idx) => {

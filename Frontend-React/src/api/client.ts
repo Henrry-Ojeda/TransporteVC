@@ -14,7 +14,20 @@ export const apiClient: AxiosInstance = axios.create({
 // Interceptor de Solicitudes: Adjuntar Token JWT y Header Multi-Inquilino
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    const url = config.url || '';
+    const isPublic = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/public');
+    const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+
+    // Si no hay token de sesión (o estamos en la pantalla de Login) y no es endpoint público,
+    // abortar la petición silenciosamente antes de viajar por red para evitar 401 en consola
+    if ((!token || isLoginPage) && !isPublic) {
+      const controller = new AbortController();
+      config.signal = controller.signal;
+      controller.abort('Sesión no iniciada');
+      return config;
+    }
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -38,13 +51,20 @@ export const setSessionExpiredHandler = (handler: SessionExpiredHandler) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ message?: string; title?: string; errors?: Record<string, string[]> }>) => {
+    // Si la solicitud fue cancelada deliberadamente (ej. no autenticado o en login), suprimirla en silencio
+    if (axios.isCancel(error) || error.name === 'CanceledError' || error.message === 'Sesión no iniciada') {
+      return new Promise(() => {});
+    }
+
     if (error.response?.status === 401) {
       const url = error.config?.url || '';
       // Si el 401 no proviene de intentar loguearse
       if (!url.includes('/auth/login')) {
         // 1. Limpiar credenciales y sesión inmediatamente
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-        localStorage.removeItem('transporte_last_activity');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          localStorage.removeItem('transporte_last_activity');
+        }
 
         // 2. Notificar al store de autenticación
         if (onSessionExpiredHandler) {
@@ -53,7 +73,7 @@ apiClient.interceptors.response.use(
 
         // 3. Redirigir de inmediato a la pantalla de Login sin mostrar errores en cascada
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          window.location.replace('/login');
         }
 
         // 4. Retornar promesa en suspensión silenciosa para no saturar la vista con errores ni banners

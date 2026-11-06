@@ -21,12 +21,24 @@ export const sistemaApi = {
   },
 
   crearUsuario: async (dto: GuardarUsuarioDto): Promise<{ id: number; message: string }> => {
-    const res = await apiClient.post('/usuarios', dto);
+    const rawUsername = (dto as any).username || (dto as any).Username || dto.nombreUsuario || '';
+    const payload = {
+      ...dto,
+      username: rawUsername,
+      Username: rawUsername,
+      nombreUsuario: rawUsername,
+    };
+    const res = await apiClient.post('/usuarios', payload);
     return res.data;
   },
 
   actualizarUsuario: async (id: number, dto: Partial<GuardarUsuarioDto>): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.put(`/usuarios/${id}`, dto);
+    const rawUsername = (dto as any).username || (dto as any).Username || dto.nombreUsuario || undefined;
+    const payload = {
+      ...dto,
+      ...(rawUsername ? { username: rawUsername, Username: rawUsername, nombreUsuario: rawUsername } : {}),
+    };
+    const res = await apiClient.put(`/usuarios/${id}`, payload);
     return res.data;
   },
 

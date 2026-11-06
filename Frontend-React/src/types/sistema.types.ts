@@ -20,6 +20,11 @@ export interface GuardarUsuarioDto {
   telefono?: string;
   cedula?: string;
   activo: boolean;
+  bancoNombre?: string;
+  numeroCuenta?: string;
+  cedulaPagoMovil?: string;
+  telefonoPagoMovil?: string;
+  tarifaPorLitro?: number;
 }
 
 export interface PermisoModuloDto {

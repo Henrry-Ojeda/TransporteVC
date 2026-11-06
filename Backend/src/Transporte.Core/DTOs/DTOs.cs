@@ -1112,11 +1112,22 @@ namespace Transporte.Core.DTOs
 
     public class CrearUsuarioDto
     {
-        public string Username { get; set; } = string.Empty;
+        private string _username = string.Empty;
+        public string Username 
+        { 
+            get => _username; 
+            set => _username = value ?? string.Empty; 
+        }
+        public string? NombreUsuario 
+        { 
+            get => _username; 
+            set { if (!string.IsNullOrWhiteSpace(value)) _username = value; } 
+        }
         public string Password { get; set; } = string.Empty;
         public string NombreCompleto { get; set; } = string.Empty;
         public string? Cedula { get; set; }
         public string? Telefono { get; set; }
+        public string? Email { get; set; }
         public string Rol { get; set; } = "CHOFER";
         public int? RolId { get; set; }
         public decimal? TarifaPorLitro { get; set; }
@@ -1140,10 +1151,22 @@ namespace Transporte.Core.DTOs
 
     public class EditarUsuarioDto
     {
+        private string? _username;
+        public string? Username 
+        { 
+            get => _username; 
+            set => _username = value; 
+        }
+        public string? NombreUsuario 
+        { 
+            get => _username; 
+            set { if (!string.IsNullOrWhiteSpace(value)) _username = value; } 
+        }
         public string? NombreCompleto { get; set; }
         public string? Password { get; set; }
         public string? Cedula { get; set; }
         public string? Telefono { get; set; }
+        public string? Email { get; set; }
         public string? Rol { get; set; }
         public int? RolId { get; set; }
         public decimal? TarifaPorLitro { get; set; }

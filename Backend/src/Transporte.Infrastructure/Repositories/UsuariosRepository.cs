@@ -252,7 +252,8 @@ namespace Transporte.Infrastructure.Repositories
 
                 var sqlUsuario = @"
                     UPDATE TB_USUARIOS
-                    SET NombreCompleto = COALESCE(@NombreCompleto, NombreCompleto),
+                    SET Username = COALESCE(@Username, Username),
+                        NombreCompleto = COALESCE(@NombreCompleto, NombreCompleto),
                         Cedula = COALESCE(@Cedula, Cedula),
                         Telefono = COALESCE(@Telefono, Telefono),
                         Rol = COALESCE(@Rol, Rol),
@@ -274,6 +275,7 @@ namespace Transporte.Infrastructure.Repositories
                 var rows = await connection.ExecuteAsync(sqlUsuario, new
                 {
                     id,
+                    dto.Username,
                     dto.NombreCompleto,
                     dto.Cedula,
                     dto.Telefono,

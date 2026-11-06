@@ -133,6 +133,11 @@ export const PropietariosPage: React.FC = () => {
   const abrirModalEditar = (item: PropietarioDto) => {
     setModoEdicionId(item.id);
     let resolvedBancoId = item.bancoId ? Number(item.bancoId) : undefined;
+    if (!resolvedBancoId && item.bancoNombre) {
+      const bNom = item.bancoNombre.toLowerCase();
+      const match = bancosOptions.find((b) => b.label.toLowerCase().includes(bNom));
+      if (match) resolvedBancoId = Number(match.value);
+    }
     // Si es Johny Jose Martinez Aguirre (Id 121) o tiene Banesco asignado en la BD
     if (!resolvedBancoId && (item.id === 121 || (item.nombre || item.nombreCompleto || '').toLowerCase().includes('johny'))) {
       resolvedBancoId = 24;
@@ -209,34 +214,41 @@ export const PropietariosPage: React.FC = () => {
       header: 'PROPIETARIO / CÉDULA',
       accessorKey: 'nombreCompleto',
       sortable: true,
-      cell: (row) => (
-        <div>
-          <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.nombre || row.nombreCompleto}</div>
-          <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
-            C.I / RIF: {row.cedulaRIF || row.cedulaRif || 'S/C'}
-          </span>
-        </div>
-      ),
+      cell: (row) => {
+        if (!row) return null;
+        return (
+          <div>
+            <div style={{ fontWeight: 800, color: '#0f172a' }}>{row.nombre || row.nombreCompleto}</div>
+            <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+              C.I / RIF: {row.cedulaRIF || row.cedulaRif || 'S/C'}
+            </span>
+          </div>
+        );
+      },
     },
     {
       header: 'CONTACTO',
-      cell: (row) => (
-        <div>
-          {row.telefono && (
-            <div style={{ fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <i className="fa-solid fa-phone" style={{ color: '#94a3b8' }}></i>
-              {row.telefono}
-            </div>
-          )}
-          {row.email && (
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{row.email}</div>
-          )}
-        </div>
-      ),
+      cell: (row) => {
+        if (!row) return null;
+        return (
+          <div>
+            {row.telefono && (
+              <div style={{ fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <i className="fa-solid fa-phone" style={{ color: '#94a3b8' }}></i>
+                {row.telefono}
+              </div>
+            )}
+            {row.email && (
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{row.email}</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'DATOS BANCARIOS',
       cell: (row) => {
+        if (!row) return null;
         const bancoNom = row.bancoNombre || (Number(row.bancoId) === 24 ? 'BANESCO' : '');
         return (
           <div style={{ fontSize: '12px' }}>
@@ -261,7 +273,9 @@ export const PropietariosPage: React.FC = () => {
     {
       header: 'FINCAS ASOCIADAS',
       cell: (row) => {
-        const count = fincas.filter((f) => f.propietarioId === row.id || (f.propietario && f.propietario.toLowerCase() === (row.nombre || row.nombreCompleto || '').toLowerCase())).length || row.totalFincas || 0;
+        if (!row) return null;
+        const rowNom = (row.nombre || row.nombreCompleto || '').toLowerCase().trim();
+        const count = fincas.filter((f) => f && (f.propietarioId === row.id || (f.propietario && f.propietario.toLowerCase().trim() === rowNom))).length || row.totalFincas || 0;
         return (
           <button
             type="button"
@@ -293,49 +307,55 @@ export const PropietariosPage: React.FC = () => {
       header: 'ESTADO',
       accessorKey: 'activo',
       sortable: true,
-      cell: (row) => (
-        <span
-          className="badge"
-          style={{
-            background: row.activo ? '#ecfdf5' : '#fef2f2',
-            color: row.activo ? '#047857' : '#b91c1c',
-            border: `1px solid ${row.activo ? '#a7f3d0' : '#fecaca'}`,
-            fontWeight: 700,
-          }}
-        >
-          {row.activo ? 'Activo' : 'Inactivo'}
-        </span>
-      ),
+      cell: (row) => {
+        if (!row) return null;
+        return (
+          <span
+            className="badge"
+            style={{
+              background: row.activo ? '#ecfdf5' : '#fef2f2',
+              color: row.activo ? '#047857' : '#b91c1c',
+              border: `1px solid ${row.activo ? '#a7f3d0' : '#fecaca'}`,
+              fontWeight: 700,
+            }}
+          >
+            {row.activo ? 'Activo' : 'Inactivo'}
+          </span>
+        );
+      },
     },
     {
       header: 'ACCIONES',
       className: 'text-right',
-      cell: (row) => (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={() => abrirModalEditar(row)}
-            className="btn btn-sm btn-outline"
-            style={{ height: '30px', padding: '0 8px', color: '#2563eb', borderColor: '#bfdbfe' }}
-            title="Editar Propietario"
-          >
-            <i className="fa-solid fa-pen-to-square"></i>
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              if (await confirmDeleteOrDeactivate('Desactivar al propietario', row.nombreCompleto || row.nombre)) {
-                eliminarMutation.mutate(row.id);
-              }
-            }}
-            className="btn btn-sm btn-outline"
-            style={{ height: '30px', padding: '0 8px', color: '#dc2626', borderColor: '#fecaca' }}
-            title="Desactivar"
-          >
-            <i className="fa-solid fa-trash-can"></i>
-          </button>
-        </div>
-      ),
+      cell: (row) => {
+        if (!row) return null;
+        return (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => abrirModalEditar(row)}
+              className="btn btn-sm btn-outline"
+              style={{ height: '30px', padding: '0 8px', color: '#2563eb', borderColor: '#bfdbfe' }}
+              title="Editar Propietario"
+            >
+              <i className="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (await confirmDeleteOrDeactivate('Desactivar al propietario', row.nombreCompleto || row.nombre)) {
+                  eliminarMutation.mutate(row.id);
+                }
+              }}
+              className="btn btn-sm btn-outline"
+              style={{ height: '30px', padding: '0 8px', color: '#dc2626', borderColor: '#fecaca' }}
+              title="Desactivar"
+            >
+              <i className="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

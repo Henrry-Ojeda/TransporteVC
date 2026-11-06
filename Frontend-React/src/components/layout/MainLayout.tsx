@@ -17,6 +17,15 @@ export const MainLayout: React.FC = () => {
           className="sidebar-backdrop active"
           id="sidebarBackdrop"
           onClick={() => setSidebarOpen(false)}
+          onTouchEnd={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9998,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(3px)',
+            cursor: 'pointer',
+          }}
         />
       )}
 
