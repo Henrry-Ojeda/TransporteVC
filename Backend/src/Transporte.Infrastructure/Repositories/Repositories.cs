@@ -2046,7 +2046,7 @@ namespace Transporte.Infrastructure.Repositories
                     u.NombreCompleto, 
                     u.Cedula, 
                     u.Telefono,
-                    u.Email,
+                    CAST(NULL AS VARCHAR(100)) AS Email,
                     ISNULL(c.Placa, u.VehiculoPlaca) AS VehiculoPlaca,
                     c.Id AS CamionId,
                     c.Placa AS CamionPlaca,
