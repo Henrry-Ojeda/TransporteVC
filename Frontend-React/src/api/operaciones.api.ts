@@ -188,10 +188,13 @@ export const operacionesApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  getRutasHoy: async (fecha?: string): Promise<any[]> => {
+  getRutasHoy: async (fecha?: string, fechaInicio?: string, fechaFin?: string, cicloId?: number): Promise<any[]> => {
     const params: Record<string, any> = {};
 
     if (fecha) params.fecha = fecha;
+    if (fechaInicio) params.fechaInicio = fechaInicio;
+    if (fechaFin) params.fechaFin = fechaFin;
+    if (cicloId) params.cicloId = cicloId;
     const res = await apiClient.get<any[]>('/rutas/hoy', { params });
     return Array.isArray(res.data) ? res.data : [];
   },

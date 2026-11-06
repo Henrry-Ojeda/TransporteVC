@@ -200,9 +200,10 @@ export const EvolucionFincasPage: React.FC = () => {
     queryFn: () => mantenimientoApi.getMantenimientos(),
   });
 
-  const { data: viajes = [], isLoading: loadingViajes } = useQuery<ControlRutaDto[]>({
-    queryKey: ['viajes-evolucion'],
-    queryFn: () => operacionesApi.getControles(),
+  // Query recolecciones reales de fincas en el rango evaluado (TB_RUTAS_RECOLECCION)
+  const { data: recolecciones = [], isLoading: loadingRecolecciones } = useQuery<any[]>({
+    queryKey: ['recolecciones-evolucion', rangosEvaluacion.p1Inicio, rangosEvaluacion.p2Fin],
+    queryFn: () => operacionesApi.getRutasHoy(undefined, rangosEvaluacion.p1Inicio, rangosEvaluacion.p2Fin),
   });
 
   // Mapeo de opciones para SearchableSelect de Rutas
@@ -224,36 +225,31 @@ export const EvolucionFincasPage: React.FC = () => {
 
   // Construcción de la tabla de evolución calculando promedios reales de 15 días
   const tablaEvolucion = useMemo<FincaEvolucionRow[]>(() => {
-    // Indexar recolecciones de viajes por finca y período
+    // Indexar recolecciones reales por finca y período
     const recolectadoQ1PorFinca = new Map<number, { total: number; dias: Set<string> }>();
     const recolectadoQ2PorFinca = new Map<number, { total: number; dias: Set<string> }>();
 
-    viajes.forEach((v) => {
-      const fechaViaje = v.fecha ? v.fecha.split('T')[0] : '';
-      if (!fechaViaje) return;
+    recolecciones.forEach((r) => {
+      const fechaRecoleccion = r.fecha ? r.fecha.split('T')[0] : '';
+      if (!fechaRecoleccion) return;
 
-      const esQ1 = fechaViaje >= rangosEvaluacion.p1Inicio && fechaViaje <= rangosEvaluacion.p1Fin;
-      const esQ2 = fechaViaje >= rangosEvaluacion.p2Inicio && fechaViaje <= rangosEvaluacion.p2Fin;
+      const fId = Number(r.fincaId || r.FincaId);
+      const litros = Number(r.litros || r.Litros || 0);
+      if (litros <= 0 || !fId) return;
 
-      if (!esQ1 && !esQ2) return;
+      const esQ1 = fechaRecoleccion >= rangosEvaluacion.p1Inicio && fechaRecoleccion <= rangosEvaluacion.p1Fin;
+      const esQ2 = fechaRecoleccion >= rangosEvaluacion.p2Inicio && fechaRecoleccion <= rangosEvaluacion.p2Fin;
 
-      if (v.fincasDetalle && v.fincasDetalle.length > 0) {
-        v.fincasDetalle.forEach((fd) => {
-          const fId = fd.fincaId;
-          const litros = Number(fd.litrosLeche || 0);
-
-          if (esQ1) {
-            const entry = recolectadoQ1PorFinca.get(fId) || { total: 0, dias: new Set<string>() };
-            entry.total += litros;
-            entry.dias.add(fechaViaje);
-            recolectadoQ1PorFinca.set(fId, entry);
-          } else if (esQ2) {
-            const entry = recolectadoQ2PorFinca.get(fId) || { total: 0, dias: new Set<string>() };
-            entry.total += litros;
-            entry.dias.add(fechaViaje);
-            recolectadoQ2PorFinca.set(fId, entry);
-          }
-        });
+      if (esQ1) {
+        const entry = recolectadoQ1PorFinca.get(fId) || { total: 0, dias: new Set<string>() };
+        entry.total += litros;
+        entry.dias.add(fechaRecoleccion);
+        recolectadoQ1PorFinca.set(fId, entry);
+      } else if (esQ2) {
+        const entry = recolectadoQ2PorFinca.get(fId) || { total: 0, dias: new Set<string>() };
+        entry.total += litros;
+        entry.dias.add(fechaRecoleccion);
+        recolectadoQ2PorFinca.set(fId, entry);
       }
     });
 
@@ -261,21 +257,26 @@ export const EvolucionFincasPage: React.FC = () => {
       const dataQ1 = recolectadoQ1PorFinca.get(f.id);
       const dataQ2 = recolectadoQ2PorFinca.get(f.id);
 
+      const totalLitrosQ1 = dataQ1 ? dataQ1.total : 0;
+      const totalLitrosQ2 = dataQ2 ? dataQ2.total : 0;
+
+      // Promedio diario = total litros / días con entregas registradas en esa quincena
       let promedioQ1 = 0;
       let promedioQ2 = 0;
-      let totalLitrosQ1 = dataQ1 ? dataQ1.total : 0;
-      let totalLitrosQ2 = dataQ2 ? dataQ2.total : 0;
 
       if (dataQ1 && dataQ1.dias.size > 0) {
         promedioQ1 = Math.round(dataQ1.total / dataQ1.dias.size);
+      } else if (totalLitrosQ1 > 0) {
+        promedioQ1 = Math.round(totalLitrosQ1 / rangosEvaluacion.diasP1);
       } else {
         promedioQ1 = f.promedioLitrosDiarios || f.ultimoLitros || 0;
       }
 
       if (dataQ2 && dataQ2.dias.size > 0) {
         promedioQ2 = Math.round(dataQ2.total / dataQ2.dias.size);
+      } else if (totalLitrosQ2 > 0) {
+        promedioQ2 = Math.round(totalLitrosQ2 / rangosEvaluacion.diasP2);
       } else if (promedioQ1 > 0) {
-        // Si no hay recolecciones en Q2 para el mes seleccionado, usamos último registro conocido o progresión estimada
         promedioQ2 = f.ultimoLitros && f.ultimoLitros !== promedioQ1
           ? f.ultimoLitros
           : Math.round(promedioQ1 * (temporadaManual === 'LLUVIAS' ? 1.05 : 0.95));
@@ -322,7 +323,7 @@ export const EvolucionFincasPage: React.FC = () => {
         alertas,
       };
     });
-  }, [fincasFiltradasPorRuta, viajes, rangosEvaluacion, temporadaManual]);
+  }, [fincasFiltradasPorRuta, recolecciones, rangosEvaluacion, temporadaManual]);
 
   // Totales y KPIs de la comparativa de 15 días
   const resumenGeneral = useMemo(() => {
@@ -943,7 +944,7 @@ export const EvolucionFincasPage: React.FC = () => {
         <DataTable
           data={tablaEvolucion}
           columns={columns}
-          isLoading={loadingFincas || loadingViajes}
+          isLoading={loadingFincas || loadingRecolecciones}
           searchPlaceholder="Buscar finca, propietario o ruta..."
           exportFileName={`evolucion_fincas_${mesSeleccionado}`}
           searchFilter={(row, term) =>
