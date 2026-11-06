@@ -171,6 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       color: '#64748b',
       items: [
         { name: 'Mi Perfil de Usuario', href: '/perfil', tabId: 'perfil', icon: 'fa-solid fa-id-badge', color: '#0ea5e9' },
+        { name: 'Datos Bancarios & Pago Móvil', href: '/datos-bancarios', tabId: 'datos-bancarios', icon: 'fa-solid fa-building-columns', color: '#10b981' },
         { name: 'Usuarios & Roles', href: '/usuarios', tabId: 'usuarios', icon: 'fa-solid fa-user-gear' },
         { name: 'Módulos & Permisos', href: '/permisos', tabId: 'permisos', icon: 'fa-solid fa-shield-halved', color: '#38bdf8' },
         { name: 'Parametrización Global', href: '/configuracion', tabId: 'configuracion-sistema', icon: 'fa-solid fa-sliders', color: '#a855f7' },

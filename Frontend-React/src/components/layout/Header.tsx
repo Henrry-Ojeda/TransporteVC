@@ -227,37 +227,164 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       </div>
 
       <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div className="user-profile" id="userProfileWidget" style={{ cursor: 'pointer' }} onClick={() => navigate('/perfil')} title="Ver y Editar Mi Perfil">
-          <div className="user-avatar" id="userAvatar" style={{ overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {user?.fotoUrl ? (
-              <img
-                src={user.fotoUrl}
-                alt={user.nombreCompleto}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        {/* WIDGET PERFIL USUARIO PROFESIONAL (ESTILO EXECUTIVE SAAS) */}
+        <div
+          id="userProfileWidget"
+          style={{
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '999px',
+            padding: '4px 6px 4px 6px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {/* Zona clickeable hacia el Perfil */}
+          <div
+            onClick={() => navigate('/perfil')}
+            title="Ir a Mi Perfil de Usuario"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              borderRadius: '999px',
+              userSelect: 'none',
+            }}
+          >
+            {/* Avatar con anillo y badge en línea */}
+            <div style={{ position: 'relative' }}>
+              <div
+                id="userAvatar"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                  border: '2px solid #ffffff',
+                }}
+              >
+                {user?.fotoUrl ? (
+                  <img
+                    src={user.fotoUrl}
+                    alt={user.nombreCompleto}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  userInitials || 'AD'
+                )}
+              </div>
+              {/* Punto de estado En Línea */}
+              <span
+                style={{
+                  position: 'absolute',
+                  bottom: '1px',
+                  right: '1px',
+                  width: '9px',
+                  height: '9px',
+                  borderRadius: '50%',
+                  background: '#10b981',
+                  border: '2px solid #ffffff',
+                }}
+                title="Sesión Activa"
               />
-            ) : (
-              userInitials || 'AD'
-            )}
+            </div>
+
+            {/* Detalles de Usuario Tipografía Ejecutiva */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              <span
+                id="userNameLabel"
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: '#0f172a',
+                  maxWidth: '160px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: 1.25,
+                }}
+                title={user?.nombreCompleto || user?.username || 'Usuario'}
+              >
+                {user?.nombreCompleto || user?.username || 'Administrador'}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+                <span
+                  id="userRoleBadge"
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 800,
+                    color: '#0284c7',
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    padding: '1px 6px',
+                    borderRadius: '6px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.4px',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  <i className="fa-solid fa-shield-halved" style={{ fontSize: '8.5px', marginRight: '3px' }}></i>
+                  {user?.rol || 'ADMIN'}
+                </span>
+              </div>
+            </div>
+
+            <i className="fa-solid fa-angle-right" style={{ fontSize: '11px', color: '#94a3b8', margin: '0 2px' }}></i>
           </div>
-          <div className="user-details">
-            <span className="user-name" id="userNameLabel">
-              {user?.nombreCompleto || user?.username || 'Administrador'}
-            </span>
-            <span className="user-role" id="userRoleBadge">
-              {user?.rol || 'ADMIN'}
-            </span>
-          </div>
+
+          {/* Separador vertical sutil */}
+          <div style={{ width: '1px', height: '24px', background: '#e2e8f0' }} />
+
+          {/* Botón Salir / Logout Ejecutivo */}
           <button
-            className="btn-logout"
+            type="button"
             id="btnLogout"
-            title="Cerrar Sesión"
+            title="Cerrar Sesión Segura"
             onClick={(e) => {
               e.stopPropagation();
               logout();
             }}
-            style={{ cursor: 'pointer' }}
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: '#fef2f2',
+              color: '#ef4444',
+              border: '1px solid #fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              fontSize: '12.5px',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#ef4444';
+              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.borderColor = '#ef4444';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#fef2f2';
+              e.currentTarget.style.color = '#ef4444';
+              e.currentTarget.style.borderColor = '#fee2e2';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
           >
-            <i className="fa-solid fa-arrow-right-from-bracket"></i> <span>Salir</span>
+            <i className="fa-solid fa-arrow-right-from-bracket"></i>
           </button>
         </div>
       </div>

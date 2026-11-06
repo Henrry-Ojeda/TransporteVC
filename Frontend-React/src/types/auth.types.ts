@@ -40,8 +40,11 @@ export interface PerfilUsuarioDto {
   fotoUrl?: string;
   bancoNombre?: string;
   bancoCuenta?: string;
+  numeroCuenta?: string;
   pagoMovilCedula?: string;
+  cedulaPagoMovil?: string;
   pagoMovilTelefono?: string;
+  telefonoPagoMovil?: string;
 }
 
 export interface ActualizarPerfilDto {
@@ -51,8 +54,11 @@ export interface ActualizarPerfilDto {
   fotoUrl?: string;
   bancoNombre?: string;
   bancoCuenta?: string;
+  numeroCuenta?: string;
   pagoMovilCedula?: string;
+  cedulaPagoMovil?: string;
   pagoMovilTelefono?: string;
+  telefonoPagoMovil?: string;
   passwordActual?: string;
   nuevoPassword?: string;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { authApi } from '@/api/auth.api';
@@ -6,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import type { PerfilUsuarioDto, ActualizarPerfilDto } from '@/types';
 
 export const PerfilPage: React.FC = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, updateUser } = useAuthStore();
 
@@ -19,10 +21,6 @@ export const PerfilPage: React.FC = () => {
     cedula: '',
     telefono: '',
     fotoUrl: '',
-    bancoNombre: '',
-    bancoCuenta: '',
-    pagoMovilCedula: '',
-    pagoMovilTelefono: '',
     passwordActual: '',
     nuevoPassword: '',
   });
@@ -42,10 +40,6 @@ export const PerfilPage: React.FC = () => {
         cedula: perfil.cedula || '',
         telefono: perfil.telefono || '',
         fotoUrl: perfil.fotoUrl || '',
-        bancoNombre: perfil.bancoNombre || '',
-        bancoCuenta: perfil.bancoCuenta || '',
-        pagoMovilCedula: perfil.pagoMovilCedula || '',
-        pagoMovilTelefono: perfil.pagoMovilTelefono || '',
         passwordActual: '',
         nuevoPassword: '',
       });
@@ -158,7 +152,7 @@ export const PerfilPage: React.FC = () => {
   return (
     <section id="tab-perfil" className="tab-content active" style={{ display: 'block' }}>
       {/* CABECERA & INDICADOR DE MÓDULO */}
-      <div className="view-header" style={{ marginBottom: '22px' }}>
+      <div className="view-header" style={{ marginBottom: '18px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -170,9 +164,64 @@ export const PerfilPage: React.FC = () => {
             Mi Perfil de Usuario
           </h1>
           <p className="view-subtitle">
-            Actualiza tus datos personales, foto de perfil, credenciales de seguridad y cuentas bancarias
+            Actualiza tus datos personales, foto de perfil y credenciales de seguridad institucional
           </p>
         </div>
+      </div>
+
+      {/* TABS DE NAVEGACIÓN PROFESIONAL */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          borderBottom: '1px solid #e2e8f0',
+          marginBottom: '24px',
+          paddingBottom: '2px',
+        }}
+      >
+        <button
+          type="button"
+          style={{
+            padding: '10px 18px',
+            border: 'none',
+            background: '#ffffff',
+            color: '#0284c7',
+            fontWeight: 800,
+            fontSize: '13.5px',
+            cursor: 'default',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            borderRadius: '10px 10px 0 0',
+            borderBottom: '3px solid #0284c7',
+            boxShadow: '0 -2px 6px rgba(0,0,0,0.03)',
+          }}
+        >
+          <i className="fa-solid fa-user-shield"></i>
+          Mi Perfil &amp; Seguridad
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/datos-bancarios')}
+          style={{
+            padding: '10px 18px',
+            border: 'none',
+            background: 'none',
+            color: '#64748b',
+            fontWeight: 700,
+            fontSize: '13.5px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            borderRadius: '10px 10px 0 0',
+            transition: 'all 0.2s',
+          }}
+        >
+          <i className="fa-solid fa-building-columns"></i>
+          Datos Bancarios &amp; Pago Móvil
+        </button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -600,89 +649,6 @@ export const PerfilPage: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* TARJETA 3: DATOS BANCARIOS & PAGO MÓVIL */}
-          <div
-            style={{
-              gridColumn: '1 / -1',
-              background: '#ffffff',
-              borderRadius: '16px',
-              border: '1px solid #e2e8f0',
-              padding: '24px',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
-                <i className="fa-solid fa-building-columns"></i>
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                  Datos Bancarios &amp; Pago Móvil (Financiero)
-                </h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>Cuentas para transferencias, viáticos o liquidaciones</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Banco Receptor
-                </label>
-                <input
-                  type="text"
-                  value={formData.bancoNombre || ''}
-                  onChange={(e) => setFormData({ ...formData, bancoNombre: e.target.value })}
-                  className="form-input"
-                  placeholder="Ej: Banesco, Banco de Venezuela, Mercantil"
-                  style={{ width: '100%', height: '42px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Número de Cuenta (20 Dígitos)
-                </label>
-                <input
-                  type="text"
-                  maxLength={20}
-                  value={formData.bancoCuenta || ''}
-                  onChange={(e) => setFormData({ ...formData, bancoCuenta: e.target.value })}
-                  className="form-input"
-                  placeholder="0102-XXXX-XX-XXXXXXXXXX"
-                  style={{ width: '100%', height: '42px', fontFamily: 'monospace' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Cédula Pago Móvil
-                </label>
-                <input
-                  type="text"
-                  value={formData.pagoMovilCedula || ''}
-                  onChange={(e) => setFormData({ ...formData, pagoMovilCedula: e.target.value })}
-                  className="form-input"
-                  placeholder="Ej: V-18408156"
-                  style={{ width: '100%', height: '42px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Teléfono Pago Móvil
-                </label>
-                <input
-                  type="text"
-                  value={formData.pagoMovilTelefono || ''}
-                  onChange={(e) => setFormData({ ...formData, pagoMovilTelefono: e.target.value })}
-                  className="form-input"
-                  placeholder="Ej: 0412-7869868"
-                  style={{ width: '100%', height: '42px' }}
-                />
-              </div>
-            </div>
           </div>
         </div>
 

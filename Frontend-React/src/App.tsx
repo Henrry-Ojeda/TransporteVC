@@ -57,6 +57,7 @@ import { HistorialBcvPage } from '@/modules/sistema/HistorialBcvPage';
 import { GestionDataPage } from '@/modules/data/GestionDataPage';
 import { UsuariosPage } from '@/modules/sistema/UsuariosPage';
 import { PerfilPage } from '@/modules/sistema/PerfilPage';
+import { DatosBancariosPage } from '@/modules/sistema/DatosBancariosPage';
 import { PermisosPage } from '@/modules/sistema/PermisosPage';
 import { ConfiguracionPage } from '@/modules/sistema/ConfiguracionPage';
 import { TiempoSesionPage } from '@/modules/sistema/TiempoSesionPage';
@@ -143,6 +144,8 @@ export const App: React.FC = () => {
 
             {/* Sistema */}
             <Route path="/perfil" element={<PerfilPage />} />
+            <Route path="/datos-bancarios" element={<DatosBancariosPage />} />
+            <Route path="/perfil/banco" element={<DatosBancariosPage />} />
             <Route path="/data" element={<GestionDataPage />} />
             <Route path="/gestion-data" element={<GestionDataPage />} />
             <Route path="/usuarios" element={<UsuariosPage />} />
