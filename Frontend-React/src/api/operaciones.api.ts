@@ -53,13 +53,26 @@ export const operacionesApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  editarFincaViajeAuditado: async (id: number, rutaId: number, dto: { fincaId: number; litros: number; esAcida: boolean; tipoLeche: string; motivoModificacion: string }): Promise<{ message: string }> => {
-    const res = await apiClient.put(`/control-rutas/${id}/fincas/${rutaId}/editar-auditado`, dto);
+  editarFincaViajeAuditado: async (id: number, rutaId: number, dto: { fincaId: number; litros: number; esAcida?: boolean; tipoLeche?: string; motivo?: string; motivoModificacion?: string; observacion?: string }): Promise<{ message: string }> => {
+    const payload = {
+      fincaId: dto.fincaId,
+      litros: dto.litros,
+      esAcida: Boolean(dto.esAcida),
+      tipoLeche: dto.tipoLeche || 'VACA',
+      observacion: dto.observacion || '',
+      motivo: dto.motivo || dto.motivoModificacion || '',
+    };
+    const res = await apiClient.put(`/control-rutas/${id}/fincas/${rutaId}/editar-auditado`, payload);
     return res.data;
   },
 
   eliminarFincaViajeAuditado: async (id: number, rutaId: number, motivo: string): Promise<{ message: string }> => {
     const res = await apiClient.delete(`/control-rutas/${id}/fincas/${rutaId}/eliminar-auditado`, { params: { motivo } });
+    return res.data;
+  },
+
+  editarEntregaViajeAuditado: async (id: number, entregaId: number, dto: { companiaId: number; litros: number; observacion?: string; motivo: string }): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/control-rutas/${id}/entregas/${entregaId}/editar-auditado`, dto);
     return res.data;
   },
 
@@ -85,8 +98,17 @@ export const operacionesApi = {
     return res.data;
   },
 
-  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche: number; temperatura?: number; tipoLeche?: string }): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/controlrutas/${id}/fincas`, dto);
+  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche?: number; litros?: number; esAcida?: boolean; tipoLeche?: string; observacion?: string; temperatura?: number }): Promise<{ success: boolean; message: string }> => {
+    const payload = {
+      controlRutaId: id,
+      fincaId: dto.fincaId,
+      litros: dto.litros ?? dto.litrosLeche ?? 0,
+      esAcida: Boolean(dto.esAcida),
+      tipoLeche: dto.tipoLeche || 'VACA',
+      observacion: dto.observacion || '',
+      temperatura: dto.temperatura,
+    };
+    const res = await apiClient.post(`/controlrutas/${id}/fincas`, payload);
     return res.data;
   },
 

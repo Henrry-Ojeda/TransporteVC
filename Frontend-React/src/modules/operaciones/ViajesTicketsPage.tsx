@@ -79,6 +79,29 @@ export const ViajesTicketsPage: React.FC = () => {
     esAcida: false,
     tipoLeche: 'VACA',
     observacion: '',
+    motivo: '',
+  });
+
+  // Modal Editar Finca Auditada
+  const [modalEditarFincaAuditada, setModalEditarFincaAuditada] = useState(false);
+  const [fincaParaEditar, setFincaParaEditar] = useState<any | null>(null);
+  const [formEditarFinca, setFormEditarFinca] = useState({
+    fincaId: 0,
+    litros: 0,
+    esAcida: false,
+    tipoLeche: 'VACA',
+    observacion: '',
+    motivo: '',
+  });
+
+  // Modal Editar Entrega Auditada
+  const [modalEditarEntregaAuditada, setModalEditarEntregaAuditada] = useState(false);
+  const [entregaParaEditar, setEntregaParaEditar] = useState<any | null>(null);
+  const [formEditarEntrega, setFormEditarEntrega] = useState({
+    companiaId: 0,
+    litros: 0,
+    observacion: '',
+    motivo: '',
   });
 
   // Formulario iniciar nuevo viaje
@@ -148,23 +171,73 @@ export const ViajesTicketsPage: React.FC = () => {
     enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
   });
 
-  const { data: entregasTrazabilidad = [] } = useQuery({
+  const { data: entregasTrazabilidad = [], refetch: refetchEntregasTraz } = useQuery({
     queryKey: ['entregas-ticket', ticketTrazabilidadId],
     queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getEntregasViaje(ticketTrazabilidadId) : []),
     enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
   });
 
-  const { data: historialTrazabilidad = [] } = useQuery({
+  const { data: historialTrazabilidad = [], refetch: refetchHistorialTraz } = useQuery({
     queryKey: ['historial-ticket', ticketTrazabilidadId],
     queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getHistorialViaje(ticketTrazabilidadId) : []),
     enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
   });
 
-  const { data: logsTrazabilidad = [] } = useQuery({
+  const { data: logsTrazabilidad = [], refetch: refetchLogsTraz } = useQuery({
     queryKey: ['logs-ticket', ticketTrazabilidadId],
     queryFn: () => (ticketTrazabilidadId && esRutaTrazabilidad ? operacionesApi.getLogsModificacionesViaje(ticketTrazabilidadId) : []),
     enabled: !!ticketTrazabilidadId && esRutaTrazabilidad,
   });
+
+  const recargarTrazabilidad = () => {
+    refetchFincasTraz();
+    refetchEntregasTraz();
+    refetchHistorialTraz();
+    refetchLogsTraz();
+    queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+    queryClient.invalidateQueries({ queryKey: ['control-companias'] });
+  };
+
+  // KPIs de la cabecera del modal de trazabilidad (1:1 con V2_3_11_26)
+  const metricasModalTrazabilidad = useMemo(() => {
+    if (!ticketTrazabilidad) return null;
+    const totalFinca = ticketTrazabilidad.totalLitrosFinca != null ? Number(ticketTrazabilidad.totalLitrosFinca) : 0;
+    const totalRecep = ticketTrazabilidad.litrosRecibidosReceptoria != null ? Number(ticketTrazabilidad.litrosRecibidosReceptoria) : (ticketTrazabilidad.totalLitrosReceptoria != null ? Number(ticketTrazabilidad.totalLitrosReceptoria) : null);
+    const recargaExtra = ticketTrazabilidad.litrosCargadosAdicional != null ? Number(ticketTrazabilidad.litrosCargadosAdicional) : 0;
+    const totalSaliendo = (totalRecep != null ? totalRecep : totalFinca) + recargaExtra;
+
+    const sumaEntregasPlantas = entregasTrazabilidad && entregasTrazabilidad.length > 0
+      ? entregasTrazabilidad.reduce((acc: number, e: any) => acc + Number(e.litros || e.Litros || e.litrosEntregados || 0), 0)
+      : null;
+    const totalPlanta = sumaEntregasPlantas != null ? sumaEntregasPlantas : (ticketTrazabilidad.litrosEntregadosCompania != null ? Number(ticketTrazabilidad.litrosEntregadosCompania) : null);
+
+    const yaFinalizo = ticketTrazabilidad.estado === 'FINALIZADO' || totalPlanta != null || (totalRecep != null && recargaExtra === 0 && (ticketTrazabilidad.tipoDestino || '').toUpperCase().includes('RECEPTORIA'));
+
+    let mermaReal: number | null = null;
+    let mermaEsCero = false;
+    let mermaEsPerdida = false;
+    let textoMerma = '';
+    if (yaFinalizo && totalPlanta != null) {
+      mermaReal = totalSaliendo - totalPlanta;
+      mermaEsCero = Math.abs(mermaReal) < 0.01;
+      mermaEsPerdida = mermaReal > 0;
+      textoMerma = mermaEsCero ? '0 L' : (mermaEsPerdida ? `-${mermaReal.toLocaleString('es-VE')} L` : `+${Math.abs(mermaReal).toLocaleString('es-VE')} L`);
+    }
+
+    return {
+      totalFinca,
+      totalRecep,
+      recargaExtra,
+      totalPlanta,
+      totalSaliendo,
+      yaFinalizo,
+      mermaReal,
+      mermaEsCero,
+      mermaEsPerdida,
+      textoMerma,
+      totalEnCamino: totalSaliendo,
+    };
+  }, [ticketTrazabilidad, entregasTrazabilidad]);
 
   // Normalización de datos 1:1 con app.js de V2_3_11_26
   const dataConsolidada = useMemo(() => {
@@ -658,6 +731,175 @@ export const ViajesTicketsPage: React.FC = () => {
     setTicketTrazabilidad(ticket);
     setTabTrazabilidad(ticket._origen === 'RUTA' ? 'fincas' : 'despacho');
     setModalTrazabilidad(true);
+  };
+
+  // Abrir modal editar finca
+  const handleAbrirEditarFinca = (finca: any) => {
+    setFincaParaEditar(finca);
+    setFormEditarFinca({
+      fincaId: finca.fincaId || finca.FincaId || 0,
+      litros: Number(finca.litros || finca.Litros || 0),
+      esAcida: Boolean(finca.esAcida),
+      tipoLeche: (finca.tipoLeche || finca.TipoLeche || 'VACA').toUpperCase(),
+      observacion: finca.observacion || '',
+      motivo: '',
+    });
+    setModalEditarFincaAuditada(true);
+  };
+
+  // Guardar edición de finca auditada
+  const handleGuardarEditarFinca = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketTrazabilidad || !fincaParaEditar) return;
+    if (!formEditarFinca.motivo.trim()) {
+      toast.error('El motivo o justificación del cambio es obligatorio');
+      return;
+    }
+    try {
+      await operacionesApi.editarFincaViajeAuditado(
+        ticketTrazabilidad.id,
+        fincaParaEditar.id || fincaParaEditar.Id,
+        formEditarFinca
+      );
+      toast.success('Finca modificada exitosamente con registro en bitácora.');
+      setModalEditarFincaAuditada(false);
+      recargarTrazabilidad();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al modificar finca');
+    }
+  };
+
+  // Abrir modal editar entrega
+  const handleAbrirEditarEntrega = (entrega: any) => {
+    setEntregaParaEditar(entrega);
+    setFormEditarEntrega({
+      companiaId: entrega.companiaId || entrega.CompaniaId || 0,
+      litros: Math.abs(Number(entrega.litros || entrega.Litros || 0)),
+      observacion: entrega.observacion || '',
+      motivo: '',
+    });
+    setModalEditarEntregaAuditada(true);
+  };
+
+  // Guardar edición de entrega auditada
+  const handleGuardarEditarEntrega = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketTrazabilidad || !entregaParaEditar) return;
+    if (!formEditarEntrega.motivo.trim()) {
+      toast.error('El motivo o justificación del cambio es obligatorio');
+      return;
+    }
+    try {
+      await operacionesApi.editarEntregaViajeAuditado(
+        ticketTrazabilidad.id,
+        entregaParaEditar.id || entregaParaEditar.Id,
+        formEditarEntrega
+      );
+      toast.success('Entrega modificada exitosamente con registro en bitácora.');
+      setModalEditarEntregaAuditada(false);
+      recargarTrazabilidad();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al modificar entrega');
+    }
+  };
+
+  // Eliminar finca auditada
+  const handleEliminarFinca = async (rutaId: number, fincaNombre: string) => {
+    if (!ticketTrazabilidad) return;
+    const { value: motivo, isConfirmed } = await Swal.fire({
+      title: '¿Eliminar Finca del Viaje?',
+      text: `Se desvinculará la recolección de "${fincaNombre || 'la finca'}" del ticket #${ticketTrazabilidad.id}. Indique la justificación obligatoria:`,
+      input: 'textarea',
+      inputPlaceholder: 'Motivo o justificación de eliminación...',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Eliminar de Viaje',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return '¡El motivo de la eliminación es obligatorio!';
+        }
+      },
+    });
+
+    if (!isConfirmed || !motivo) return;
+
+    try {
+      await operacionesApi.eliminarFincaViajeAuditado(ticketTrazabilidad.id, rutaId, motivo.trim());
+      Swal.fire({
+        icon: 'success',
+        title: 'Finca Eliminada del Viaje',
+        text: 'La recolección ha sido desvinculada y registrada en la bitácora.',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      recargarTrazabilidad();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al eliminar finca del viaje');
+    }
+  };
+
+  // Revertir proceso de viaje
+  const handleRevertirProceso = async () => {
+    if (!ticketTrazabilidad) return;
+    const { value: motivo, isConfirmed } = await Swal.fire({
+      title: '¿Revertir Proceso del Viaje?',
+      text: `Se regresará el ticket #${ticketTrazabilidad.id} a la etapa anterior para corrección de datos. Indique el motivo obligatorio:`,
+      input: 'textarea',
+      inputPlaceholder: 'Motivo de reversión contable/operativa...',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Revertir Etapa',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#64748b',
+      inputValidator: (v) => (!v || !v.trim() ? 'El motivo es obligatorio' : undefined),
+    });
+
+    if (!isConfirmed || !motivo) return;
+
+    try {
+      const targetProcesoId = Math.max(1, (ticketTrazabilidad.procesoActualId || 2) - 1);
+      await operacionesApi.revertirProcesoViaje(ticketTrazabilidad.id, {
+        procesoDestinoId: targetProcesoId,
+        motivo: motivo.trim(),
+      });
+      toast.success('Proceso del viaje revertido exitosamente.');
+      setModalTrazabilidad(false);
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al revertir proceso');
+    }
+  };
+
+  // Finalizar viaje auditado
+  const handleFinalizarViaje = async () => {
+    if (!ticketTrazabilidad) return;
+    const { value: observacion, isConfirmed } = await Swal.fire({
+      title: '¿Finalizar y Auditar Viaje?',
+      text: `Se cerrará el ticket #${ticketTrazabilidad.id} y se registrará el cuadre definitivo.`,
+      input: 'text',
+      inputPlaceholder: 'Nota contable de cierre (opcional)...',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Finalizar Viaje',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#64748b',
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      await operacionesApi.finalizarViajeAdmin(ticketTrazabilidad.id, observacion || undefined);
+      toast.success('Viaje finalizado y auditado exitosamente.');
+      setModalTrazabilidad(false);
+      queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al finalizar viaje');
+    }
   };
 
   // Columnas de la DataTable 1:1 con la bitácora de V2_3_11_26
@@ -1607,190 +1849,651 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 6. MODAL TRAZABILIDAD COMPLETA 1:1 CON TABS */}
+      {/* 6. MODAL TRAZABILIDAD COMPLETA 1:1 CON V2_3_11_26 */}
       {modalTrazabilidad && ticketTrazabilidad && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-extrabold text-slate-900">
-                    Trazabilidad del Ticket #{ticketTrazabilidad.id}
-                  </h3>
-                  <span className="badge bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-2 py-0.5 rounded">
-                    {ticketTrazabilidad._tipoLabel}
-                  </span>
+          <div
+            className="w-full max-w-4xl bg-white rounded-[18px] border-[1.5px] border-slate-300 shadow-2xl overflow-hidden flex flex-col"
+            style={{ maxHeight: '90vh' }}
+          >
+            {/* CABECERA MODAL MODERNA 1:1 */}
+            <div
+              className="px-6 py-4 flex items-center justify-between border-b border-white/10 shrink-0"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+            >
+              <div className="flex items-center gap-3.5">
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.18)',
+                    border: '1.5px solid rgba(56, 189, 248, 0.35)',
+                    color: '#38bdf8',
+                    boxShadow: '0 0 16px rgba(56, 189, 248, 0.2)',
+                  }}
+                >
+                  <i className={`fa-solid ${ticketTrazabilidad._origen === 'RUTA' ? 'fa-route' : 'fa-warehouse'}`}></i>
                 </div>
-                <p className="text-xs text-gray-500">
-                  Fecha: {(ticketTrazabilidad.fecha || '').split('T')[0]} &bull; Conductor: {ticketTrazabilidad.nombreConductor}
-                </p>
+                <div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h2 className="m-0 text-lg font-extrabold text-white tracking-tight">
+                      Trazabilidad del Viaje #{ticketTrazabilidad.id}
+                    </h2>
+                    <span
+                      className="text-[10.5px] px-2.5 py-0.5 font-extrabold rounded-full tracking-wide"
+                      style={{
+                        background: 'rgba(56, 189, 248, 0.18)',
+                        color: '#38bdf8',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                      }}
+                    >
+                      {ticketTrazabilidad._origen === 'RUTA' ? 'RUTA DE RECOLECCIÓN' : 'DESPACHO A RECEPTORÍA'}
+                    </span>
+                  </div>
+                  <p className="m-0 mt-1 text-xs text-slate-400 font-medium flex items-center gap-2">
+                    <span>
+                      <i className="fa-solid fa-user-tie text-sky-400 mr-1"></i>
+                      Chofer: <strong className="text-white">{ticketTrazabilidad.nombreConductor || 'No asignado'}</strong>
+                    </span>
+                    <span>&bull;</span>
+                    <span>
+                      <i className="fa-solid fa-calendar-day mr-1"></i>
+                      Fecha: <strong>{(ticketTrazabilidad.fecha || '').split('T')[0]}</strong>
+                    </span>
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setModalTrazabilidad(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  fontSize: '20px',
+                }}
               >
-                <X className="w-5 h-5" />
+                &times;
               </button>
             </div>
 
-            {/* Pestañas de Trazabilidad */}
-            <div className="flex gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
-              {ticketTrazabilidad._origen === 'RUTA' && (
-                <button
-                  type="button"
-                  onClick={() => setTabTrazabilidad('fincas')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${
-                    tabTrazabilidad === 'fincas' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Fincas ({fincasTrazabilidad.length})
-                </button>
-              )}
-              {ticketTrazabilidad._origen === 'RECEPTORIA' && (
-                <button
-                  type="button"
-                  onClick={() => setTabTrazabilidad('despacho')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${
-                    tabTrazabilidad === 'despacho' ? 'bg-purple-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Despacho
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setTabTrazabilidad('entregas')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  tabTrazabilidad === 'entregas' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Entregas / Descargas ({entregasTrazabilidad.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setTabTrazabilidad('timeline')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  tabTrazabilidad === 'timeline' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Línea de Tiempo ({historialTrazabilidad.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setTabTrazabilidad('logs')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  tabTrazabilidad === 'logs' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Auditoría / Logs ({logsTrazabilidad.length})
-              </button>
-            </div>
+            {/* CUERPO DEL MODAL */}
+            <div className="p-5 md:p-6 overflow-y-auto space-y-4 bg-slate-50 flex-1">
+              {/* RESUMEN DE MÉTRICAS DEL VIAJE (5 KPIS DE ALTO IMPACTO 1:1) */}
+              {metricasModalTrazabilidad && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {/* KPI 1: LTS FINCAS */}
+                  <div className="bg-white border-[1.5px] border-sky-200 rounded-xl p-3 text-center shadow-xs relative overflow-hidden flex flex-col justify-center gap-1">
+                    <div className="absolute top-0 left-0 right-0 h-[3.5px] bg-gradient-to-r from-sky-600 to-sky-400"></div>
+                    <div className="text-[10px] font-extrabold text-sky-600 uppercase tracking-wider flex items-center justify-center gap-1">
+                      <span className="w-5 h-5 rounded flex items-center justify-center bg-sky-50 text-sky-600 text-[10px]">
+                        <i className="fa-solid fa-cow"></i>
+                      </span>
+                      LTS FINCAS
+                    </div>
+                    <div className="text-lg font-black text-slate-900 tracking-tight">
+                      {metricasModalTrazabilidad.totalFinca.toLocaleString('es-VE')}{' '}
+                      <span className="text-[11px] font-bold text-slate-500">L</span>
+                    </div>
+                  </div>
 
-            {/* Contenido Pestañas */}
-            {tabTrazabilidad === 'fincas' && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-700">Fincas Recolectadas:</span>
+                  {/* KPI 2: LTS RECEPTORÍA */}
+                  <div className="bg-white border-[1.5px] border-amber-200 rounded-xl p-3 text-center shadow-xs relative overflow-hidden flex flex-col justify-center gap-1">
+                    <div className="absolute top-0 left-0 right-0 h-[3.5px] bg-gradient-to-r from-amber-600 to-amber-400"></div>
+                    <div className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider flex items-center justify-center gap-1">
+                      <span className="w-5 h-5 rounded flex items-center justify-center bg-amber-50 text-amber-600 text-[10px]">
+                        <i className="fa-solid fa-warehouse"></i>
+                      </span>
+                      LTS RECEPTORÍA
+                    </div>
+                    <div className="text-lg font-black text-slate-900 tracking-tight">
+                      {metricasModalTrazabilidad.totalRecep != null
+                        ? `${metricasModalTrazabilidad.totalRecep.toLocaleString('es-VE')} `
+                        : '- '}
+                      {metricasModalTrazabilidad.totalRecep != null && (
+                        <span className="text-[11px] font-bold text-slate-500">L</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* KPI 3: RECARGA EXTRA */}
+                  <div className="bg-white border-[1.5px] border-yellow-200 rounded-xl p-3 text-center shadow-xs relative overflow-hidden flex flex-col justify-center gap-1">
+                    <div className="absolute top-0 left-0 right-0 h-[3.5px] bg-gradient-to-r from-yellow-600 to-yellow-400"></div>
+                    <div className="text-[10px] font-extrabold text-yellow-600 uppercase tracking-wider flex items-center justify-center gap-1">
+                      <span className="w-5 h-5 rounded flex items-center justify-center bg-yellow-50 text-yellow-600 text-[10px]">
+                        <i className="fa-solid fa-gas-pump"></i>
+                      </span>
+                      RECARGA EXTRA
+                    </div>
+                    <div className="text-lg font-black text-slate-900 tracking-tight">
+                      {metricasModalTrazabilidad.recargaExtra > 0
+                        ? `+${metricasModalTrazabilidad.recargaExtra.toLocaleString('es-VE')} `
+                        : '0 L'}
+                      {metricasModalTrazabilidad.recargaExtra > 0 && (
+                        <span className="text-[11px] font-bold text-slate-500">L</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* KPI 4: LTS PLANTA */}
+                  <div className="bg-white border-[1.5px] border-purple-200 rounded-xl p-3 text-center shadow-xs relative overflow-hidden flex flex-col justify-center gap-1">
+                    <div className="absolute top-0 left-0 right-0 h-[3.5px] bg-gradient-to-r from-purple-700 to-purple-400"></div>
+                    <div className="text-[10px] font-extrabold text-purple-700 uppercase tracking-wider flex items-center justify-center gap-1">
+                      <span className="w-5 h-5 rounded flex items-center justify-center bg-purple-50 text-purple-700 text-[10px]">
+                        <i className="fa-solid fa-industry"></i>
+                      </span>
+                      LTS PLANTA
+                    </div>
+                    <div className="text-lg font-black text-slate-900 tracking-tight">
+                      {metricasModalTrazabilidad.totalPlanta != null
+                        ? `${metricasModalTrazabilidad.totalPlanta.toLocaleString('es-VE')} `
+                        : '- '}
+                      {metricasModalTrazabilidad.totalPlanta != null && (
+                        <span className="text-[11px] font-bold text-slate-500">L</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* KPI 5: MERMA FINAL o EN CAMINO */}
+                  {metricasModalTrazabilidad.yaFinalizo && metricasModalTrazabilidad.totalPlanta != null ? (
+                    <div
+                      className={`bg-white border-[1.5px] rounded-xl p-3 text-center shadow-xs relative overflow-hidden flex flex-col justify-center gap-1 ${
+                        metricasModalTrazabilidad.mermaEsCero
+                          ? 'border-emerald-200'
+                          : metricasModalTrazabilidad.mermaEsPerdida
+                          ? 'border-rose-200'
+                          : 'border-sky-200'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-0 left-0 right-0 h-[3.5px] ${
+                          metricasModalTrazabilidad.mermaEsCero
+                            ? 'bg-emerald-500'
+                            : metricasModalTrazabilidad.mermaEsPerdida
+                            ? 'bg-rose-500'
+                            : 'bg-sky-500'
+                        }`}
+                      ></div>
+                      <div
+                        className={`text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 ${
+                          metricasModalTrazabilidad.mermaEsCero
+                            ? 'text-emerald-700'
+                            : metricasModalTrazabilidad.mermaEsPerdida
+                            ? 'text-rose-700'
+                            : 'text-sky-700'
+                        }`}
+                      >
+                        <span
+                          className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${
+                            metricasModalTrazabilidad.mermaEsCero
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : metricasModalTrazabilidad.mermaEsPerdida
+                              ? 'bg-rose-50 text-rose-600'
+                              : 'bg-sky-50 text-sky-600'
+                          }`}
+                        >
+                          <i
+                            className={`fa-solid ${
+                              metricasModalTrazabilidad.mermaEsCero
+                                ? 'fa-circle-check'
+                                : metricasModalTrazabilidad.mermaEsPerdida
+                                ? 'fa-triangle-exclamation'
+                                : 'fa-circle-plus'
+                            }`}
+                          ></i>
+                        </span>
+                        MERMA FINAL
+                      </div>
+                      <div
+                        className={`text-lg font-black tracking-tight ${
+                          metricasModalTrazabilidad.mermaEsCero
+                            ? 'text-emerald-800'
+                            : metricasModalTrazabilidad.mermaEsPerdida
+                            ? 'text-rose-700'
+                            : 'text-sky-800'
+                        }`}
+                      >
+                        {metricasModalTrazabilidad.textoMerma}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white border-[1.5px] border-green-200 rounded-xl p-3 text-center shadow-xs relative overflow-hidden flex flex-col justify-center gap-1">
+                      <div className="absolute top-0 left-0 right-0 h-[3.5px] bg-gradient-to-r from-green-600 to-green-400"></div>
+                      <div className="text-[10px] font-extrabold text-green-700 uppercase tracking-wider flex items-center justify-center gap-1">
+                        <span className="w-5 h-5 rounded flex items-center justify-center bg-green-50 text-green-600 text-[10px]">
+                          <i className="fa-solid fa-truck-fast"></i>
+                        </span>
+                        EN CAMINO
+                      </div>
+                      <div className="text-lg font-black text-green-900 tracking-tight">
+                        {metricasModalTrazabilidad.totalEnCamino.toLocaleString('es-VE')}{' '}
+                        <span className="text-[11px] font-bold text-slate-500">L</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TABS INTERNAS ESTILO SEGMENTED PILLS 1:1 */}
+              <div
+                className="flex items-center gap-1.5 p-1 rounded-xl overflow-x-auto"
+                style={{ background: '#e2e8f0' }}
+              >
+                {ticketTrazabilidad._origen === 'RUTA' && (
                   <button
                     type="button"
-                    onClick={() => setModalAgregarFincaAuditada(true)}
-                    className="btn btn-sm text-xs font-bold h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    onClick={() => setTabTrazabilidad('fincas')}
+                    className={`px-4 py-2 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      tabTrazabilidad === 'fincas'
+                        ? 'bg-white text-sky-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    }`}
                   >
-                    + Agregar Finca Faltante
+                    <i className="fa-solid fa-cow text-sky-600"></i>
+                    Fincas Recolectadas ({fincasTrazabilidad.length})
                   </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {fincasTrazabilidad.map((f: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs shadow-2xs"
-                    >
-                      <div>
-                        <span className="text-gray-400 font-bold block text-[11px]">#{idx + 1} &bull; {f.propietarioNombre || f.propietario}</span>
-                        <strong className="text-slate-900 block font-bold">{f.fincaNombre || f.finca}</strong>
-                        <span className="text-[10.5px] text-gray-500">{f.tipoLeche || 'VACA'} &bull; {f.esAcida ? 'ÁCIDA' : 'DULCE'}</span>
-                      </div>
-                      <span className="font-mono font-extrabold text-blue-700 text-sm">
-                        {Number(f.litros || f.litrosLeche || 0).toLocaleString()} L
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {tabTrazabilidad === 'entregas' && (
-              <div className="space-y-2">
-                {entregasTrazabilidad.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-6">No hay entregas registradas aún.</p>
-                ) : (
-                  entregasTrazabilidad.map((e: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl flex justify-between items-center text-xs"
-                    >
-                      <div>
-                        <strong className="text-emerald-900 block font-bold">{e.companiaNombre || 'Planta'}</strong>
-                        <span className="text-gray-500 text-[11px]">Ticket / Guía: {e.ticketReceptoria || '-'}</span>
-                      </div>
-                      <span className="font-mono font-bold text-emerald-700 text-sm">
-                        {Number(e.litrosEntregados || 0).toLocaleString()} L
-                      </span>
-                    </div>
-                  ))
                 )}
+                {ticketTrazabilidad._origen === 'RECEPTORIA' && (
+                  <button
+                    type="button"
+                    onClick={() => setTabTrazabilidad('despacho')}
+                    className={`px-4 py-2 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      tabTrazabilidad === 'despacho'
+                        ? 'bg-white text-purple-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <i className="fa-solid fa-file-invoice text-purple-600"></i>
+                    Detalle del Despacho
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTabTrazabilidad('entregas')}
+                  className={`px-4 py-2 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                    tabTrazabilidad === 'entregas'
+                      ? 'bg-white text-amber-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <i className="fa-solid fa-truck-ramp-box text-amber-600"></i>
+                  Entregas / Descargas ({entregasTrazabilidad.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTabTrazabilidad('timeline')}
+                  className={`px-4 py-2 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                    tabTrazabilidad === 'timeline'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <i className="fa-solid fa-clock-rotate-left text-indigo-600"></i>
+                  Línea de Tiempo ({historialTrazabilidad.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTabTrazabilidad('logs')}
+                  className={`px-4 py-2 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                    tabTrazabilidad === 'logs'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <i className="fa-solid fa-shield-halved text-emerald-600"></i>
+                  Bitácora ({logsTrazabilidad.length})
+                </button>
               </div>
-            )}
 
-            {tabTrazabilidad === 'timeline' && (
-              <div className="space-y-3 py-2">
-                {historialTrazabilidad.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-6">Sin historial de transiciones.</p>
-                ) : (
-                  historialTrazabilidad.map((h: any, idx: number) => (
-                    <div key={idx} className="flex gap-3 text-xs items-start">
-                      <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[11px] shrink-0">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <div className="flex justify-between font-bold text-slate-800">
-                          <span>{h.procesoNuevoNombre || h.proceso || 'Transición de estado'}</span>
-                          <span className="text-gray-400 font-normal text-[11px]">{new Date(h.fecha).toLocaleString()}</span>
+              {/* CONTENIDO TAB 1: FINCAS RECOLECTADAS (TABLA 1:1) */}
+              {tabTrazabilidad === 'fincas' && (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                      <i className="fa-solid fa-list-check text-sky-600"></i>
+                      Recolecciones de leche asociadas a este viaje:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setModalAgregarFincaAuditada(true)}
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}
+                    >
+                      <i className="fa-solid fa-plus"></i>
+                      Agregar Finca
+                    </button>
+                  </div>
+
+                  <div className="bg-white border-[1.5px] border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[340px] overflow-y-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 border-b-[1.5px] border-slate-200 text-[11px] font-extrabold uppercase tracking-wider">
+                          <th className="py-2.5 px-3.5 text-left w-[32%]">FINCA Y TIPO</th>
+                          <th className="py-2.5 px-3.5 text-left w-[22%]">PROPIETARIO</th>
+                          <th className="py-2.5 px-3.5 text-right w-[18%]">LITROS</th>
+                          <th className="py-2.5 px-3.5 text-center w-[16%]">CALIDAD</th>
+                          <th className="py-2.5 px-3.5 text-center w-[12%]">ACCIONES</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {fincasTrazabilidad.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-8 text-slate-400">
+                              No hay fincas registradas para este viaje.
+                            </td>
+                          </tr>
+                        ) : (
+                          fincasTrazabilidad.map((f: any, idx: number) => {
+                            const esDualF = Boolean(f.tieneDosTiposLeche || f.TieneDosTiposLeche);
+                            const esBufala = f.tipoLeche === 'BUFALA' || f.TipoLeche === 'BUFALA';
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-2.5 px-3.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <strong className="text-slate-900 text-[13px] font-extrabold">
+                                      {f.fincaNombre || f.finca || f.nombre || 'Finca'}
+                                    </strong>
+                                    {esDualF && (
+                                      <span
+                                        className={`text-[9.5px] font-extrabold px-1.5 py-0.5 rounded border ${
+                                          esBufala
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                        }`}
+                                      >
+                                        {esBufala ? '🐃 BÚFALA' : '🐄 VACA'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3.5 text-slate-600 font-medium">
+                                  {f.propietario || f.propietarioNombre || '-'}
+                                </td>
+                                <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                                  <span className="font-black text-sky-700 text-sm">
+                                    {Number(f.litros || f.Litros || f.litrosLeche || 0).toLocaleString('es-VE')}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-500 ml-1">Lts</span>
+                                </td>
+                                <td className="py-2.5 px-3.5 text-center">
+                                  {f.esAcida ? (
+                                    <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                                      ÁCIDA
+                                    </span>
+                                  ) : (
+                                    <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                                      DULCE
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3.5 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAbrirEditarFinca(f)}
+                                      title="Modificar finca (auditado)"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
+                                    >
+                                      <i className="fa-solid fa-pen-to-square text-xs"></i>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleEliminarFinca(
+                                          f.id || f.Id || f.rutaId,
+                                          f.fincaNombre || f.finca || 'Finca'
+                                        )
+                                      }
+                                      title="Eliminar finca de este viaje"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                                    >
+                                      <i className="fa-solid fa-trash-can text-xs"></i>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* CONTENIDO TAB 2: ENTREGAS / DESCARGAS (TABLA 1:1) */}
+              {tabTrazabilidad === 'entregas' && (
+                <div className="space-y-3">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                    <i className="fa-solid fa-truck-arrow-right text-amber-600"></i>
+                    Descargas y movimientos de leche registrados:
+                  </span>
+
+                  <div className="bg-white border-[1.5px] border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[340px] overflow-y-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 border-b-[1.5px] border-slate-200 text-[11px] font-extrabold uppercase tracking-wider">
+                          <th className="py-2.5 px-3.5 text-left w-[28%]">DESTINO / ENTIDAD</th>
+                          <th className="py-2.5 px-3.5 text-left w-[20%]">ENCARGADO / CHOFER</th>
+                          <th className="py-2.5 px-3.5 text-right w-[16%]">LITROS</th>
+                          <th className="py-2.5 px-3.5 text-left w-[26%]">OBSERVACIÓN</th>
+                          <th className="py-2.5 px-3.5 text-center w-[10%]">ACCIONES</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {entregasTrazabilidad.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-8 text-slate-400">
+                              No hay entregas registradas para este viaje.
+                            </td>
+                          </tr>
+                        ) : (
+                          entregasTrazabilidad.map((e: any, idx: number) => {
+                            const litrosNum = Number(e.litros || e.Litros || e.litrosEntregados || 0);
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-2.5 px-3.5">
+                                  <div className="flex flex-col gap-1 items-start">
+                                    <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded">
+                                      <i className="fa-solid fa-industry mr-1"></i>
+                                      Entrega Validada
+                                    </span>
+                                    <strong className="text-slate-900 text-[13px] font-extrabold">
+                                      {e.companiaNombre || e.compania || `Compañía #${e.companiaId || ''}`}
+                                    </strong>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3.5 text-slate-600 font-medium">
+                                  {e.encargado || e.conductorNombre || '-'}
+                                </td>
+                                <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                                  <span className="font-black text-amber-700 text-sm">
+                                    +{Math.abs(litrosNum).toLocaleString('es-VE')}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-500 ml-1">Lts</span>
+                                </td>
+                                <td className="py-2.5 px-3.5 text-slate-600">
+                                  {e.observacion || e.observaciones || '-'}
+                                </td>
+                                <td className="py-2.5 px-3.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAbrirEditarEntrega(e)}
+                                    title="Modificar entrega (auditado)"
+                                    className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                                  >
+                                    <i className="fa-solid fa-pen-to-square text-xs"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* CONTENIDO TAB 3: TIMELINE (1:1) */}
+              {tabTrazabilidad === 'timeline' && (
+                <div className="space-y-3 py-2">
+                  {historialTrazabilidad.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-8">
+                      Sin historial de transiciones registrado.
+                    </p>
+                  ) : (
+                    historialTrazabilidad.map((h: any, idx: number) => {
+                      const fechaFmt = h.fechaCambio || h.fecha
+                        ? new Date(h.fechaCambio || h.fecha).toLocaleString('es-VE', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })
+                        : '-';
+
+                      return (
+                        <div key={idx} className="flex gap-3 text-xs items-start">
+                          <div
+                            className="w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-[11px] shrink-0 shadow-xs"
+                            style={{ background: h.colorProceso || '#0284c7' }}
+                          >
+                            <i className={h.iconoProceso || 'fa-solid fa-circle text-[9px]'}></i>
+                          </div>
+                          <div className="flex-1 bg-white p-3 rounded-xl border-[1.5px] border-slate-200 shadow-2xs">
+                            <div className="flex justify-between items-center font-extrabold text-slate-900">
+                              <span style={{ color: h.colorProceso || '#0f172a' }}>
+                                {h.nombreProceso || h.proceso || h.codigoProceso || 'Etapa del proceso'}
+                              </span>
+                              <span className="text-slate-400 font-semibold text-[11px]">{fechaFmt}</span>
+                            </div>
+                            <div className="text-slate-600 text-xs mt-1">
+                              <i className="fa-solid fa-user-check text-sky-600 mr-1"></i>
+                              Operado por: <strong>{h.nombreUsuario || h.usuario || 'Sistema'}</strong>
+                            </div>
+                            {h.observacion && (
+                              <div className="mt-2 bg-slate-50 border-l-[3.5px] border-sky-600 p-2 rounded text-slate-700 text-xs font-medium">
+                                {h.observacion}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-gray-600 block mt-0.5">{h.observacion || 'Sin observaciones'}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+                      );
+                    })
+                  )}
+                </div>
+              )}
 
-            {tabTrazabilidad === 'logs' && (
-              <div className="space-y-2 py-2">
-                {logsTrazabilidad.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-6">No hay modificaciones auditadas registradas.</p>
-                ) : (
-                  logsTrazabilidad.map((l: any, idx: number) => (
-                    <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                      <div className="flex justify-between text-slate-800 font-bold">
-                        <span>{l.accion || 'Modificación'} por {l.usuarioNombre || 'Admin'}</span>
-                        <span className="text-gray-400 text-[11px]">{new Date(l.createdAt).toLocaleString()}</span>
-                      </div>
-                      <p className="text-gray-600 mt-1">{l.detalles || l.motivo}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+              {/* CONTENIDO TAB 4: BITÁCORA DE AUDITORÍA (TABLA 1:1) */}
+              {tabTrazabilidad === 'logs' && (
+                <div className="space-y-3">
+                  <div className="bg-white border-[1.5px] border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[340px] overflow-y-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 border-b-[1.5px] border-slate-200 text-[11px] font-extrabold uppercase tracking-wider">
+                          <th className="py-2.5 px-3.5 text-left w-[16%]">FECHA / HORA</th>
+                          <th className="py-2.5 px-3.5 text-left w-[16%]">USUARIO</th>
+                          <th className="py-2.5 px-3.5 text-left w-[18%]">ACCIÓN</th>
+                          <th className="py-2.5 px-3.5 text-left w-[15%]">VALOR ANTERIOR</th>
+                          <th className="py-2.5 px-3.5 text-left w-[15%]">VALOR NUEVO</th>
+                          <th className="py-2.5 px-3.5 text-left w-[20%]">MOTIVO / AUDITORÍA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {logsTrazabilidad.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-8 text-slate-400">
+                              Sin modificaciones registradas en este ticket.
+                            </td>
+                          </tr>
+                        ) : (
+                          logsTrazabilidad.map((l: any, idx: number) => {
+                            const fechaRaw = l.fecha || l.fechaModificacion || l.Fecha || l.createdAt;
+                            const fechaFmt = fechaRaw
+                              ? new Date(fechaRaw).toLocaleString('es-VE', {
+                                  dateStyle: 'short',
+                                  timeStyle: 'short',
+                                })
+                              : '-';
+                            const tipoAcc = String(l.tipoAccion || l.accion || l.TipoAccion || '');
+                            const tipoEnt = String(l.tipoEntidad || l.entidad || l.TipoEntidad || '');
 
-            <div className="flex justify-end pt-3 border-t border-gray-100">
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-2 px-3.5 text-slate-500 font-medium whitespace-nowrap text-[11px]">
+                                  {fechaFmt}
+                                </td>
+                                <td className="py-2 px-3.5 font-bold text-sky-700">
+                                  {l.nombreUsuario || l.usuarioNombre || l.NombreUsuario || 'Admin'}
+                                </td>
+                                <td className="py-2 px-3.5">
+                                  <span
+                                    className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                      tipoAcc.toUpperCase().includes('ELIMINAR')
+                                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                        : 'bg-sky-50 text-sky-700 border border-sky-200'
+                                    }`}
+                                  >
+                                    {tipoEnt ? `${tipoEnt}: ` : ''}
+                                    {tipoAcc}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3.5 font-mono text-[11px] text-slate-500 break-words max-w-[130px]">
+                                  {l.valoresAnteriores || l.valorAnterior || '-'}
+                                </td>
+                                <td className="py-2 px-3.5 font-mono text-[11px] text-sky-700 break-words max-w-[130px]">
+                                  {l.valoresNuevos || l.valorNuevo || '-'}
+                                </td>
+                                <td className="py-2 px-3.5 text-amber-700 font-semibold text-xs">
+                                  {l.motivo || l.Motivo || l.detalles || '-'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* PIE DEL MODAL (FOOTER 1:1 CON BOTONES DE REVERSIÓN Y FINALIZACIÓN) */}
+            <div className="px-6 py-3.5 bg-white border-t-[1.5px] border-slate-200 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                {(ticketTrazabilidad.procesoActualId > 1 ||
+                  ticketTrazabilidad.estado === 'FINALIZADO' ||
+                  ticketTrazabilidad.procesoActualId === 4) && (
+                  <button
+                    type="button"
+                    onClick={handleRevertirProceso}
+                    className="px-4 py-2 rounded-lg text-xs font-bold text-amber-800 bg-amber-50 border-[1.5px] border-amber-400 hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Revertir etapa para corregir fincas o entregas"
+                  >
+                    <i className="fa-solid fa-rotate-left"></i>
+                    Revertir Proceso
+                  </button>
+                )}
+
+                {ticketTrazabilidad.procesoActualId !== 4 &&
+                  ticketTrazabilidad.estado !== 'FINALIZADO' && (
+                    <button
+                      type="button"
+                      onClick={handleFinalizarViaje}
+                      className="px-4 py-2 rounded-lg text-xs font-bold text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}
+                    >
+                      <i className="fa-solid fa-check-to-slot"></i>
+                      Finalizar y Auditar Viaje
+                    </button>
+                  )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => setModalTrazabilidad(false)}
-                className="btn btn-outline h-9 px-4 rounded-lg text-slate-700 font-bold text-xs"
+                className="px-5 py-2 rounded-lg text-xs font-bold text-slate-700 bg-white border-[1.5px] border-slate-300 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Cerrar Ventana
               </button>
@@ -1799,21 +2502,37 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 7. MODAL AGREGAR FINCA AUDITADA */}
+      {/* 7. MODAL AGREGAR FINCA AUDITADA (1:1 V2_3_11_26) */}
       {modalAgregarFincaAuditada && ticketTrazabilidad && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <i className="fa-solid fa-cow text-blue-600 text-base"></i>
-                Agregar Finca Faltante (Auditado)
-              </h3>
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden">
+            <div
+              className="px-5 py-4 flex items-center justify-between border-b border-white/10"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0369a1 100%)' }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-sky-400 shrink-0"
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.2)',
+                    border: '1.5px solid rgba(56, 189, 248, 0.4)',
+                  }}
+                >
+                  <i className="fa-solid fa-plus"></i>
+                </div>
+                <div>
+                  <h3 className="m-0 text-base font-extrabold text-white">Agregar Finca al Viaje</h3>
+                  <p className="m-0 text-xs text-sky-200 font-medium">
+                    Registro de recolección adicional en ruta
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setModalAgregarFincaAuditada(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-slate-300 hover:text-white text-xl cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                &times;
               </button>
             </div>
 
@@ -1827,9 +2546,9 @@ export const ViajesTicketsPage: React.FC = () => {
 
                 const { value: motivo, isConfirmed } = await Swal.fire({
                   title: 'Motivo de Inclusión de Finca',
-                  text: 'Indique la justificación para registrar esta finca faltante en el ticket:',
+                  text: 'Indique la justificación para registrar esta finca en el ticket:',
                   input: 'textarea',
-                  inputValue: 'no se agrego una finca y falto litros',
+                  inputValue: 'Inclusión de recolección faltante en ruta',
                   icon: 'question',
                   showCancelButton: true,
                   confirmButtonText: 'Registrar y Guardar',
@@ -1843,21 +2562,22 @@ export const ViajesTicketsPage: React.FC = () => {
                 try {
                   await operacionesApi.agregarFincaViaje(ticketTrazabilidad.id, {
                     fincaId: formFincaAuditada.fincaId,
-                    litrosLeche: formFincaAuditada.litros,
+                    litros: formFincaAuditada.litros,
+                    esAcida: formFincaAuditada.esAcida,
                     tipoLeche: formFincaAuditada.tipoLeche,
+                    observacion: formFincaAuditada.observacion || motivo,
                   });
                   toast.success('Finca agregada con éxito al ticket.');
                   setModalAgregarFincaAuditada(false);
-                  refetchFincasTraz();
-                  queryClient.invalidateQueries({ queryKey: ['control-rutas'] });
+                  recargarTrazabilidad();
                 } catch (err: any) {
                   toast.error(err?.response?.data?.message || 'Error al agregar finca');
                 }
               }}
-              className="space-y-4 text-xs"
+              className="p-5 space-y-4 text-xs"
             >
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Finca *</label>
+                <label className="block font-bold text-slate-700 mb-1">Finca / Ganadero *</label>
                 <SearchableSelect
                   options={fincas.map((f) => ({
                     value: f.id,
@@ -1865,61 +2585,319 @@ export const ViajesTicketsPage: React.FC = () => {
                   }))}
                   value={formFincaAuditada.fincaId}
                   onChange={(val) => setFormFincaAuditada({ ...formFincaAuditada, fincaId: Number(val) })}
-                  placeholder="-- Seleccionar Finca --"
+                  placeholder="-- BUSCAR Y SELECCIONAR FINCA --"
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Litros Recogidos *</label>
-                <input
-                  type="number"
-                  value={formFincaAuditada.litros || ''}
-                  onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, litros: Number(e.target.value) })}
-                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 items-end">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tipo de Leche</label>
-                  <select
-                    value={formFincaAuditada.tipoLeche}
-                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: e.target.value })}
-                    className="form-select w-full h-9 rounded-lg border border-slate-300 px-2 bg-white"
-                  >
-                    <option value="VACA">🥛 Vaca</option>
-                    <option value="BUFALA">🐃 Búfala</option>
-                  </select>
+                  <label className="block font-bold text-slate-700 mb-1">Litros Recolectados *</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={formFincaAuditada.litros || ''}
+                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, litros: Number(e.target.value) })}
+                    placeholder="Ej: 500"
+                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-extrabold text-sm"
+                    required
+                  />
                 </div>
 
-                <div className="flex items-center gap-2 pt-6">
-                  <input
-                    type="checkbox"
-                    checked={formFincaAuditada.esAcida}
-                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, esAcida: e.target.checked })}
-                    id="chkEsAcida"
-                    className="rounded text-amber-600"
-                  />
-                  <label htmlFor="chkEsAcida" className="font-bold text-slate-700 cursor-pointer">
-                    ¿Es Leche Ácida?
+                <div>
+                  <label className="h-10 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-bold flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formFincaAuditada.esAcida}
+                      onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, esAcida: e.target.checked })}
+                      className="w-4 h-4 rounded text-amber-600"
+                    />
+                    ¿Leche Ácida?
                   </label>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tipo de Leche *</label>
+                  <select
+                    value={formFincaAuditada.tipoLeche}
+                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: e.target.value })}
+                    className="form-select w-full h-10 rounded-lg border border-slate-300 px-3 font-bold bg-white text-slate-800"
+                  >
+                    <option value="VACA">🥛 VACA</option>
+                    <option value="BUFALA">🐃 BÚFALA</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Observación (Opcional)</label>
+                  <input
+                    type="text"
+                    value={formFincaAuditada.observacion}
+                    onChange={(e) => setFormFincaAuditada({ ...formFincaAuditada, observacion: e.target.value })}
+                    placeholder="Nota de la ruta..."
+                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setModalAgregarFincaAuditada(false)}
-                  className="btn btn-outline h-9 px-4 rounded-lg text-slate-600"
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 border border-slate-300 hover:bg-slate-100"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="btn h-9 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg"
+                  className="px-5 py-2 rounded-lg text-xs font-bold text-white shadow-xs"
+                  style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}
                 >
-                  Guardar Finca
+                  <i className="fa-solid fa-plus mr-1"></i> Agregar al Viaje
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL EDITAR FINCA AUDITADA (1:1 V2_3_11_26) */}
+      {modalEditarFincaAuditada && ticketTrazabilidad && fincaParaEditar && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden">
+            <div
+              className="px-5 py-4 flex items-center justify-between border-b border-white/10"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-sky-400 shrink-0"
+                  style={{
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    border: '1.5px solid rgba(59, 130, 246, 0.4)',
+                  }}
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                  <h3 className="m-0 text-base font-extrabold text-white">Modificar Finca en Control</h3>
+                  <p className="m-0 text-xs text-slate-400 font-medium">
+                    Ajuste de recolección con registro obligatorio en bitácora
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEditarFincaAuditada(false)}
+                className="text-slate-300 hover:text-white text-xl cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarEditarFinca} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Finca / Ganadero *</label>
+                <SearchableSelect
+                  options={fincas.map((f) => ({
+                    value: f.id,
+                    label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
+                  }))}
+                  value={formEditarFinca.fincaId}
+                  onChange={(val) => setFormEditarFinca({ ...formEditarFinca, fincaId: Number(val) })}
+                  placeholder="-- BUSCAR FINCA --"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 items-end">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Litros Recolectados *</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={formEditarFinca.litros || ''}
+                    onChange={(e) => setFormEditarFinca({ ...formEditarFinca, litros: Number(e.target.value) })}
+                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-extrabold text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="h-10 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-bold flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formEditarFinca.esAcida}
+                      onChange={(e) => setFormEditarFinca({ ...formEditarFinca, esAcida: e.target.checked })}
+                      className="w-4 h-4 rounded text-amber-600"
+                    />
+                    ¿Leche Ácida?
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tipo de Leche *</label>
+                  <select
+                    value={formEditarFinca.tipoLeche}
+                    onChange={(e) => setFormEditarFinca({ ...formEditarFinca, tipoLeche: e.target.value })}
+                    className="form-select w-full h-10 rounded-lg border border-slate-300 px-3 font-bold bg-white text-slate-800"
+                  >
+                    <option value="VACA">🥛 VACA</option>
+                    <option value="BUFALA">🐃 BÚFALA</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Observación</label>
+                  <input
+                    type="text"
+                    value={formEditarFinca.observacion}
+                    onChange={(e) => setFormEditarFinca({ ...formEditarFinca, observacion: e.target.value })}
+                    placeholder="Nota de la ruta..."
+                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-amber-800 mb-1">
+                  Motivo de la Modificación (Obligatorio para Auditoría) *
+                </label>
+                <textarea
+                  rows={2}
+                  value={formEditarFinca.motivo}
+                  onChange={(e) => setFormEditarFinca({ ...formEditarFinca, motivo: e.target.value })}
+                  placeholder="Explique detalladamente la razón contable/operativa del ajuste..."
+                  className="form-textarea w-full rounded-lg border border-amber-300 bg-amber-50/50 p-2 text-xs font-medium"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setModalEditarFincaAuditada(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 border border-slate-300 hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg text-xs font-bold text-white shadow-xs"
+                  style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}
+                >
+                  <i className="fa-solid fa-check mr-1"></i> Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 9. MODAL EDITAR ENTREGA AUDITADA (1:1 V2_3_11_26) */}
+      {modalEditarEntregaAuditada && ticketTrazabilidad && entregaParaEditar && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden">
+            <div
+              className="px-5 py-4 flex items-center justify-between border-b border-white/10"
+              style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-amber-400 shrink-0"
+                  style={{
+                    background: 'rgba(217, 119, 6, 0.2)',
+                    border: '1.5px solid rgba(217, 119, 6, 0.4)',
+                  }}
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                  <h3 className="m-0 text-base font-extrabold text-white">Modificar Entrega en Planta</h3>
+                  <p className="m-0 text-xs text-slate-400 font-medium">
+                    Ajuste de descarga con registro obligatorio en bitácora
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEditarEntregaAuditada(false)}
+                className="text-slate-300 hover:text-white text-xl cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarEditarEntrega} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Compañía / Planta Destino *</label>
+                <SearchableSelect
+                  options={companias.map((c) => ({
+                    value: c.id,
+                    label: `${c.nombre} (${c.encargado || 'Planta'})`,
+                  }))}
+                  value={formEditarEntrega.companiaId}
+                  onChange={(val) => setFormEditarEntrega({ ...formEditarEntrega, companiaId: Number(val) })}
+                  placeholder="-- BUSCAR COMPAÑÍA --"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Litros Entregados / Descargados *</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={formEditarEntrega.litros || ''}
+                  onChange={(e) => setFormEditarEntrega({ ...formEditarEntrega, litros: Number(e.target.value) })}
+                  className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-extrabold text-sm"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Observación</label>
+                <input
+                  type="text"
+                  value={formEditarEntrega.observacion}
+                  onChange={(e) => setFormEditarEntrega({ ...formEditarEntrega, observacion: e.target.value })}
+                  placeholder="Detalles de la entrega / ticket..."
+                  className="form-input w-full h-10 rounded-lg border border-slate-300 px-3"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-amber-800 mb-1">
+                  Motivo de la Modificación (Obligatorio para Auditoría) *
+                </label>
+                <textarea
+                  rows={2}
+                  value={formEditarEntrega.motivo}
+                  onChange={(e) => setFormEditarEntrega({ ...formEditarEntrega, motivo: e.target.value })}
+                  placeholder="Explique detalladamente la razón contable/operativa del ajuste..."
+                  className="form-textarea w-full rounded-lg border border-amber-300 bg-amber-50/50 p-2 text-xs font-medium"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setModalEditarEntregaAuditada(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 border border-slate-300 hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg text-xs font-bold text-white shadow-xs"
+                  style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' }}
+                >
+                  <i className="fa-solid fa-check mr-1"></i> Guardar Cambios
                 </button>
               </div>
             </form>
