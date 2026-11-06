@@ -103,12 +103,26 @@ export interface BancoDto {
 
 export interface ChoferDto {
   id: number;
+  username?: string;
   nombreCompleto: string;
-  cedula: string;
+  cedula?: string;
   telefono?: string;
-  camionAsignadoId?: number;
+  email?: string;
+  vehiculoPlaca?: string;
+  camionId?: number;
   camionPlaca?: string;
+  camionModelo?: string;
+  capacidadLitros?: number;
+  tarifaPorLitro?: number;
+  sueldoBase?: number;
+  frecuenciaPago?: string;
+  tipoPago?: string;
+  bancoNombre?: string;
+  numeroCuenta?: string;
+  cedulaPagoMovil?: string;
+  telefonoPagoMovil?: string;
   activo: boolean;
+  createdAt?: string;
 }
 
 export interface CamionDto {

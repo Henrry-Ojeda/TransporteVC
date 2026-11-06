@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { sistemaApi } from '@/api/sistema.api';
+import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
-import type { UsuarioDto, GuardarUsuarioDto } from '@/types';
+import type { UsuarioDto, GuardarUsuarioDto, CamionDto } from '@/types';
 
 export const UsuariosPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -29,6 +30,10 @@ export const UsuariosPage: React.FC = () => {
     cedulaPagoMovil: '',
     telefonoPagoMovil: '',
     tarifaPorLitro: undefined,
+    sueldoBase: undefined,
+    frecuenciaPago: 'Semanal',
+    tipoPago: 'Variado',
+    camionId: undefined,
   };
   const [form, setForm] = useState<GuardarUsuarioDto>(initialForm);
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -44,6 +49,11 @@ export const UsuariosPage: React.FC = () => {
   const { data: usuarios = [], isLoading } = useQuery<UsuarioDto[]>({
     queryKey: ['usuarios'],
     queryFn: () => sistemaApi.getUsuarios(),
+  });
+
+  const { data: camiones = [] } = useQuery<CamionDto[]>({
+    queryKey: ['camiones'],
+    queryFn: () => catalogosApi.getCamiones(false),
   });
 
   const guardarMutation = useMutation({
@@ -118,6 +128,10 @@ export const UsuariosPage: React.FC = () => {
       cedulaPagoMovil: item.cedulaPagoMovil || '',
       telefonoPagoMovil: item.telefonoPagoMovil || '',
       tarifaPorLitro: item.tarifaPorLitro,
+      sueldoBase: item.sueldoBase,
+      frecuenciaPago: item.frecuenciaPago || 'Semanal',
+      tipoPago: item.tipoPago || 'Variado',
+      camionId: item.camionId || (item.camion?.id ?? undefined),
     });
     setPasswordConfirm('');
     setShowPass1(false);
@@ -684,7 +698,7 @@ export const UsuariosPage: React.FC = () => {
                       <option value="SUPERVISOR">SUPERVISOR (Supervisor)</option>
                       <option value="OPERADOR">OPERADOR (Operador)</option>
                       <option value="FINANZAS">FINANZAS (Finanzas)</option>
-                      <option value="CHOFER">CHOFER (Conductor)</option>
+                      <option value="CHOFER">CONDUCTOR / CHOFER</option>
                       <option value="RECEPTOR">RECEPTOR (Operador Planta)</option>
                       <option value="MATERA">MATERA (Matera / Encargado Finca)</option>
                     </select>
@@ -866,6 +880,128 @@ export const UsuariosPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* SUBPANEL CONDUCTOR / CHOFER (SI EL ROL ES CHOFER) */}
+                {form.rol === 'CHOFER' && (
+                  <div
+                    style={{
+                      background: '#eff6ff',
+                      border: '1.5px solid #bfdbfe',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <div style={{ marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fa-solid fa-truck" style={{ color: '#2563eb' }}></i>
+                        Configuración de Conductor / Cisterna y Régimen de Liquidación
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginBottom: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', display: 'block', marginBottom: '4px' }}>
+                          Camión / Cisterna Asignada
+                        </label>
+                        <select
+                          value={form.camionId || ''}
+                          onChange={(e) => setForm({ ...form, camionId: e.target.value ? Number(e.target.value) : undefined })}
+                          style={{
+                            height: '38px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            border: '1.5px solid #93c5fd',
+                            borderRadius: '8px',
+                            background: '#ffffff',
+                            width: '100%',
+                            padding: '0 10px',
+                          }}
+                        >
+                          <option value="">-- Sin Camión Asignado --</option>
+                          {camiones.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.placa} ({c.marca || ''} {c.modelo || ''}) - {c.capacidadLitros?.toLocaleString()} L
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', display: 'block', marginBottom: '4px' }}>
+                          Tarifa por Litro ($/Lt)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          value={form.tarifaPorLitro ?? ''}
+                          onChange={(e) => setForm({ ...form, tarifaPorLitro: e.target.value ? Number(e.target.value) : undefined })}
+                          placeholder="Ej: 0.0050"
+                          style={{
+                            height: '38px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            border: '1.5px solid #93c5fd',
+                            borderRadius: '8px',
+                            background: '#ffffff',
+                            width: '100%',
+                            padding: '0 10px',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', display: 'block', marginBottom: '4px' }}>
+                          Sueldo Base ($ USD)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={form.sueldoBase ?? ''}
+                          onChange={(e) => setForm({ ...form, sueldoBase: e.target.value ? Number(e.target.value) : undefined })}
+                          placeholder="0.00"
+                          style={{
+                            height: '38px',
+                            fontSize: '13px',
+                            border: '1.5px solid #93c5fd',
+                            borderRadius: '8px',
+                            background: '#ffffff',
+                            width: '100%',
+                            padding: '0 10px',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', display: 'block', marginBottom: '4px' }}>
+                          Frecuencia de Pago
+                        </label>
+                        <select
+                          value={form.frecuenciaPago || 'Semanal'}
+                          onChange={(e) => setForm({ ...form, frecuenciaPago: e.target.value })}
+                          style={{
+                            height: '38px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            border: '1.5px solid #93c5fd',
+                            borderRadius: '8px',
+                            background: '#ffffff',
+                            width: '100%',
+                            padding: '0 10px',
+                          }}
+                        >
+                          <option value="Semanal">Semanal</option>
+                          <option value="Quincenal">Quincenal</option>
+                          <option value="Mensual">Mensual</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* CHECKBOX USUARIO ACTIVO */}
                 <div>

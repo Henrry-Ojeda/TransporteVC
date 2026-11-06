@@ -436,8 +436,23 @@ namespace Transporte.Core.DTOs
         public string Username { get; set; } = string.Empty;
         public string NombreCompleto { get; set; } = string.Empty;
         public string? Cedula { get; set; }
+        public string? Telefono { get; set; }
+        public string? Email { get; set; }
         public string? VehiculoPlaca { get; set; }
+        public int? CamionId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public string? CamionModelo { get; set; }
+        public int? CapacidadLitros { get; set; }
+        public decimal? TarifaPorLitro { get; set; }
+        public decimal? SueldoBase { get; set; }
+        public string? FrecuenciaPago { get; set; }
+        public string? TipoPago { get; set; }
+        public string? BancoNombre { get; set; }
+        public string? NumeroCuenta { get; set; }
+        public string? CedulaPagoMovil { get; set; }
+        public string? TelefonoPagoMovil { get; set; }
         public bool Activo { get; set; } = true;
+        public DateTime? CreatedAt { get; set; }
     }
 
     public class EditarRutaDto

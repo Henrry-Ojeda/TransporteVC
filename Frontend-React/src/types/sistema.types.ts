@@ -25,6 +25,10 @@ export interface GuardarUsuarioDto {
   cedulaPagoMovil?: string;
   telefonoPagoMovil?: string;
   tarifaPorLitro?: number;
+  sueldoBase?: number;
+  frecuenciaPago?: string;
+  tipoPago?: string;
+  camionId?: number;
 }
 
 export interface PermisoModuloDto {

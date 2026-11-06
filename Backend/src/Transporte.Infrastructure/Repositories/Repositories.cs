@@ -2039,7 +2039,34 @@ namespace Transporte.Infrastructure.Repositories
         public async Task<IEnumerable<ChoferDto>> ObtenerChoferesAsync()
         {
             using var connection = new SqlConnection(_connectionString);
-            var sql = "SELECT Id, Username, NombreCompleto, Cedula, VehiculoPlaca, Activo FROM TB_USUARIOS WHERE Rol = 'CHOFER' AND Activo = 1 ORDER BY NombreCompleto";
+            var sql = @"
+                SELECT 
+                    u.Id, 
+                    u.Username, 
+                    u.NombreCompleto, 
+                    u.Cedula, 
+                    u.Telefono,
+                    u.Email,
+                    ISNULL(c.Placa, u.VehiculoPlaca) AS VehiculoPlaca,
+                    c.Id AS CamionId,
+                    c.Placa AS CamionPlaca,
+                    c.MarcaModelo AS CamionModelo,
+                    c.CapacidadLitros,
+                    u.TarifaPorLitro,
+                    u.SueldoBase,
+                    u.FrecuenciaPago,
+                    u.TipoPago,
+                    u.BancoNombre,
+                    u.NumeroCuenta,
+                    u.CedulaPagoMovil,
+                    u.TelefonoPagoMovil,
+                    u.Activo,
+                    u.CreatedAt
+                FROM TB_USUARIOS u
+                LEFT JOIN TB_CAMIONES c ON u.Id = c.UsuarioId AND c.IsDeleted = 0
+                WHERE (UPPER(u.Rol) = 'CHOFER' OR UPPER(u.Rol) = 'CONDUCTOR' OR u.RolId = 4)
+                  AND u.IsDeleted = 0
+                ORDER BY u.Activo DESC, u.NombreCompleto ASC";
             return await connection.QueryAsync<ChoferDto>(sql);
         }
 
