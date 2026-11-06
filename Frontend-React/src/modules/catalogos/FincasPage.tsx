@@ -589,19 +589,20 @@ export const FincasPage: React.FC = () => {
         exportFileName="Catalogo_Fincas_Ganaderas"
       />
 
-      {/* MODAL CREAR / EDITAR FINCA */}
+      {/* MODAL CREAR / EDITAR FINCA (DISEÑO 1:1 CON V2_3_11_26) */}
       {modalAbierto && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 1000,
+            zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(5px)',
             padding: '16px',
+            animation: 'fadeIn 0.2s ease-out',
           }}
         >
           <div
@@ -609,57 +610,71 @@ export const FincasPage: React.FC = () => {
               backgroundColor: '#ffffff',
               borderRadius: '16px',
               width: '100%',
-              maxWidth: '540px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              overflow: 'visible',
-              border: '1px solid #cbd5e1',
+              maxWidth: '560px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '92vh',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
             }}
           >
-            {/* Modal Header */}
+            {/* CABECERA OSCURA 1:1 CON V2_3_11_26 */}
             <div
               style={{
-                padding: '16px 24px',
-                borderBottom: '1px solid #e2e8f0',
+                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                padding: '18px 24px',
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                backgroundColor: '#f8fafc',
-                borderTopLeftRadius: '16px',
-                borderTopRightRadius: '16px',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               }}
             >
-              <h2
-                style={{
-                  fontSize: '17px',
-                  fontWeight: 800,
-                  color: '#0f172a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  margin: 0,
-                }}
-              >
-                <i className="fa-solid fa-seedling" style={{ color: '#10b981' }}></i>
-                {modoEdicionId ? 'Editar Finca Ganadera' : 'Registrar Nueva Finca'}
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '10px',
+                    background: 'rgba(16, 185, 129, 0.25)',
+                    color: '#34d399',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                    border: '1px solid rgba(52, 211, 153, 0.3)',
+                  }}
+                >
+                  <i className="fa-solid fa-cow"></i>
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '-0.01em' }}>
+                    {modoEdicionId ? 'Editar Finca Ganadera' : 'Registrar Nueva Finca'}
+                  </h2>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                    Datos de la finca, productor ganadero, precios de leche y ubicación
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={cerrarModal}
+                title="Cerrar"
                 style={{
+                  background: 'transparent',
                   border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
                   color: '#94a3b8',
-                  fontSize: '18px',
-                  display: 'flex',
-                  alignItems: 'center',
+                  fontSize: '26px',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  padding: '4px 8px',
                 }}
               >
-                <i className="fa-solid fa-xmark"></i>
+                &times;
               </button>
             </div>
 
-            {/* Modal Body */}
+            {/* FORMULARIO BODY CON FONDO #f8fafc Y SCROLL */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -669,41 +684,52 @@ export const FincasPage: React.FC = () => {
                 }
                 guardarMutation.mutate(form);
               }}
-              style={{ padding: '20px 24px' }}
+              style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {/* 1. Código (NO EDITABLE, GENERADO AUTOMÁTICAMENTE) y Nombre de la Finca */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
+              <div
+                style={{
+                  padding: '22px 24px',
+                  background: '#f8fafc',
+                  overflowY: 'auto',
+                  maxHeight: 'calc(92vh - 145px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
+                {/* 1. Código (Auto) y Nombre de la Finca */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '14px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Código <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 500 }}>(Automático)</span>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                      Código <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Auto)</span>
                     </label>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <input
                         type="text"
-                        value={modoEdicionId ? form.codigo || 'S/C' : '(Auto-generado)'}
+                        value={modoEdicionId ? form.codigo || 'S/C' : '(Auto)'}
                         disabled
                         readOnly
-                        className="form-input"
                         style={{
                           width: '100%',
-                          height: '38px',
+                          height: '42px',
                           backgroundColor: '#f1f5f9',
-                          color: '#64748b',
-                          fontWeight: 700,
+                          color: '#0369a1',
+                          fontWeight: 800,
                           cursor: 'not-allowed',
-                          paddingLeft: '30px',
-                          border: '1px solid #cbd5e1',
+                          paddingLeft: '32px',
+                          border: '1.5px dashed #93c5fd',
                           borderRadius: '8px',
+                          fontFamily: 'monospace',
+                          fontSize: '13.5px',
                         }}
                       />
                       <i
                         className="fa-solid fa-lock"
                         style={{
                           position: 'absolute',
-                          left: '10px',
+                          left: '12px',
                           fontSize: '12px',
-                          color: '#94a3b8',
+                          color: '#0284c7',
                           pointerEvents: 'none',
                         }}
                       ></i>
@@ -711,24 +737,33 @@ export const FincasPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Nombre de la Finca *
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                      Nombre de la Finca <span style={{ color: '#e11d48' }}>*</span>
                     </label>
                     <input
                       type="text"
                       value={form.nombre}
                       onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                      className="form-input"
-                      placeholder="Nombre de la hacienda o finca"
-                      style={{ width: '100%', height: '38px' }}
+                      placeholder="Ej: Hacienda El Progreso"
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        fontSize: '13.5px',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        padding: '0 12px',
+                        background: '#ffffff',
+                      }}
                       required
                     />
                   </div>
                 </div>
 
-                {/* 2. Propietario Ganadero con Componente Reutilizable PropietarioSelect */}
+                {/* 2. Propietario Ganadero */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
                     Propietario Ganadero <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>(Busca escribiendo)</span>
                   </label>
                   <PropietarioSelect
@@ -738,19 +773,19 @@ export const FincasPage: React.FC = () => {
                   />
                 </div>
 
-                {/* 3. Consulta de Tipo de Leche y Búfala (SOLO SI EL TENANT TIENE BÚFALA HABILITADA) */}
-                {hasBufala ? (
+                {/* 3. Selector Tipo de Leche (SOLO SI EL TENANT TIENE BÚFALA HABILITADA) */}
+                {hasBufala && (
                   <div
                     style={{
                       padding: '12px 14px',
-                      background: '#f8fafc',
-                      border: '1.5px solid #cbd5e1',
+                      background: '#eff6ff',
+                      border: '1.5px solid #bfdbfe',
                       borderRadius: '10px',
                     }}
                   >
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>
-                      <i className="fa-solid fa-gem" style={{ color: '#0d9488', marginRight: '6px' }}></i>
-                      ¿Qué tipo de leche produce esta finca? *
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>
+                      <i className="fa-solid fa-code-fork" style={{ color: '#2563eb', marginRight: '6px' }}></i>
+                      ¿Qué tipo de leche maneja esta finca? <span style={{ color: '#e11d48' }}>*</span>
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                       <button
@@ -762,7 +797,7 @@ export const FincasPage: React.FC = () => {
                           padding: '8px 10px',
                           borderRadius: '8px',
                           border: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                          background: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '#eff6ff' : '#ffffff',
+                          background: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '#ffffff' : '#f8fafc',
                           color: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '#1d4ed8' : '#64748b',
                           fontWeight: 700,
                           fontSize: '12px',
@@ -771,6 +806,7 @@ export const FincasPage: React.FC = () => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '6px',
+                          boxShadow: form.tipoLeche === 'VACA' && !form.tieneDosTiposLeche ? '0 2px 4px rgba(37,99,235,0.15)' : 'none',
                         }}
                       >
                         🥛 Solo Vaca
@@ -785,7 +821,7 @@ export const FincasPage: React.FC = () => {
                           padding: '8px 10px',
                           borderRadius: '8px',
                           border: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '2px solid #9333ea' : '1px solid #cbd5e1',
-                          background: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '#faf5ff' : '#ffffff',
+                          background: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '#ffffff' : '#f8fafc',
                           color: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '#7e22ce' : '#64748b',
                           fontWeight: 700,
                           fontSize: '12px',
@@ -794,6 +830,7 @@ export const FincasPage: React.FC = () => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '6px',
+                          boxShadow: form.tipoLeche === 'BUFALA' && !form.tieneDosTiposLeche ? '0 2px 4px rgba(147,51,234,0.15)' : 'none',
                         }}
                       >
                         🐃 Solo Búfala
@@ -808,7 +845,7 @@ export const FincasPage: React.FC = () => {
                           padding: '8px 10px',
                           borderRadius: '8px',
                           border: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '2px solid #0d9488' : '1px solid #cbd5e1',
-                          background: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '#f0fdfa' : '#ffffff',
+                          background: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '#ffffff' : '#f8fafc',
                           color: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '#0f766e' : '#64748b',
                           fontWeight: 700,
                           fontSize: '12px',
@@ -817,15 +854,16 @@ export const FincasPage: React.FC = () => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '6px',
+                          boxShadow: form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS' ? '0 2px 4px rgba(13,148,136,0.15)' : 'none',
                         }}
                       >
                         🥛+🐃 Dual (Ambas)
                       </button>
                     </div>
                   </div>
-                ) : null}
+                )}
 
-                {/* 4. Grid de Precios adaptado al tipo de leche */}
+                {/* 4. Precios de Leche */}
                 <div
                   style={{
                     display: 'grid',
@@ -836,50 +874,54 @@ export const FincasPage: React.FC = () => {
                     gap: '12px',
                   }}
                 >
-                  {/* Precio Vaca (si es Vaca o Dual, o si no hay módulo búfala) */}
+                  {/* Precio Vaca */}
                   {(!hasBufala || form.tipoLeche !== 'BUFALA' || form.tieneDosTiposLeche) && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
-                        🥛 Precio Leche Vaca ($/Lt) *
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                        🥛 Precio Leche Vaca ($/Lt) <span style={{ color: '#e11d48' }}>*</span>
                       </label>
                       <input
                         type="number"
                         step="0.0001"
                         value={form.precioLitroUSD}
                         onChange={(e) => setForm({ ...form, precioLitroUSD: Number(e.target.value) })}
-                        className="form-input"
                         style={{
                           width: '100%',
-                          height: '38px',
+                          height: '42px',
                           fontWeight: 800,
+                          fontSize: '14.5px',
                           color: '#047857',
                           background: '#f0fdf4',
                           border: '1.5px solid #86efac',
+                          borderRadius: '8px',
+                          padding: '0 12px',
                         }}
                         required
                       />
                     </div>
                   )}
 
-                  {/* Precio Búfala (si es Solo Búfala o Dual) */}
+                  {/* Precio Búfala */}
                   {hasBufala && (form.tipoLeche === 'BUFALA' || form.tieneDosTiposLeche || form.tipoLeche === 'AMBOS') && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#7e22ce', marginBottom: '4px' }}>
-                        🐃 Precio Leche Búfala ($/Lt) *
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#0369a1', marginBottom: '6px' }}>
+                        🐃 Precio Búfala ($/Lt) <span style={{ color: '#e11d48' }}>*</span>
                       </label>
                       <input
                         type="number"
                         step="0.0001"
                         value={form.precioBufalaLitroUSD || 0.40}
                         onChange={(e) => setForm({ ...form, precioBufalaLitroUSD: Number(e.target.value) })}
-                        className="form-input"
                         style={{
                           width: '100%',
-                          height: '38px',
+                          height: '42px',
                           fontWeight: 800,
-                          color: '#7e22ce',
-                          background: '#faf5ff',
-                          border: '1.5px solid #d8b4fe',
+                          fontSize: '14.5px',
+                          color: '#0369a1',
+                          background: '#f0f9ff',
+                          border: '1.5px solid #7dd3fc',
+                          borderRadius: '8px',
+                          padding: '0 12px',
                         }}
                         required
                       />
@@ -888,7 +930,7 @@ export const FincasPage: React.FC = () => {
 
                   {/* Precio Leche Ácida */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#b45309', marginBottom: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#b45309', marginBottom: '6px' }}>
                       <i className="fa-solid fa-flask" style={{ color: '#d97706', marginRight: '4px' }}></i>
                       Precio Leche Ácida ($/Lt)
                     </label>
@@ -897,55 +939,50 @@ export const FincasPage: React.FC = () => {
                       step="0.0001"
                       value={form.precioLitroAcidaUSD || 0.20}
                       onChange={(e) => setForm({ ...form, precioLitroAcidaUSD: Number(e.target.value) })}
-                      className="form-input"
                       placeholder="0.2000"
                       style={{
                         width: '100%',
-                        height: '38px',
+                        height: '42px',
                         fontWeight: 800,
+                        fontSize: '14.5px',
                         color: '#b45309',
                         background: '#fffbeb',
                         border: '1.5px solid #fde68a',
+                        borderRadius: '8px',
+                        padding: '0 12px',
                       }}
                     />
                   </div>
                 </div>
 
-                {/* 5. Teléfono y Ubicación */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Teléfono
-                    </label>
-                    <input
-                      type="text"
-                      value={form.telefono}
-                      onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                      className="form-input"
-                      placeholder="0414-XXXXXXX"
-                      style={{ width: '100%', height: '38px' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Ubicación / Sector
-                    </label>
-                    <input
-                      type="text"
-                      value={form.ubicacion}
-                      onChange={(e) => setForm({ ...form, ubicacion: e.target.value })}
-                      className="form-input"
-                      placeholder="Sector o Carretera"
-                      style={{ width: '100%', height: '38px' }}
-                    />
-                  </div>
+                {/* 5. Ubicación / Sector (TELÉFONO RETIRADO POR SOLICITUD - RESIDE EN PROPIETARIO) */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                    <i className="fa-solid fa-location-dot" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                    Ubicación / Sector Geográfico
+                  </label>
+                  <input
+                    type="text"
+                    value={form.ubicacion}
+                    onChange={(e) => setForm({ ...form, ubicacion: e.target.value })}
+                    placeholder="Ej: Sector La Esperanza, Carretera Principal Km 14"
+                    style={{
+                      width: '100%',
+                      height: '42px',
+                      fontSize: '13.5px',
+                      color: '#0f172a',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '0 12px',
+                      background: '#ffffff',
+                    }}
+                  />
                 </div>
 
-                {/* 6. Estado Activo / Inactivo de la Finca */}
+                {/* 6. Checkbox Finca Activa */}
                 <div
                   style={{
-                    padding: '10px 14px',
+                    padding: '12px 14px',
                     background: form.activo !== false ? '#f0fdf4' : '#fff1f2',
                     border: `1.5px solid ${form.activo !== false ? '#86efac' : '#fecdd3'}`,
                     borderRadius: '8px',
@@ -993,22 +1030,57 @@ export const FincasPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Botones del Modal */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>
+              {/* Botones del Modal Footer */}
+              <div
+                style={{
+                  padding: '16px 24px',
+                  background: '#ffffff',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px',
+                }}
+              >
                 <button
                   type="button"
                   onClick={cerrarModal}
-                  className="btn btn-outline"
-                  style={{ height: '38px' }}
+                  style={{
+                    height: '42px',
+                    padding: '0 20px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
                 >
-                  Cancelar
+                  <i className="fa-solid fa-xmark"></i> Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardarMutation.isPending}
-                  className="btn btn-primary"
-                  style={{ height: '38px' }}
+                  style={{
+                    height: '42px',
+                    padding: '0 22px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(2, 132, 199, 0.3)',
+                  }}
                 >
+                  <i className="fa-solid fa-floppy-disk"></i>
                   {guardarMutation.isPending ? 'Guardando...' : modoEdicionId ? 'Actualizar Finca' : 'Registrar Finca'}
                 </button>
               </div>

@@ -485,7 +485,7 @@ export const UsuariosPage: React.FC = () => {
                       type="text"
                       value={form.nombreUsuario}
                       onChange={(e) => setForm({ ...form, nombreUsuario: e.target.value })}
-                      placeholder="Ej: ana.cabrera"
+                      placeholder="Ej: jperez"
                       required
                       style={{
                         height: '42px',
@@ -509,7 +509,7 @@ export const UsuariosPage: React.FC = () => {
                       type="text"
                       value={form.nombreCompleto}
                       onChange={(e) => setForm({ ...form, nombreCompleto: e.target.value })}
-                      placeholder="Ej: Ana Graciela Cabrera Dias"
+                      placeholder="Ej: Juan Pérez González"
                       required
                       style={{
                         height: '42px',
@@ -698,7 +698,7 @@ export const UsuariosPage: React.FC = () => {
                       type="text"
                       value={form.cedula || ''}
                       onChange={(e) => setForm({ ...form, cedula: e.target.value })}
-                      placeholder="Ej: 1111111"
+                      placeholder="Ej: V-12345678"
                       style={{
                         height: '42px',
                         fontSize: '13.5px',
@@ -724,7 +724,7 @@ export const UsuariosPage: React.FC = () => {
                       type="text"
                       value={form.telefono || ''}
                       onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                      placeholder="Ej: 0412-1234567"
+                      placeholder="Ej: 0414-1234567"
                       style={{
                         height: '42px',
                         fontSize: '13.5px',
@@ -746,7 +746,7 @@ export const UsuariosPage: React.FC = () => {
                       type="email"
                       value={form.email || ''}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="Ej: jose.perez@correo.com"
+                      placeholder="Ej: usuario@empresa.com"
                       style={{
                         height: '42px',
                         fontSize: '13.5px',
@@ -832,7 +832,7 @@ export const UsuariosPage: React.FC = () => {
                         type="text"
                         value={form.cedulaPagoMovil || ''}
                         onChange={(e) => setForm({ ...form, cedulaPagoMovil: e.target.value })}
-                        placeholder="V-18408156"
+                        placeholder="Ej: V-12345678"
                         style={{
                           height: '38px',
                           fontSize: '13px',
@@ -852,7 +852,7 @@ export const UsuariosPage: React.FC = () => {
                         type="text"
                         value={form.telefonoPagoMovil || ''}
                         onChange={(e) => setForm({ ...form, telefonoPagoMovil: e.target.value })}
-                        placeholder="0412-7869868"
+                        placeholder="Ej: 0414-1234567"
                         style={{
                           height: '38px',
                           fontSize: '13px',
