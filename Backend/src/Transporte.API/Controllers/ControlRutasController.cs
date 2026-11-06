@@ -10,6 +10,7 @@ namespace Transporte.API.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Route("api/control-rutas")]
+    [Route("api/controlrutas")]
     public class ControlRutasController : ControllerBase
     {
         private readonly IControlRutasRepository _controlRutasRepository;

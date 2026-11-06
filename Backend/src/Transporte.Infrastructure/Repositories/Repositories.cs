@@ -255,7 +255,7 @@ namespace Transporte.Infrastructure.Repositories
             else
             {
                 var fechaConsulta = (fecha ?? DateTime.Today).Date;
-                whereFilter = "r.Fecha = @fechaConsulta";
+                whereFilter = "(r.Fecha = @fechaConsulta OR (r.ControlRutaId IN (SELECT Id FROM TB_CONTROL_RUTAS WHERE ProcesoActualId = 1 AND Estado NOT IN ('FINALIZADO', 'CERRADO'))))";
                 param = new { fechaConsulta, usuarioId, rol };
             }
 
@@ -7906,7 +7906,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
                 LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
                 LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
-                WHERE CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin
+                WHERE ((CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin)
+                       OR (cr.ProcesoActualId = 1 AND cr.Estado NOT IN ('FINALIZADO', 'CERRADO')))
                   AND (@cicloId IS NULL OR cr.CicloId = @cicloId)
                   AND (@rol IN ('ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE') OR cr.UsuarioId = @usuarioId)
                 ORDER BY cr.Fecha DESC, cr.Id DESC";

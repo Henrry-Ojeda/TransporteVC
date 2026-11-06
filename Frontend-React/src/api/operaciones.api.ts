@@ -89,12 +89,12 @@ export const operacionesApi = {
       observaciones: dto.observaciones || dto.observacion || undefined,
     };
 
-    const res = await apiClient.post('/controlrutas/iniciar-viaje', payload);
+    const res = await apiClient.post('/control-rutas/iniciar-viaje', payload);
     return res.data;
   },
 
   cambiarEstadoProceso: async (id: number, nuevoEstado: string, motivo?: string): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.put(`/controlrutas/${id}/proceso`, { nuevoEstado, motivo });
+    const res = await apiClient.put(`/control-rutas/${id}/proceso`, { nuevoEstado, motivo });
     return res.data;
   },
 
@@ -108,32 +108,32 @@ export const operacionesApi = {
       observacion: dto.observacion || '',
       temperatura: dto.temperatura,
     };
-    const res = await apiClient.post(`/controlrutas/${id}/fincas`, payload);
+    const res = await apiClient.post(`/control-rutas/${id}/fincas`, payload);
     return res.data;
   },
 
   getFincasViaje: async (id: number): Promise<ControlRutaFincaDto[]> => {
-    const res = await apiClient.get<ControlRutaFincaDto[]>(`/controlrutas/${id}/fincas`);
+    const res = await apiClient.get<ControlRutaFincaDto[]>(`/control-rutas/${id}/fincas`);
     return Array.isArray(res.data) ? res.data : [];
   },
 
   entregarDirectoCompania: async (id: number, dto: { companiaId: number; litrosEntregados: number; ticketReceptoria?: string; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/controlrutas/${id}/entregar-compania-directo`, dto);
+    const res = await apiClient.post(`/control-rutas/${id}/entregar-compania-directo`, dto);
     return res.data;
   },
 
   getEntregasViaje: async (id: number): Promise<ControlRutaEntregaDto[]> => {
-    const res = await apiClient.get<ControlRutaEntregaDto[]>(`/controlrutas/${id}/entregas`);
+    const res = await apiClient.get<ControlRutaEntregaDto[]>(`/control-rutas/${id}/entregas`);
     return Array.isArray(res.data) ? res.data : [];
   },
 
   cerrarViaje: async (id: number, dto: { odometroFinalKm?: number; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/controlrutas/${id}/cerrar-viaje`, dto);
+    const res = await apiClient.post(`/control-rutas/${id}/cerrar-viaje`, dto);
     return res.data;
   },
 
   eliminarControl: async (id: number): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.delete(`/controlrutas/${id}`);
+    const res = await apiClient.delete(`/control-rutas/${id}`);
     return res.data;
   },
 
@@ -282,17 +282,17 @@ export const operacionesApi = {
 
   // GESTIÓN OPERATIVA DE VIAJES / TICKETS
   enviarAReceptoria: async (id: number, observacion?: string): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/controlrutas/${id}/enviar-receptoria`, { observacion });
+    const res = await apiClient.post(`/control-rutas/${id}/enviar-receptoria`, { observacion });
     return res.data;
   },
 
   enviarACompania: async (id: number, dto: { companiaId?: number; choferId?: number; litrosDespachados?: number; observacion?: string; destinos?: { companiaId: number; litros: number; tipoLeche: string }[] }): Promise<{ success: boolean; message: string; controlCompaniaId?: number }> => {
-    const res = await apiClient.post(`/controlrutas/${id}/enviar-compania`, dto);
+    const res = await apiClient.post(`/control-rutas/${id}/enviar-compania`, dto);
     return res.data;
   },
 
   traspasarLeche: async (id: number, dto: { ticketDestinoId?: number; choferDestinoId?: number; fechaDestino?: string; litrosTraspaso?: number; observacion?: string }): Promise<any> => {
-    const res = await apiClient.post(`/controlrutas/${id}/traspasar-leche`, dto);
+    const res = await apiClient.post(`/control-rutas/${id}/traspasar-leche`, dto);
     return res.data;
   },
 
