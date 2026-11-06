@@ -14,9 +14,9 @@ export const apiClient: AxiosInstance = axios.create({
 // Interceptor de Solicitudes: Adjuntar Token JWT y Header Multi-Inquilino
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    const token = typeof window !== 'undefined' ? (localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem('token')) : null;
     const url = config.url || '';
-    const isPublic = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/public');
+    const isPublic = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/vincular-dispositivo') || url.includes('/public');
     const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
 
     // Si no hay token de sesión (o estamos en la pantalla de Login) y no es endpoint público,

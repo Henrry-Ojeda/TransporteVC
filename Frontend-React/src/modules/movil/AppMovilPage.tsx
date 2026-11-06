@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { AUTH_TOKEN_KEY } from '@/api/client';
 import { authApi } from '@/api/auth.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
@@ -197,6 +198,7 @@ export const AppMovilPage: React.FC = () => {
       });
 
       // Guardar token en localStorage para que apiClient lo use
+      localStorage.setItem(AUTH_TOKEN_KEY, res.token);
       localStorage.setItem('token', res.token);
       localStorage.setItem('auth-storage', JSON.stringify({
         state: {
@@ -253,7 +255,9 @@ export const AppMovilPage: React.FC = () => {
   const handleDesvincular = () => {
     if (window.confirm('¿Seguro que deseas desvincular este dispositivo? Deberás solicitar un nuevo código a tu administrador para volver a ingresar.')) {
       localStorage.removeItem('movil_device_info');
+      localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem('token');
+      localStorage.removeItem('auth-storage');
       setDispositivo(null);
       toast.info('Dispositivo desvinculado correctamente');
     }
