@@ -717,9 +717,51 @@ export const RecoleccionRutasPage: React.FC = () => {
                         <span>{placaTexto}</span>
                       </div>
 
-                      <div style={{ fontSize: '12.5px', color: '#475569', marginBottom: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ fontSize: '12.5px', color: '#475569', marginBottom: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <i className="fa-regular fa-user" style={{ color: '#64748b' }}></i>
                         <span>Chofer: <strong style={{ color: '#1e293b' }}>{choferTexto}</strong></span>
+                      </div>
+
+                      <div style={{ marginBottom: '12px' }}>
+                        {v.rutaLogisticaNombre || v.rutaNombre ? (
+                          <span
+                            className="badge"
+                            style={{
+                              background: '#faf5ff',
+                              color: '#7e22ce',
+                              border: '1px solid #e9d5ff',
+                              fontWeight: 700,
+                              fontSize: '11px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <i className="fa-solid fa-route"></i>
+                            Ruta: {v.rutaLogisticaNombre || v.rutaNombre}
+                          </span>
+                        ) : (
+                          <span
+                            className="badge"
+                            style={{
+                              background: '#f8fafc',
+                              color: '#64748b',
+                              border: '1px solid #e2e8f0',
+                              fontWeight: 600,
+                              fontSize: '11px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <i className="fa-solid fa-location-dot text-slate-400"></i>
+                            Sin Ruta (Modo Libre)
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
@@ -1086,6 +1128,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   </label>
                   <FincaSelect
                     value={formFinca.fincaId || undefined}
+                    rutaLogisticaId={viajeActivo?.rutaLogisticaId}
                     onChange={(val) => {
                       const fId = Number(val || 0);
                       const matched = fincas.find((f) => f.id === fId);
@@ -1196,6 +1239,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   </label>
                   <FincaSelect
                     value={formEditar.fincaId}
+                    rutaLogisticaId={viajeActivo?.rutaLogisticaId}
                     onChange={(val) => setFormEditar({ ...formEditar, fincaId: Number(val || 0) })}
                     placeholder="-- Seleccionar finca --"
                   />

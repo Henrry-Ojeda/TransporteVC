@@ -2579,10 +2579,26 @@ export const ViajesTicketsPage: React.FC = () => {
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Finca / Ganadero *</label>
                 <SearchableSelect
-                  options={fincas.map((f) => ({
-                    value: f.id,
-                    label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
-                  }))}
+                  options={[...fincas]
+                    .sort((a, b) => {
+                      const rId = ticketTrazabilidad?.rutaLogisticaId;
+                      if (rId && rId > 0) {
+                        const aEn = a.rutaId === rId;
+                        const bEn = b.rutaId === rId;
+                        if (aEn && !bEn) return -1;
+                        if (!aEn && bEn) return 1;
+                      }
+                      return a.nombre.localeCompare(b.nombre);
+                    })
+                    .map((f) => {
+                      const esDeRuta = ticketTrazabilidad?.rutaLogisticaId && f.rutaId === ticketTrazabilidad.rutaLogisticaId;
+                      return {
+                        value: f.id,
+                        label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
+                        subLabel: f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined,
+                        badge: esDeRuta ? '⭐ En esta ruta' : undefined,
+                      };
+                    })}
                   value={formFincaAuditada.fincaId}
                   onChange={(val) => setFormFincaAuditada({ ...formFincaAuditada, fincaId: Number(val) })}
                   placeholder="-- BUSCAR Y SELECCIONAR FINCA --"
@@ -2701,10 +2717,26 @@ export const ViajesTicketsPage: React.FC = () => {
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Finca / Ganadero *</label>
                 <SearchableSelect
-                  options={fincas.map((f) => ({
-                    value: f.id,
-                    label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
-                  }))}
+                  options={[...fincas]
+                    .sort((a, b) => {
+                      const rId = ticketTrazabilidad?.rutaLogisticaId;
+                      if (rId && rId > 0) {
+                        const aEn = a.rutaId === rId;
+                        const bEn = b.rutaId === rId;
+                        if (aEn && !bEn) return -1;
+                        if (!aEn && bEn) return 1;
+                      }
+                      return a.nombre.localeCompare(b.nombre);
+                    })
+                    .map((f) => {
+                      const esDeRuta = ticketTrazabilidad?.rutaLogisticaId && f.rutaId === ticketTrazabilidad.rutaLogisticaId;
+                      return {
+                        value: f.id,
+                        label: `${f.nombre} (${f.propietarioNombre || 'Productor'})`,
+                        subLabel: f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined,
+                        badge: esDeRuta ? '⭐ En esta ruta' : undefined,
+                      };
+                    })}
                   value={formEditarFinca.fincaId}
                   onChange={(val) => setFormEditarFinca({ ...formEditarFinca, fincaId: Number(val) })}
                   placeholder="-- BUSCAR FINCA --"

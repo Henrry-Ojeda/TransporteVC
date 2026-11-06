@@ -7,6 +7,7 @@ import type { FincaDto } from '@/types';
 interface FincaSelectProps {
   value: number | string | undefined | null;
   onChange: (value: number, finca?: FincaDto) => void;
+  rutaLogisticaId?: number | null;
   placeholder?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
@@ -19,6 +20,7 @@ interface FincaSelectProps {
 export const FincaSelect: React.FC<FincaSelectProps> = ({
   value,
   onChange,
+  rutaLogisticaId,
   placeholder = '-- Seleccionar Finca Ganadera --',
   searchPlaceholder = 'Buscar finca por nombre o productor...',
   disabled = false,
@@ -34,13 +36,26 @@ export const FincaSelect: React.FC<FincaSelectProps> = ({
   });
 
   const options: SelectOption[] = useMemo(() => {
-    return fincas.map((f) => ({
-      value: f.id,
-      label: f.nombre,
-      subLabel: f.propietarioNombre ? `Ganadero: ${f.propietarioNombre}` : undefined,
-      badge: f.tipoLeche === 'BUFALA' ? '🐃 BÚFALA' : '🥛 VACA',
-    }));
-  }, [fincas]);
+    const sorted = [...fincas].sort((a, b) => {
+      if (rutaLogisticaId && rutaLogisticaId > 0) {
+        const aEnRuta = a.rutaId === rutaLogisticaId;
+        const bEnRuta = b.rutaId === rutaLogisticaId;
+        if (aEnRuta && !bEnRuta) return -1;
+        if (!aEnRuta && bEnRuta) return 1;
+      }
+      return a.nombre.localeCompare(b.nombre);
+    });
+
+    return sorted.map((f) => {
+      const esDeRutaActual = rutaLogisticaId && rutaLogisticaId > 0 && f.rutaId === rutaLogisticaId;
+      return {
+        value: f.id,
+        label: f.nombre,
+        subLabel: f.propietarioNombre ? `Ganadero: ${f.propietarioNombre}` : (f.rutaNombre ? `Ruta: ${f.rutaNombre}` : undefined),
+        badge: esDeRutaActual ? '⭐ En esta ruta' : (f.tipoLeche === 'BUFALA' ? '🐃 BÚFALA' : '🥛 VACA'),
+      };
+    });
+  }, [fincas, rutaLogisticaId]);
 
   const handleChange = (val: string | number) => {
     const num = Number(val) || 0;
