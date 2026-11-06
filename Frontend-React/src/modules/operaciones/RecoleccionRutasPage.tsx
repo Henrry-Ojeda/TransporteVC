@@ -419,16 +419,43 @@ export const RecoleccionRutasPage: React.FC = () => {
   const viajesFiltrados = useMemo(() => {
     let list = viajes;
     if (filtroEstadoTicket === 'activos') {
-      list = list.filter(
-        (v) =>
-          v.estado !== 'FINALIZADO' &&
-          v.estado !== 'CERRADO' &&
-          v.estadoProceso !== 'CERRADO' &&
+      list = list.filter((v) => {
+        const est = (v.estado || '').toUpperCase();
+        const estP = (v.estadoProceso || '').toUpperCase();
+        return (
+          est !== 'FINALIZADO' &&
+          est !== 'CERRADO' &&
+          est !== 'ENTREGADO' &&
+          est !== 'AUDITADO' &&
+          est !== 'CANCELADO' &&
+          estP !== 'CERRADO' &&
+          estP !== 'FINALIZADO' &&
           v.procesoActualId !== 4
-      );
+        );
+      });
     }
     return list;
   }, [viajes, filtroEstadoTicket]);
+
+  const despachosFiltrados = useMemo(() => {
+    let list = despachos;
+    if (filtroEstadoTicket === 'activos') {
+      list = list.filter((d) => {
+        const est = (d.estado || '').toUpperCase();
+        const estP = ((d as any).estadoProceso || '').toUpperCase();
+        return (
+          est !== 'FINALIZADO' &&
+          est !== 'CERRADO' &&
+          est !== 'ENTREGADO' &&
+          est !== 'AUDITADO' &&
+          est !== 'CANCELADO' &&
+          estP !== 'CERRADO' &&
+          estP !== 'FINALIZADO'
+        );
+      });
+    }
+    return list;
+  }, [despachos, filtroEstadoTicket]);
 
   const ticketsCombinados = useMemo(() => {
     const normRutas = viajesFiltrados.map((v) => ({
@@ -444,7 +471,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       _conductor: v.choferNombre || v.nombreConductor || 'Sin asignar',
     }));
 
-    const normDespachos = despachos.map((d) => ({
+    const normDespachos = despachosFiltrados.map((d) => ({
       id: d.id,
       codigoTicket: String(d.id),
       fecha: d.fecha,
@@ -483,7 +510,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     }
 
     return combinados;
-  }, [viajesFiltrados, despachos, filtroOrigenTicket, busquedaTexto]);
+  }, [viajesFiltrados, despachosFiltrados, filtroOrigenTicket, busquedaTexto]);
 
   // Lista filtrada para Detalle por Fincas (Filtros por Chofer y Finca)
   const recoleccionesFiltradas = useMemo(() => {
@@ -1079,7 +1106,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                 }}
               >
                 <i className="fa-solid fa-building-wheat" style={{ color: '#9333ea' }}></i>
-                Receptorías / Salidas ({despachos.length})
+                Receptorías / Salidas ({despachosFiltrados.length})
               </button>
             </div>
 
