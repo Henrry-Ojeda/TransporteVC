@@ -18,21 +18,26 @@ interface NavSubItem {
 interface NavGroupDef {
   id: string;
   title: string;
+  shortTitle: string;
   iconClass: string;
   groupIconClass: string;
+  color: string;
   items: NavSubItem[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { canAccessTab } = useAuthStore();
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
 
   const groups: NavGroupDef[] = [
     {
       id: 'grp-operaciones',
       title: 'Operaciones',
+      shortTitle: 'OPERACIONES',
       iconClass: 'fa-solid fa-bolt-lightning',
       groupIconClass: 'icon-op',
+      color: '#4f46e5',
       items: [
         { name: 'Principal', href: '/dashboard', tabId: 'dashboard', icon: 'fa-solid fa-chart-pie' },
         { name: 'Recolección en Ruta', href: '/rutas', tabId: 'rutas', icon: 'fa-solid fa-route' },
@@ -48,8 +53,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     {
       id: 'grp-catalogos',
       title: 'Catálogos & Flota',
+      shortTitle: 'CATÁLOGOS',
       iconClass: 'fa-solid fa-folder-tree',
       groupIconClass: 'icon-cat',
+      color: '#16a34a',
       items: [
         { name: 'Fincas', href: '/fincas', tabId: 'fincas', icon: 'fa-solid fa-seedling' },
         { name: 'Propietarios', href: '/propietarios', tabId: 'propietarios', icon: 'fa-solid fa-users' },
@@ -63,8 +70,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     {
       id: 'grp-flota',
       title: 'Flota & Mantenimiento',
+      shortTitle: 'FLOTA',
       iconClass: 'fa-solid fa-screwdriver-wrench',
       groupIconClass: 'icon-op',
+      color: '#d97706',
       items: [
         { name: 'Gestión de Combustible', href: '/combustible', tabId: 'combustible', icon: 'fa-solid fa-gas-pump', color: '#ef4444' },
         { name: 'Historial & Mantenimiento', href: '/mantenimiento', tabId: 'historial-camiones', icon: 'fa-solid fa-wrench', color: '#f59e0b' },
@@ -74,8 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     {
       id: 'grp-finanzas',
       title: 'Liquidación',
+      shortTitle: 'LIQUIDACIÓN',
       iconClass: 'fa-solid fa-calculator',
       groupIconClass: 'icon-fin',
+      color: '#9333ea',
       items: [
         { name: 'Semanas Operativas', href: '/semanas', tabId: 'semanas', icon: 'fa-regular fa-calendar-check' },
         { name: 'Liquidación Fincas', href: '/liquidaciones', tabId: 'liquidacion', icon: 'fa-solid fa-file-invoice-dollar' },
@@ -87,8 +98,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     {
       id: 'grp-adelantos',
       title: 'Adelantos',
+      shortTitle: 'ADELANTOS',
       iconClass: 'fa-solid fa-hand-holding-dollar',
       groupIconClass: 'icon-ade',
+      color: '#ea580c',
       items: [
         { name: 'Adelantos a Fincas', href: '/adelantos-fincas', tabId: 'adelantos-fincas', icon: 'fa-solid fa-leaf' },
         { name: 'Adelantos Personal & Chofer', href: '/adelantos-personal', tabId: 'adelantos-usuarios', icon: 'fa-solid fa-hand-holding-dollar', color: '#fbbf24' },
@@ -101,8 +114,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     {
       id: 'grp-reportes',
       title: 'Reportes',
+      shortTitle: 'REPORTES',
       iconClass: 'fa-solid fa-chart-line',
       groupIconClass: 'icon-rep',
+      color: '#0284c7',
       items: [
         { name: 'Reportes Generales', href: '/reportes', tabId: 'reportes', icon: 'fa-solid fa-square-poll-vertical' },
         { name: 'Historial Tasas BCV', href: '/historial-bcv', tabId: 'historial-bcv', icon: 'fa-solid fa-coins' },
@@ -111,8 +126,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     {
       id: 'grp-sistema',
       title: 'Sistema',
+      shortTitle: 'SISTEMA',
       iconClass: 'fa-solid fa-gears',
       groupIconClass: 'icon-sis',
+      color: '#64748b',
       items: [
         { name: 'Usuarios & Roles', href: '/usuarios', tabId: 'usuarios', icon: 'fa-solid fa-user-gear' },
         { name: 'Módulos & Permisos', href: '/permisos', tabId: 'permisos', icon: 'fa-solid fa-shield-halved', color: '#38bdf8' },
@@ -151,91 +168,156 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       className={`sidebar ${isOpen ? 'mobile-open' : ''} ${isSidebarCollapsed ? 'is-collapsed' : 'hover-accordion-sidebar'}`}
       id="mainSidebar"
       style={{
-        width: isSidebarCollapsed ? '68px' : '230px',
-        minWidth: isSidebarCollapsed ? '68px' : '230px',
-        maxWidth: isSidebarCollapsed ? '68px' : '230px',
+        width: isSidebarCollapsed ? '78px' : '250px',
+        minWidth: isSidebarCollapsed ? '78px' : '250px',
+        maxWidth: isSidebarCollapsed ? '78px' : '250px',
+        padding: isSidebarCollapsed ? '12px 6px' : '16px 12px 12px 12px',
         flexShrink: 0,
         height: '100%',
-        overflowY: 'auto',
-        transition: 'width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease',
+        overflowY: isSidebarCollapsed ? 'visible' : 'auto',
+        overflowX: 'visible',
+        transition: 'width 0.25s cubic-bezier(0.25, 1, 0.5, 1), min-width 0.25s, max-width 0.25s',
       }}
     >
       {/* Botón para achicar/expandir menú lateral */}
-      <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'flex-end', padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <button
-          type="button"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          title={isSidebarCollapsed ? 'Expandir menú lateral' : 'Achicar menú lateral'}
-          style={{
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: '#94a3b8',
-            borderRadius: '6px',
-            padding: isSidebarCollapsed ? '6px' : '4px 8px',
-            cursor: 'pointer',
-            fontSize: '11px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}
-        >
-          <i className={`fa-solid ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
-          {!isSidebarCollapsed && <span style={{ fontSize: '10.5px', fontWeight: 600 }}>Achicar</span>}
-        </button>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: isSidebarCollapsed ? 'center' : 'flex-end',
+          padding: isSidebarCollapsed ? '2px 0 10px 0' : '4px 6px 10px 6px',
+          borderBottom: '1px solid #f1f5f9',
+          marginBottom: '8px',
+        }}
+      >
+        {isSidebarCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(false)}
+            title="Expandir menú lateral"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/90 text-slate-500 hover:text-blue-600 transition-all shadow-xs cursor-pointer"
+          >
+            <i className="fa-solid fa-chevron-right text-xs"></i>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(true)}
+            title="Achicar menú lateral"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 hover:text-slate-900 transition-all text-xs font-semibold shadow-xs cursor-pointer"
+          >
+            <i className="fa-solid fa-chevron-left text-[10px] text-slate-400"></i>
+            <span>Achicar</span>
+          </button>
+        )}
       </div>
 
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" style={{ overflow: 'visible' }}>
         {isSidebarCollapsed ? (
-          /* MODO ACHICADO (68px): Se muestran ÚNICAMENTE las categorías ("OPERACIONES", "CATÁLOGOS", "FLOTA", etc.) */
-          <div className="flex flex-col items-center py-2 space-y-2">
-            {groups.map((grp) => {
+          /* MODO ACHICADO (78px): Ícono con categoría elegante + Menú flotante al pasar el mouse */
+          <div className="flex flex-col items-center space-y-1.5" style={{ position: 'relative' }}>
+            {groups.map((grp, idx) => {
               const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
               if (visibleItems.length === 0) return null;
 
               const active = isGroupActive(grp);
-              // Primer item accesible para navegación directa
               const firstItem = visibleItems[0];
-
-              // Nombre corto para visualización compacta
-              const shortName = grp.title
-                .replace('& Flota', '')
-                .replace('& Mantenimiento', '')
-                .replace('& Pagos', '')
-                .trim()
-                .toUpperCase();
+              const isHovered = hoveredGroupId === grp.id;
+              // Para los últimos grupos, alinear el popover hacia arriba para no salirse de pantalla
+              const alignBottom = idx >= 4;
 
               return (
-                <NavLink
+                <div
                   key={grp.id}
-                  to={firstItem?.href || '#'}
-                  onClick={() => {
-                    if (isOpen) onClose();
-                  }}
-                  title={`${grp.title} (Clic para abrir ${firstItem?.name})`}
-                  className={`w-14 py-2 px-1 my-0.5 flex flex-col items-center justify-center rounded-xl transition-all duration-150 ${
-                    active
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                  style={{ textDecoration: 'none' }}
+                  className="relative group"
+                  onMouseEnter={() => setHoveredGroupId(grp.id)}
+                  onMouseLeave={() => setHoveredGroupId(null)}
                 >
-                  <i className={`${grp.iconClass} text-[17px] mb-1`} style={active ? { color: '#ffffff' } : undefined}></i>
-                  <span
-                    style={{
-                      fontSize: '8px',
-                      fontWeight: 800,
-                      lineHeight: '10px',
-                      textAlign: 'center',
-                      letterSpacing: '0.04em',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: '56px',
+                  <NavLink
+                    to={firstItem?.href || '#'}
+                    onClick={() => {
+                      setHoveredGroupId(null);
+                      if (isOpen) onClose();
                     }}
+                    title={`${grp.title} (Clic para ir a ${firstItem?.name})`}
+                    className={`w-[66px] h-[52px] flex flex-col items-center justify-center rounded-xl transition-all duration-200 cursor-pointer ${
+                      active
+                        ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-500/25 border border-blue-500'
+                        : 'bg-slate-50/90 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+                    }`}
+                    style={{ textDecoration: 'none' }}
                   >
-                    {shortName}
-                  </span>
-                </NavLink>
+                    <i
+                      className={`${grp.iconClass} text-[16px] mb-1`}
+                      style={{
+                        color: active ? '#ffffff' : grp.color,
+                        filter: active ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : 'none',
+                      }}
+                    ></i>
+                    <span
+                      style={{
+                        fontSize: '7.5px',
+                        fontWeight: active ? 800 : 700,
+                        lineHeight: '9px',
+                        textAlign: 'center',
+                        letterSpacing: '0.015em',
+                        whiteSpace: 'nowrap',
+                        color: active ? '#ffffff' : '#475569',
+                      }}
+                    >
+                      {grp.shortTitle}
+                    </span>
+                  </NavLink>
+
+                  {/* FLYOUT POPOVER: Despliega los submenús al pasar el mouse por encima */}
+                  {isHovered && (
+                    <div
+                      className={`absolute left-[72px] w-60 bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-50 ${
+                        alignBottom ? 'bottom-0' : 'top-0'
+                      }`}
+                      style={{
+                        boxShadow: '0 12px 30px -4px rgba(15, 23, 42, 0.15), 0 4px 12px -2px rgba(15, 23, 42, 0.08)',
+                        animation: 'fadeInMenu 0.15s ease-out',
+                      }}
+                    >
+                      {/* Cabecera del flyout */}
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 mb-1.5 border-b border-slate-100 bg-slate-50/60 rounded-lg">
+                        <i className={`${grp.iconClass} text-sm`} style={{ color: grp.color }}></i>
+                        <span className="text-[11.5px] font-extrabold text-slate-800 uppercase tracking-wider">
+                          {grp.title}
+                        </span>
+                      </div>
+
+                      {/* Lista de enlaces directos */}
+                      <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto">
+                        {visibleItems.map(item => {
+                          const isItemActive = location.pathname === item.href;
+                          return (
+                            <NavLink
+                              key={item.href}
+                              to={item.href}
+                              onClick={() => {
+                                setHoveredGroupId(null);
+                                if (isOpen) onClose();
+                              }}
+                              className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                                isItemActive
+                                  ? 'bg-blue-50 text-blue-700 font-bold border-l-[3px] border-l-blue-600 shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
+                              }`}
+                              style={{ textDecoration: 'none' }}
+                            >
+                              <i
+                                className={`${item.icon} text-[12px] w-4 text-center`}
+                                style={item.color ? { color: item.color } : undefined}
+                              ></i>
+                              <span className="truncate">{item.name}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -288,10 +370,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         )}
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="connection-status">
+      <div className="sidebar-footer" style={{ borderTop: '1px solid #f1f5f9', marginTop: 'auto', paddingTop: '10px' }}>
+        <div className="connection-status flex items-center justify-center">
           <span className="status-dot online"></span>
-          {!isSidebarCollapsed && <span>Sistema Conectado</span>}
+          {!isSidebarCollapsed && <span style={{ fontSize: '11px', color: '#64748b' }}>Sistema Conectado</span>}
         </div>
       </div>
     </aside>
