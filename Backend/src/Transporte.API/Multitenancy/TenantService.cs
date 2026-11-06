@@ -59,6 +59,25 @@ namespace Transporte.API.Multitenancy
                 connStr = connStr.Replace("127.0.0.1", "sql_instancia");
                 connStr = connStr.Replace("localhost", "sql_instancia");
             }
+
+            // Forzar protocolo TCP directo para eliminar el bloqueo de 15s de Named Pipes/Shared Memory
+            if (!connStr.Contains("tcp:", StringComparison.OrdinalIgnoreCase))
+            {
+                connStr = connStr.Replace("Server=", "Server=tcp:", StringComparison.OrdinalIgnoreCase);
+                connStr = connStr.Replace("Data Source=", "Data Source=tcp:", StringComparison.OrdinalIgnoreCase);
+            }
+
+            // Asegurar Connect Timeout rápido
+            if (!connStr.Contains("Connect Timeout", StringComparison.OrdinalIgnoreCase) && !connStr.Contains("Connection Timeout", StringComparison.OrdinalIgnoreCase))
+            {
+                connStr += ";Connect Timeout=5;";
+            }
+
+            if (!connStr.Contains("Pooling", StringComparison.OrdinalIgnoreCase))
+            {
+                connStr += ";Pooling=true;Min Pool Size=1;Max Pool Size=100;";
+            }
+
             return connStr;
         }
 
@@ -113,7 +132,7 @@ namespace Transporte.API.Multitenancy
             try
             {
                 string sqlHost = IsRunningInDocker ? "sql_instancia" : "84.247.178.194";
-                string masterConn = $"Server={sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Connect Timeout=5;";
+                string masterConn = $"Server=tcp:{sqlHost},1433;Database=DB_SAAS_MASTER;User Id=sa;Password=sql_HO_2026!;TrustServerCertificate=True;Connect Timeout=5;Pooling=true;";
                 using var db = new SqlConnection(masterConn);
                 
                 var emp = db.QueryFirstOrDefault<dynamic>(

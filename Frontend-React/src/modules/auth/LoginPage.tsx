@@ -61,6 +61,9 @@ export const LoginPage: React.FC = () => {
         nombreCompleto: response.nombreCompleto,
         rol: response.rol,
         permisos: Array.isArray(response.permisos) ? response.permisos : [],
+        modulosHabilitados: response.modulosHabilitados,
+        empresaCodigo: response.empresaCodigo,
+        empresaNombre: response.empresaNombre,
       });
 
       // Redirigir a la ruta original o al dashboard
