@@ -53,6 +53,10 @@ export const RecoleccionRutasPage: React.FC = () => {
   const [filtroEstadoTicket, setFiltroEstadoTicket] = useState<'activos' | 'todos'>('activos');
   const [busquedaTexto, setBusquedaTexto] = useState<string>('');
 
+  // Filtros desplegables para Vista 2: Detalle por Fincas (Historial / Buscador)
+  const [filtroDetalleChoferId, setFiltroDetalleChoferId] = useState<number | null>(null);
+  const [filtroDetalleFincaId, setFiltroDetalleFincaId] = useState<number | null>(null);
+
   // Control de acordeón de paradas / fincas en tarjetas de viajes
   const [fincasExpandidas, setFincasExpandidas] = useState<Record<number, boolean>>({});
 
@@ -481,20 +485,52 @@ export const RecoleccionRutasPage: React.FC = () => {
     return combinados;
   }, [viajesFiltrados, despachos, filtroOrigenTicket, busquedaTexto]);
 
-  // Totales generales para Detalle por Fincas
+  // Lista filtrada para Detalle por Fincas (Filtros por Chofer y Finca)
+  const recoleccionesFiltradas = useMemo(() => {
+    return recolecciones.filter((r: any) => {
+      // 1. Filtro por Finca Ganadera
+      if (filtroDetalleFincaId && filtroDetalleFincaId > 0) {
+        const itemFincaId = Number(r.fincaId ?? r.FincaId ?? 0);
+        if (itemFincaId !== filtroDetalleFincaId) return false;
+      }
+
+      // 2. Filtro por Chofer / Conductor
+      if (filtroDetalleChoferId && filtroDetalleChoferId > 0) {
+        const itemChoferId = Number(r.conductorId ?? r.ConductorId ?? r.usuarioId ?? r.UsuarioId ?? 0);
+        if (itemChoferId > 0) {
+          if (itemChoferId !== filtroDetalleChoferId) return false;
+        } else {
+          // Búsqueda por nombre de conductor si no viene el ID numérico en el registro
+          const choferObj = conductores.find((c: any) => c.id === filtroDetalleChoferId);
+          if (choferObj) {
+            const nomChoferFiltro = (choferObj.nombreCompleto || choferObj.nombre || '').toLowerCase().trim();
+            const nomChoferItem = (r.conductorNombre || r.ConductorNombre || '').toLowerCase().trim();
+            if (!nomChoferItem || (!nomChoferItem.includes(nomChoferFiltro) && !nomChoferFiltro.includes(nomChoferItem))) {
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [recolecciones, filtroDetalleFincaId, filtroDetalleChoferId, conductores]);
+
+  // Totales generales para Detalle por Fincas (calculados según los filtros aplicados)
   const totalesRecoleccion = useMemo(() => {
     let vaca = 0;
     let bufala = 0;
     let acida = 0;
-    recolecciones.forEach((r) => {
-      const lts = Number(r.litros || 0);
-      const esBuf = (r.tipoLeche || '').toUpperCase().includes('BUFAL');
+    recoleccionesFiltradas.forEach((r) => {
+      const lts = Number(r.litros || (r as any).Litros || 0);
+      const tipo = (r.tipoLeche || (r as any).TipoLeche || '').toUpperCase();
+      const esBuf = tipo.includes('BUFAL');
       if (esBuf) bufala += lts;
       else vaca += lts;
-      if (r.esAcida) acida += lts;
+      if (r.esAcida || (r as any).EsAcida) acida += lts;
     });
     return { vaca, bufala, acida, total: vaca + bufala };
-  }, [recolecciones]);
+  }, [recoleccionesFiltradas]);
 
   // Totales de flota para tarjetas KPI superiores
   const kpisFlota = useMemo(() => {
@@ -930,7 +966,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   fontWeight: 800,
                 }}
               >
-                {recolecciones.length}
+                {filtroDetalleChoferId || filtroDetalleFincaId ? `${recoleccionesFiltradas.length}/${recolecciones.length}` : recolecciones.length}
               </span>
             </button>
           </div>
@@ -1753,7 +1789,7 @@ export const RecoleccionRutasPage: React.FC = () => {
             <div className="content-card" style={{ padding: '14px 16px', borderLeft: '4px solid #4f46e5', borderRadius: '10px' }}>
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Fincas Recolectadas</span>
               <strong style={{ fontSize: '20px', color: '#4f46e5', display: 'block', marginTop: '4px', fontWeight: 800 }}>
-                {recolecciones.length} Fincas
+                {recoleccionesFiltradas.length} Fincas
               </strong>
             </div>
           </div>
@@ -1770,10 +1806,93 @@ export const RecoleccionRutasPage: React.FC = () => {
                   Auditoría de cargas por finca. La edición o remoción de paradas se realiza estrictamente dentro del ticket correspondiente mientras esté abierto.
                 </p>
               </div>
+
+              {(filtroDetalleChoferId || filtroDetalleFincaId) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '11.5px', padding: '5px 12px', fontWeight: 700, borderRadius: '8px' }}>
+                    <i className="fa-solid fa-filter" style={{ marginRight: '5px' }}></i>
+                    Mostrando {recoleccionesFiltradas.length} de {recolecciones.length} paradas
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* BARRA DE FILTROS DESPLEGABLES CON BÚSQUEDA INTEGRADA */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '14px',
+                background: '#f8fafc',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                border: '1.5px solid #e2e8f0',
+                marginBottom: '16px',
+                alignItems: 'end',
+              }}
+            >
+              {/* Filtro Chofer con Buscador */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-user-tie" style={{ color: '#0284c7' }}></i>
+                  Filtrar por Chofer / Conductor:
+                </label>
+                <ChoferSelect
+                  value={filtroDetalleChoferId || undefined}
+                  onChange={(val) => setFiltroDetalleChoferId(val ? Number(val) : null)}
+                  placeholder="-- Todos los Choferes --"
+                  allowClear={true}
+                />
+              </div>
+
+              {/* Filtro Finca con Buscador */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-cow" style={{ color: '#16a34a' }}></i>
+                  Filtrar por Finca Ganadera:
+                </label>
+                <FincaSelect
+                  value={filtroDetalleFincaId || undefined}
+                  onChange={(val) => setFiltroDetalleFincaId(val ? Number(val) : null)}
+                  placeholder="-- Todas las Fincas Ganaderas --"
+                  allowClear={true}
+                />
+              </div>
+
+              {/* Botón de limpiar filtros cuando alguno esté seleccionado */}
+              {(filtroDetalleChoferId || filtroDetalleFincaId) && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltroDetalleChoferId(null);
+                      setFiltroDetalleFincaId(null);
+                    }}
+                    className="btn btn-outline"
+                    style={{
+                      height: '38px',
+                      padding: '0 14px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      borderColor: '#fca5a5',
+                      color: '#dc2626',
+                      background: '#ffffff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      borderRadius: '8px',
+                    }}
+                    title="Restablecer filtros de chofer y finca"
+                  >
+                    <i className="fa-solid fa-filter-circle-xmark"></i>
+                    Limpiar Filtros
+                  </button>
+                </div>
+              )}
             </div>
 
             <DataTable
-              data={recolecciones}
+              data={recoleccionesFiltradas}
               columns={columnsRecolecciones}
               isLoading={loadingRecolecciones}
               searchPlaceholder="Buscar por finca, ganadero, conductor, ticket..."
