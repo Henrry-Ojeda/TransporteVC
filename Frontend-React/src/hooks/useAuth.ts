@@ -14,6 +14,7 @@ export const useAuth = () => {
     hasPermission,
     hasActionPermission,
     canAccessTab,
+    hasTenantModule,
   } = useAuthStore();
 
   return {
@@ -28,6 +29,7 @@ export const useAuth = () => {
     hasPermission: (codigo: string) => hasPermission(codigo),
     hasAction: (modulo: string, accion: PermisoAccion) => hasActionPermission(modulo, accion),
     canAccessTab: (tabId: string) => canAccessTab(tabId),
+    hasTenantModule: (moduloCodigo: string) => hasTenantModule(moduloCodigo),
   };
 };
 

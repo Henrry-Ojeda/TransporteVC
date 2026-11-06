@@ -27,10 +27,15 @@ interface NavGroupDef {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const { canAccessTab } = useAuthStore();
+  const { canAccessTab, hasTenantModule } = useAuthStore();
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [pinnedGroupId, setPinnedGroupId] = useState<string | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isItemVisible = (item: NavSubItem) => {
+    if (item.tabId === 'bufala' && !hasTenantModule('MOD_LECHE_BUFALA')) return false;
+    return canAccessTab(item.tabId);
+  };
 
   const handleMouseEnter = (groupId: string) => {
     if (closeTimerRef.current) {
@@ -176,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   // Identificar qué grupo tiene la ruta actual activa
   const isGroupActive = (grp: NavGroupDef) => {
-    return grp.items.some(it => location.pathname === it.href);
+    return grp.items.some(it => isItemVisible(it) && location.pathname === it.href);
   };
 
   // Estado para contraer/achicar menú lateral
@@ -250,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           /* MODO ACHICADO (78px): Ícono con categoría elegante + Menú flotante al pasar el mouse */
           <div className="flex flex-col items-center space-y-1.5" style={{ position: 'relative' }}>
             {groups.map((grp, idx) => {
-              const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
+              const visibleItems = grp.items.filter(isItemVisible);
               if (visibleItems.length === 0) return null;
 
               const active = isGroupActive(grp);
@@ -372,7 +377,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         ) : (
           /* MODO EXPANDIDO: Acordeón normal interactivo */
           groups.map((grp) => {
-            const visibleItems = grp.items.filter(item => canAccessTab(item.tabId));
+            const visibleItems = grp.items.filter(isItemVisible);
             if (visibleItems.length === 0) return null;
 
             const groupActive = isGroupActive(grp);

@@ -18,9 +18,11 @@ import { finanzasApi } from '@/api/finanzas.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable } from '@/components/common/DataTable';
 import apiClient from '@/api/client';
+import { useAuthStore } from '@/stores/authStore';
 import type { CicloSemanalDto } from '@/types';
 
 export const AdministracionGeneralPage: React.FC = () => {
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const [fechaDesde, setFechaDesde] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -125,7 +127,7 @@ export const AdministracionGeneralPage: React.FC = () => {
     const resumenData = [
       { Concepto: 'Total Litros Comprados en Finca', Valor: adminData.totalLitrosComprados, Unidad: 'Litros' },
       { Concepto: 'Litros Leche de Vaca', Valor: adminData.litrosCompradosVaca, Unidad: 'Litros' },
-      { Concepto: 'Litros Leche de Búfala', Valor: adminData.litrosCompradosBufala, Unidad: 'Litros' },
+      ...(hasBufala ? [{ Concepto: 'Litros Leche de Búfala', Valor: adminData.litrosCompradosBufala, Unidad: 'Litros' }] : []),
       { Concepto: 'Litros Leche Ácida', Valor: adminData.litrosCompradosAcida, Unidad: 'Litros' },
       { Concepto: 'Total Litros Vendidos a Plantas', Valor: adminData.totalLitrosVendidos, Unidad: 'Litros' },
       { Concepto: 'Merma Neta en Ruta / Transporte', Valor: adminData.mermaTransporteLitros, Unidad: 'Litros' },
@@ -309,19 +311,21 @@ export const AdministracionGeneralPage: React.FC = () => {
           <Milk className="w-4 h-4 text-blue-600" />
           Desglose Volumétrico de Leche (Comprada vs Entregada)
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className={`grid grid-cols-2 ${hasBufala ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3 text-xs`}>
           <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
             <span className="text-gray-500 block">Leche de Vaca:</span>
             <strong className="text-slate-800 text-sm font-mono block">
               {Number(adminData?.litrosCompradosVaca || 0).toLocaleString()} Lts
             </strong>
           </div>
-          <div className="bg-teal-50 p-3 rounded-lg border border-teal-200">
-            <span className="text-teal-700 font-semibold block">Leche de Búfala:</span>
-            <strong className="text-teal-900 text-sm font-mono block">
-              {Number(adminData?.litrosCompradosBufala || 0).toLocaleString()} Lts
-            </strong>
-          </div>
+          {hasBufala && (
+            <div className="bg-teal-50 p-3 rounded-lg border border-teal-200">
+              <span className="text-teal-700 font-semibold block">Leche de Búfala:</span>
+              <strong className="text-teal-900 text-sm font-mono block">
+                {Number(adminData?.litrosCompradosBufala || 0).toLocaleString()} Lts
+              </strong>
+            </div>
+          )}
           <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
             <span className="text-amber-700 font-semibold block">Leche Ácida:</span>
             <strong className="text-amber-900 text-sm font-mono block">

@@ -8,6 +8,7 @@ import { sistemaApi } from '@/api/sistema.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { finanzasApi } from '@/api/finanzas.api';
 import { SearchableSelect, type SelectOption } from '@/components/common/SearchableSelect';
+import { useAuthStore } from '@/stores/authStore';
 
 export type TipoReporteOficial =
   | 'DIARIOS'
@@ -49,6 +50,7 @@ function formatearFechaLocal(fechaStr: string | undefined | null): string {
 
 export const ReportesPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
 
   // Ciclo Operativo Activo (1:1 V2_3_11_26)
   const { data: cicloActivo } = useQuery({
@@ -165,7 +167,7 @@ export const ReportesPage: React.FC = () => {
         value: String(id),
         label: prop ? `${nom} (${prop})` : nom,
         subLabel: prop ? `Propietario: ${prop}` : undefined,
-        badge: f.tipoLeche === 'BUFALA' ? '🐃 BÚFALA' : (f.tieneDosTiposLeche ? 'Dual' : undefined),
+        badge: (hasBufala && f.tipoLeche === 'BUFALA') ? '🐃 BÚFALA' : (hasBufala && f.tieneDosTiposLeche ? 'Dual' : undefined),
       });
     });
     return opts;
@@ -481,7 +483,7 @@ export const ReportesPage: React.FC = () => {
             <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px;">${compNombre}</div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+          <div style="display: grid; grid-template-columns: ${hasBufala ? '1fr 1fr 1fr' : '1fr 1fr'}; gap: 10px; margin-bottom: 14px;">
             <div>
               <label style="display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">
                 <span style="width: 8px; height: 8px; border-radius: 50%; background: #16a34a;"></span>
@@ -490,6 +492,7 @@ export const ReportesPage: React.FC = () => {
               <input id="swalNuevoPrecioVaca" type="text" inputmode="decimal" value="${pVaca.toFixed(4)}"
                 style="width: 100%; box-sizing: border-box; padding: 8px 6px; font-size: 15px; font-weight: 800; color: #047857; text-align: center; border: 1.5px solid #86efac; border-radius: 8px; outline: none; background: #f0fdf4;" />
             </div>
+            ${hasBufala ? `
             <div>
               <label style="display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">
                 <span style="width: 8px; height: 8px; border-radius: 50%; background: #7e22ce;"></span>
@@ -497,7 +500,7 @@ export const ReportesPage: React.FC = () => {
               </label>
               <input id="swalNuevoPrecioBufala" type="text" inputmode="decimal" value="${pBufala.toFixed(4)}"
                 style="width: 100%; box-sizing: border-box; padding: 8px 6px; font-size: 15px; font-weight: 800; color: #7e22ce; text-align: center; border: 1.5px solid #d8b4fe; border-radius: 8px; outline: none; background: #faf5ff;" />
-            </div>
+            </div>` : ''}
             <div>
               <label style="display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #1e293b; margin-bottom: 5px;">
                 <span style="width: 8px; height: 8px; border-radius: 50%; background: #e11d48;"></span>
@@ -1469,6 +1472,7 @@ const RenderReporteFincas: React.FC<{
   onAjustarPrecioAcida,
   onAjustarAdelantoManual,
 }) => {
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const fincasList = Array.isArray(data) ? data : [];
   const consolidadoCardRef = useRef<HTMLDivElement>(null);
   const reporteContainerRef = useRef<HTMLDivElement>(null);
@@ -1526,7 +1530,7 @@ const RenderReporteFincas: React.FC<{
     const fincaNetoBs = Math.max(0, fincaTotalBs - adelantoBs);
 
     const nomNorm = nomOriginal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-    const esBufala = nomOriginal.includes('(Búfala)') || nomOriginal.includes('(Bufala)') || nomNorm.includes('BUFAL') || (precioBuena === 0 && Number(finca.precioBufalaLitroUSD || finca.PrecioBufalaLitroUSD || 0) > 0);
+    const esBufala = hasBufala && (nomOriginal.includes('(Búfala)') || nomOriginal.includes('(Bufala)') || nomNorm.includes('BUFAL') || (precioBuena === 0 && Number(finca.precioBufalaLitroUSD || finca.PrecioBufalaLitroUSD || 0) > 0));
 
     return {
       id: String(finca.id ?? finca.Id ?? ''),
@@ -1603,7 +1607,7 @@ const RenderReporteFincas: React.FC<{
     objBufala = cardObj2;
     objVaca = cardObj1;
   }
-  const esCasoVacaBufala = Boolean(objVaca && objBufala);
+  const esCasoVacaBufala = hasBufala && Boolean(objVaca && objBufala);
 
   const consolidadoTitulo = esCasoVacaBufala
     ? `LIQUIDACIÓN CONSOLIDADA (VACA + BÚFALA) • ${cardObj1?.propietario || cleanNom1}`

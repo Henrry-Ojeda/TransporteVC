@@ -36,6 +36,7 @@ interface RutaDetalleFinca {
 export const RecoleccionRutasPage: React.FC = () => {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const rol = user?.rol?.toUpperCase() || '';
   const esAdminOSup = ['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE'].includes(rol);
 
@@ -1733,12 +1734,14 @@ export const RecoleccionRutasPage: React.FC = () => {
               </strong>
             </div>
 
-            <div className="content-card" style={{ padding: '14px 16px', borderLeft: '4px solid #9333ea', borderRadius: '10px' }}>
-              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>🐃 Leche de Búfala</span>
-              <strong style={{ fontSize: '20px', color: '#9333ea', display: 'block', marginTop: '4px', fontWeight: 800 }}>
-                {totalesRecoleccion.bufala.toLocaleString()} Lts
-              </strong>
-            </div>
+            {hasBufala && (
+              <div className="content-card" style={{ padding: '14px 16px', borderLeft: '4px solid #9333ea', borderRadius: '10px' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>🐃 Leche de Búfala</span>
+                <strong style={{ fontSize: '20px', color: '#9333ea', display: 'block', marginTop: '4px', fontWeight: 800 }}>
+                  {totalesRecoleccion.bufala.toLocaleString()} Lts
+                </strong>
+              </div>
+            )}
 
             <div className="content-card" style={{ padding: '14px 16px', borderLeft: '4px solid #dc2626', borderRadius: '10px' }}>
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>⚠️ Leche Ácida</span>
@@ -2317,7 +2320,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                 </div>
 
                 {/* 3. LITROS RECOLECTADOS & TIPO DE LECHE */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className={`grid ${hasBufala ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-3.5`}>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <i className="fa-solid fa-faucet-drip text-blue-600"></i>
@@ -2340,38 +2343,40 @@ export const RecoleccionRutasPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <i className="fa-solid fa-cow text-sky-600"></i>
-                      Tipo de Leche *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 h-11">
-                      <button
-                        type="button"
-                        onClick={() => setFormFinca({ ...formFinca, tipoLeche: 'VACA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formFinca.tipoLeche === 'VACA'
-                            ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>🥛</span>
-                        <span>Vaca</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormFinca({ ...formFinca, tipoLeche: 'BUFALA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formFinca.tipoLeche === 'BUFALA'
-                            ? 'bg-purple-50 border-purple-500 text-purple-800 shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>🐃</span>
-                        <span>Búfala</span>
-                      </button>
+                  {hasBufala && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <i className="fa-solid fa-cow text-sky-600"></i>
+                        Tipo de Leche *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 h-11">
+                        <button
+                          type="button"
+                          onClick={() => setFormFinca({ ...formFinca, tipoLeche: 'VACA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formFinca.tipoLeche === 'VACA'
+                              ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>🥛</span>
+                          <span>Vaca</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormFinca({ ...formFinca, tipoLeche: 'BUFALA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formFinca.tipoLeche === 'BUFALA'
+                              ? 'bg-purple-50 border-purple-500 text-purple-800 shadow-2xs font-extrabold ring-1 ring-purple-500/20'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>🐃</span>
+                          <span>Búfala</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 4. OPCIONES OPERATIVAS: DIFERIDO Y CALIDAD */}
@@ -2556,7 +2561,7 @@ export const RecoleccionRutasPage: React.FC = () => {
             >
               <div className="p-5 md:p-6 overflow-y-auto space-y-4 flex-1">
                 {/* 1. LITROS RECOLECTADOS & TIPO DE LECHE */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className={`grid ${hasBufala ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-3.5`}>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <i className="fa-solid fa-faucet-drip text-blue-600"></i>
@@ -2578,38 +2583,40 @@ export const RecoleccionRutasPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <i className="fa-solid fa-cow text-sky-600"></i>
-                      Tipo de Leche *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 h-11">
-                      <button
-                        type="button"
-                        onClick={() => setFormEditar({ ...formEditar, tipoLeche: 'VACA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formEditar.tipoLeche === 'VACA'
-                            ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>🥛</span>
-                        <span>Vaca</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormEditar({ ...formEditar, tipoLeche: 'BUFALA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formEditar.tipoLeche === 'BUFALA'
-                            ? 'bg-purple-50 border-purple-500 text-purple-800 shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>🐃</span>
-                        <span>Búfala</span>
-                      </button>
+                  {hasBufala && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <i className="fa-solid fa-cow text-sky-600"></i>
+                        Tipo de Leche *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 h-11">
+                        <button
+                          type="button"
+                          onClick={() => setFormEditar({ ...formEditar, tipoLeche: 'VACA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formEditar.tipoLeche === 'VACA'
+                              ? 'bg-blue-50 border-blue-500 text-blue-800 shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>🥛</span>
+                          <span>Vaca</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormEditar({ ...formEditar, tipoLeche: 'BUFALA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formEditar.tipoLeche === 'BUFALA'
+                              ? 'bg-purple-50 border-purple-500 text-purple-800 shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>🐃</span>
+                          <span>Búfala</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 2. OPCIONES DIFERIDO Y ÁCIDA */}

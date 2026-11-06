@@ -86,7 +86,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       canAccessTab: (tabId: string) => {
-        const { isAdmin, hasPermission } = get();
+        const { isAdmin, hasPermission, hasTenantModule } = get();
+
+        // REGLA 4: Si el módulo SaaS no está habilitado para el tenant, ocultar pestaña transversalmente
+        if (tabId.toLowerCase() === 'bufala' && !hasTenantModule('MOD_LECHE_BUFALA')) {
+          return false;
+        }
+
         if (isAdmin()) return true;
 
         const tabPermissionMap: Record<string, string[]> = {

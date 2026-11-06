@@ -35,7 +35,8 @@ import { useAuth } from '@/hooks/useAuth';
 import type { ControlRutaDto, CamionDto, RutaLogisticaDto, FincaDto, CompaniaDto } from '@/types';
 
 export const ViajesTicketsPage: React.FC = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, hasTenantModule } = useAuth();
+  const hasBufala = hasTenantModule('MOD_LECHE_BUFALA');
   const queryClient = useQueryClient();
 
   // Filtros de fecha (por defecto últimos 30 días como en V2_3_11_26)
@@ -2197,7 +2198,7 @@ export const ViajesTicketsPage: React.FC = () => {
                                     <strong className="text-slate-900 text-[13px] font-extrabold">
                                       {f.fincaNombre || f.finca || f.nombre || 'Finca'}
                                     </strong>
-                                    {esDualF && (
+                                    {hasBufala && esDualF && (
                                       <span
                                         className={`text-[9.5px] font-extrabold px-1.5 py-0.5 rounded border ${
                                           esBufala
@@ -2686,7 +2687,7 @@ export const ViajesTicketsPage: React.FC = () => {
                 </div>
 
                 {/* 3. LITROS RECOLECTADOS & TIPO DE LECHE */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className={`grid ${hasBufala ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-3.5`}>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <i className="fa-solid fa-faucet-drip text-blue-600"></i>
@@ -2710,38 +2711,40 @@ export const ViajesTicketsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <i className="fa-solid fa-cow text-sky-600"></i>
-                      Tipo de Leche *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 h-11">
-                      <button
-                        type="button"
-                        onClick={() => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: 'VACA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formFincaAuditada.tipoLeche === 'VACA'
-                            ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <i className="fa-solid fa-cow text-sm"></i>
-                        Vaca
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: 'BUFALA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formFincaAuditada.tipoLeche === 'BUFALA'
-                            ? 'bg-emerald-50 border-emerald-600 text-emerald-800 shadow-2xs font-extrabold ring-1 ring-emerald-500/20'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="text-sm">🐃</span>
-                        Búfala
-                      </button>
+                  {hasBufala && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <i className="fa-solid fa-cow text-sky-600"></i>
+                        Tipo de Leche *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 h-11">
+                        <button
+                          type="button"
+                          onClick={() => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: 'VACA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formFincaAuditada.tipoLeche === 'VACA'
+                              ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <i className="fa-solid fa-cow text-sm"></i>
+                          Vaca
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormFincaAuditada({ ...formFincaAuditada, tipoLeche: 'BUFALA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formFincaAuditada.tipoLeche === 'BUFALA'
+                              ? 'bg-emerald-50 border-emerald-600 text-emerald-800 shadow-2xs font-extrabold ring-1 ring-emerald-500/20'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm">🐃</span>
+                          Búfala
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 4. OPCIÓN DIFERIR LITROS & LECHE ÁCIDA */}
@@ -2989,7 +2992,7 @@ export const ViajesTicketsPage: React.FC = () => {
                 </div>
 
                 {/* 3. LITROS RECOLECTADOS & TIPO DE LECHE */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className={`grid ${hasBufala ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-3.5`}>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <i className="fa-solid fa-faucet-drip text-blue-600"></i>
@@ -3011,38 +3014,40 @@ export const ViajesTicketsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <i className="fa-solid fa-cow text-sky-600"></i>
-                      Tipo de Leche *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 h-11">
-                      <button
-                        type="button"
-                        onClick={() => setFormEditarFinca({ ...formEditarFinca, tipoLeche: 'VACA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formEditarFinca.tipoLeche === 'VACA'
-                            ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <i className="fa-solid fa-cow text-sm"></i>
-                        Vaca
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormEditarFinca({ ...formEditarFinca, tipoLeche: 'BUFALA' })}
-                        className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          formEditarFinca.tipoLeche === 'BUFALA'
-                            ? 'bg-emerald-50 border-emerald-600 text-emerald-800 shadow-2xs font-extrabold ring-1 ring-emerald-500/20'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="text-sm">🐃</span>
-                        Búfala
-                      </button>
+                  {hasBufala && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <i className="fa-solid fa-cow text-sky-600"></i>
+                        Tipo de Leche *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 h-11">
+                        <button
+                          type="button"
+                          onClick={() => setFormEditarFinca({ ...formEditarFinca, tipoLeche: 'VACA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formEditarFinca.tipoLeche === 'VACA'
+                              ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-2xs font-extrabold ring-1 ring-blue-500/20'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <i className="fa-solid fa-cow text-sm"></i>
+                          Vaca
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormEditarFinca({ ...formEditarFinca, tipoLeche: 'BUFALA' })}
+                          className={`h-full rounded-xl border-[1.5px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            formEditarFinca.tipoLeche === 'BUFALA'
+                              ? 'bg-emerald-50 border-emerald-600 text-emerald-800 shadow-2xs font-extrabold ring-1 ring-emerald-500/20'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm">🐃</span>
+                          Búfala
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 4. OPCIÓN DIFERIR LITROS & LECHE ÁCIDA */}
