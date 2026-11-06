@@ -237,6 +237,11 @@ namespace Transporte.Infrastructure.Repositories
             string whereFilter;
             object param;
 
+            bool esAdminOSup = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) 
+                            || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase) 
+                            || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase)
+                            || rol.Equals("GERENTE", StringComparison.OrdinalIgnoreCase);
+
             if (cicloId.HasValue && cicloId.Value > 0)
             {
                 whereFilter = "r.CicloId = @cicloId";
@@ -278,7 +283,7 @@ namespace Transporte.Infrastructure.Repositories
                     r.LitrosOriginales AS LitrosOriginales,
                     CASE 
                         WHEN cr.Id IS NOT NULL AND (cr.Estado IN ('FINALIZADO', 'CERRADO') OR cr.ProcesoActualId = 4) THEN 0
-                        WHEN @rol = 'ADMIN' THEN 1
+                        WHEN @rol IN ('ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE') THEN 1
                         WHEN r.UsuarioId = @usuarioId AND (
                             (cr.Id IS NOT NULL AND cr.ProcesoActualId = 1 AND cr.Estado IN ('PENDIENTE', 'ABIERTO', 'EN RUTA'))
                             OR (cr.Id IS NULL AND CAST(r.Fecha AS DATE) >= CAST(DATEADD(DAY, -7, GETDATE()) AS DATE))
@@ -290,7 +295,7 @@ namespace Transporte.Infrastructure.Repositories
                 INNER JOIN TB_USUARIOS u ON r.UsuarioId = u.Id
                 LEFT JOIN TB_CONTROL_RUTAS cr ON r.ControlRutaId = cr.Id
                 WHERE {whereFilter}
-                " + (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase) ? " AND r.UsuarioId = @usuarioId " : "") + @"
+                " + (!esAdminOSup ? " AND r.UsuarioId = @usuarioId " : "") + @"
                 ORDER BY r.Fecha ASC, ISNULL(r.ControlRutaId, 0) ASC, r.Id ASC";
 
             return await connection.QueryAsync<RutaItemDto>(sql, param);
@@ -7902,7 +7907,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
                 WHERE CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin
                   AND (@cicloId IS NULL OR cr.CicloId = @cicloId)
-                  AND (@rol = 'ADMIN' OR cr.UsuarioId = @usuarioId)
+                  AND (@rol IN ('ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE') OR cr.UsuarioId = @usuarioId)
                 ORDER BY cr.Fecha DESC, cr.Id DESC";
 
             return await connection.QueryAsync<ControlRutaDto>(sql, new { inicio, fin, cicloId, rol, usuarioId });

@@ -17,6 +17,7 @@ import {
   Landmark,
   FileSpreadsheet,
 } from 'lucide-react';
+import { apiClient } from '@/api/client';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
 import { finanzasApi } from '@/api/finanzas.api';
@@ -51,27 +52,23 @@ export const EvolucionFincasPage: React.FC = () => {
   const rol = user?.rol?.toUpperCase() || '';
   const tienePermiso = ['SUPERVISOR', 'ADMINISTRADOR', 'ADMIN', 'GERENTE'].includes(rol);
 
-  // Modo de evaluación de 15 días: Desde Semana Operativa (hacia atrás), Mes en Quincenas o Rango Personalizado
+  // Modo de evaluación de 15 días: Desde Semana Operativa Activa (hacia atrás), Mes en Quincenas o Rango Personalizado
   const [modo, setModo] = useState<ModoEvaluacion>('SEMANA_OPERATIVA');
   
-  // Queries de Ciclos / Semanas Operativas
-  const { data: ciclos = [] } = useQuery<CicloSemanalDto[]>({
-    queryKey: ['ciclos-evolucion'],
-    queryFn: () => finanzasApi.getCiclos(),
+  // Query Ciclo Activo oficial (la misma consulta unificada del Header)
+  const { data: cicloActivo } = useQuery<any>({
+    queryKey: ['ciclo-activo'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get('/ciclos/activo');
+        return res.data;
+      } catch {
+        const fallback = await apiClient.get('/catalogos/ciclo-activo');
+        return fallback.data;
+      }
+    },
+    staleTime: 1000 * 60 * 30,
   });
-
-  const { data: cicloActivo } = useQuery<CicloSemanalDto>({
-    queryKey: ['ciclo-activo-evolucion'],
-    queryFn: () => finanzasApi.getCicloActivo(),
-  });
-
-  const [cicloSeleccionadoId, setCicloSeleccionadoId] = useState<string>('');
-
-  React.useEffect(() => {
-    if (cicloActivo?.id && !cicloSeleccionadoId) {
-      setCicloSeleccionadoId(String(cicloActivo.id));
-    }
-  }, [cicloActivo, cicloSeleccionadoId]);
 
   // Mes seleccionado en formato YYYY-MM (por defecto el mes actual: 2026-11)
   const hoyStr = new Date().toISOString().split('T')[0];
@@ -91,18 +88,19 @@ export const EvolucionFincasPage: React.FC = () => {
   // Cálculo de los dos rangos de 15 días para la comparativa
   const rangosEvaluacion = useMemo(() => {
     if (modo === 'SEMANA_OPERATIVA') {
-      const cicloObj = ciclos.find((c) => String(c.id) === cicloSeleccionadoId) || cicloActivo;
       let refDate = new Date();
-      if (cicloObj?.fechaFin) {
-        refDate = new Date(cicloObj.fechaFin.split('T')[0] + 'T23:59:59');
+      if (cicloActivo?.fechaFin) {
+        refDate = new Date(cicloActivo.fechaFin.split('T')[0] + 'T23:59:59');
+      } else {
+        refDate = new Date('2026-11-02T23:59:59');
       }
 
-      // 2da Quincena (Actual): 14 días finalizando en la fecha de cierre de la semana operativa (cubre las 2 últimas semanas operativas)
+      // 2da Quincena (Semana Operativa Activa 44 hacia atrás: 14 días)
       const p2FinDate = new Date(refDate);
       const p2IniDate = new Date(refDate);
       p2IniDate.setDate(p2FinDate.getDate() - 13);
 
-      // 1ra Quincena (Previa): 14 días inmediatamente anteriores a ese período (semanas operativas previas)
+      // 1ra Quincena (14 días inmediatamente anteriores)
       const p1FinDate = new Date(p2IniDate);
       p1FinDate.setDate(p2IniDate.getDate() - 1);
       const p1IniDate = new Date(p1FinDate);
@@ -177,7 +175,7 @@ export const EvolucionFincasPage: React.FC = () => {
         diasP2: diasPersonalizado,
       };
     }
-  }, [modo, cicloSeleccionadoId, ciclos, cicloActivo, mesSeleccionado, fechaFinCustom, diasPersonalizado]);
+  }, [modo, cicloActivo, mesSeleccionado, fechaFinCustom, diasPersonalizado]);
 
   // Queries de datos
   const { data: fincas = [], isLoading: loadingFincas } = useQuery<FincaDto[]>({
@@ -230,10 +228,11 @@ export const EvolucionFincasPage: React.FC = () => {
     const recolectadoQ2PorFinca = new Map<number, { total: number; dias: Set<string> }>();
 
     recolecciones.forEach((r) => {
-      const fechaRecoleccion = r.fecha ? r.fecha.split('T')[0] : '';
+      const rawDate = r.fecha || r.Fecha;
+      const fechaRecoleccion = rawDate ? String(rawDate).split('T')[0] : '';
       if (!fechaRecoleccion) return;
 
-      const fId = Number(r.fincaId || r.FincaId);
+      const fId = Number(r.fincaId || r.FincaId || (r as any).finca_id);
       const litros = Number(r.litros || r.Litros || 0);
       if (litros <= 0 || !fId) return;
 
@@ -702,22 +701,28 @@ export const EvolucionFincasPage: React.FC = () => {
 
           {/* Selector dependiente del modo */}
           {modo === 'SEMANA_OPERATIVA' ? (
-            <div style={{ minWidth: '280px' }}>
+            <div style={{ minWidth: '320px' }}>
               <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
-                📆 Semana Operativa Evaluada:
+                📆 Semana Operativa Activa:
               </label>
-              <select
-                value={cicloSeleccionadoId}
-                onChange={(e) => setCicloSeleccionadoId(e.target.value)}
-                className="form-input"
-                style={{ height: '36px', fontWeight: 700, color: '#0f172a', padding: '0 12px', width: '100%', borderRadius: '8px' }}
+              <div
+                style={{
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: '#eff6ff',
+                  border: '1.5px solid #bfdbfe',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  color: '#1e40af',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                }}
               >
-                {ciclos.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.codigo} {c.estado === 'ABIERTO' ? '⭐ (Activa)' : ''}
-                  </option>
-                ))}
-              </select>
+                <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span>{cicloActivo?.codigo || 'Semana 44 (27/10/2026 al 2/11/2026)'} ⭐ (Activa)</span>
+              </div>
             </div>
           ) : modo === 'MES_QUINCENAS' ? (
             <div>

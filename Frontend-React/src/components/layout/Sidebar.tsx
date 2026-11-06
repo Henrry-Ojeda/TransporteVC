@@ -45,8 +45,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       clearTimeout(closeTimerRef.current);
     }
     closeTimerRef.current = setTimeout(() => {
-      setHoveredGroupId(null);
-    }, 400); // 400ms de tolerancia para mover el cursor sin que se cierre
+      if (!pinnedGroupId) {
+        setHoveredGroupId(null);
+      }
+    }, 900); // 900ms de tolerancia para mover el cursor sin que se cierre apresuradamente
   };
 
   // Cerrar submenú fijado al hacer clic fuera del sidebar
@@ -309,7 +311,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     <div
                       onMouseEnter={() => handleMouseEnter(grp.id)}
                       onMouseLeave={handleMouseLeave}
-                      className={`absolute left-[64px] w-64 bg-white rounded-xl shadow-2xl border border-slate-200 p-2.5 z-50 before:content-[''] before:absolute before:-left-3 before:top-0 before:w-4 before:h-full ${
+                      className={`absolute left-[64px] w-64 bg-white rounded-xl shadow-2xl border border-slate-200 p-2.5 z-50 before:content-[''] before:absolute before:-left-5 before:top-0 before:w-6 before:h-full ${
                         alignBottom ? 'bottom-0' : 'top-0'
                       }`}
                       style={{
