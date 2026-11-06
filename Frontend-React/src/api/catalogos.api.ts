@@ -187,10 +187,28 @@ export const catalogosApi = {
         const customRaw = localStorage.getItem(PROPIETARIOS_CUSTOM_KEY);
         const customList: any[] = customRaw ? JSON.parse(customRaw) : [];
         customList.forEach((p) => {
-          if (p && p.id && !propMap.has(Number(p.id))) {
-            propMap.set(Number(p.id), p);
+          if (p && p.id) {
+            const pId = Number(p.id);
+            const exist = propMap.get(pId);
+            if (!exist) {
+              propMap.set(pId, {
+                ...p,
+                id: pId,
+                bancoId: p.bancoId ? Number(p.bancoId) : undefined,
+              });
+            } else {
+              if (p.bancoId) {
+                exist.bancoId = Number(p.bancoId);
+                exist.bancoNombre = p.bancoNombre || exist.bancoNombre;
+              }
+              if (p.numeroCuenta) exist.numeroCuenta = p.numeroCuenta;
+              if (p.pagoMovilTelefono) exist.pagoMovilTelefono = p.pagoMovilTelefono;
+              if (p.pagoMovilBancoId) exist.pagoMovilBancoId = Number(p.pagoMovilBancoId);
+              if (p.telefono && !exist.telefono) exist.telefono = p.telefono;
+              if (p.email && !exist.email) exist.email = p.email;
+            }
             const normName = String(p.nombre || p.nombreCompleto || '').trim().toLowerCase();
-            if (normName) nameToIdMap.set(normName, Number(p.id));
+            if (normName) nameToIdMap.set(normName, pId);
           }
         });
       } catch {
@@ -304,8 +322,15 @@ export const catalogosApi = {
     let serverId: number | null = null;
     let message = 'Propietario registrado exitosamente';
 
+    const numBancoId = dto.bancoId ? Number(dto.bancoId) : undefined;
+    const numPmBancoId = dto.pagoMovilBancoId ? Number(dto.pagoMovilBancoId) : undefined;
+
     try {
-      const res = await apiClient.post('/propietarios', payload);
+      const res = await apiClient.post('/propietarios', {
+        ...payload,
+        bancoId: numBancoId,
+        pagoMovilBancoId: numPmBancoId,
+      });
       if (res.data?.id) serverId = Number(res.data.id);
       if (res.data?.mensaje || res.data?.message) message = res.data.mensaje || res.data.message;
     } catch (err) {
@@ -325,18 +350,19 @@ export const catalogosApi = {
         cedulaRif: rawCedula,
         telefono: dto.telefono || '',
         email: dto.email || '',
-        bancoId: dto.bancoId,
+        bancoId: numBancoId,
+        bancoNombre: (dto as any).bancoNombre || '',
         numeroCuenta: dto.numeroCuenta || '',
         pagoMovilTelefono: dto.pagoMovilTelefono || '',
         pagoMovilCedula: dto.pagoMovilCedula || '',
-        pagoMovilBancoId: dto.pagoMovilBancoId,
+        pagoMovilBancoId: numPmBancoId,
         estado: 'ACTIVO',
         activo: true,
         totalFincas: 0,
         fincasNombres: [],
       };
       const existIdx = list.findIndex((p) => Number(p.id) === Number(idToUse) || (rawNombre && p.nombre?.toLowerCase() === rawNombre.toLowerCase()));
-      if (existIdx >= 0) list[existIdx] = nuevoItem;
+      if (existIdx >= 0) list[existIdx] = { ...list[existIdx], ...nuevoItem };
       else list.push(nuevoItem);
       localStorage.setItem(PROPIETARIOS_CUSTOM_KEY, JSON.stringify(list));
     } catch {
@@ -348,38 +374,50 @@ export const catalogosApi = {
   actualizarPropietario: async (id: number, dto: CrearPropietarioDto): Promise<{ success: boolean; message: string }> => {
     const rawNombre = dto.nombreCompleto || (dto as any).nombre || '';
     const rawCedula = dto.cedulaRif || (dto as any).cedulaRIF || '';
-    const payload = {
-      ...dto,
-      nombre: rawNombre,
-      cedulaRIF: rawCedula,
-    };
+    const numBancoId = dto.bancoId ? Number(dto.bancoId) : undefined;
+    const numPmBancoId = dto.pagoMovilBancoId ? Number(dto.pagoMovilBancoId) : undefined;
 
+    // Actualizar SIEMPRE el almacenamiento local para que la vista y los modales nunca pierdan el banco
     try {
-      const res = await apiClient.put(`/propietarios/${id}`, payload);
-      return res.data;
-    } catch {
       const raw = localStorage.getItem(PROPIETARIOS_CUSTOM_KEY);
       const list: any[] = raw ? JSON.parse(raw) : [];
       const idx = list.findIndex((p) => Number(p.id) === Number(id));
       const item: any = {
-        id,
+        id: Number(id),
         nombre: rawNombre,
         nombreCompleto: rawNombre,
         cedulaRIF: rawCedula,
         cedulaRif: rawCedula,
         telefono: dto.telefono || '',
         email: dto.email || '',
-        bancoId: dto.bancoId,
+        bancoId: numBancoId,
+        bancoNombre: (dto as any).bancoNombre || '',
         numeroCuenta: dto.numeroCuenta || '',
         pagoMovilTelefono: dto.pagoMovilTelefono || '',
         pagoMovilCedula: dto.pagoMovilCedula || '',
-        pagoMovilBancoId: dto.pagoMovilBancoId,
+        pagoMovilBancoId: numPmBancoId,
         estado: dto.activo === false ? 'INACTIVO' : 'ACTIVO',
         activo: dto.activo !== false,
       };
-      if (idx >= 0) list[idx] = item;
+      if (idx >= 0) list[idx] = { ...list[idx], ...item };
       else list.push(item);
       localStorage.setItem(PROPIETARIOS_CUSTOM_KEY, JSON.stringify(list));
+    } catch {
+      // ignore
+    }
+
+    const payload = {
+      ...dto,
+      nombre: rawNombre,
+      cedulaRIF: rawCedula,
+      bancoId: numBancoId,
+      pagoMovilBancoId: numPmBancoId,
+    };
+
+    try {
+      const res = await apiClient.put(`/propietarios/${id}`, payload);
+      return res.data;
+    } catch {
       return { success: true, message: 'Propietario actualizado exitosamente' };
     }
   },
@@ -431,8 +469,22 @@ export const catalogosApi = {
 
   // BANCOS
   getBancos: async (): Promise<BancoDto[]> => {
-    const res = await apiClient.get<BancoDto[]>('/catalogos/bancos');
-    return Array.isArray(res.data) ? res.data : [];
+    try {
+      const res = await apiClient.get<BancoDto[]>('/catalogos/bancos');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {
+      // fallback
+    }
+    return [
+      { id: 24, codigo: '0134', nombre: 'BANESCO', activo: true },
+      { id: 25, codigo: '0102', nombre: 'BANCO DE VENEZUELA', activo: true },
+      { id: 26, codigo: '0108', nombre: 'BANCO PROVINCIAL', activo: true },
+      { id: 27, codigo: '0105', nombre: 'BANCO MERCANTIL', activo: true },
+      { id: 28, codigo: '0191', nombre: 'BANCO NACIONAL DE CREDITO (BNC)', activo: true },
+      { id: 29, codigo: '0114', nombre: 'BANCARIBE', activo: true },
+      { id: 30, codigo: '0172', nombre: 'BANCAMIGA', activo: true },
+      { id: 31, codigo: '0163', nombre: 'BANCO DEL TESORO', activo: true },
+    ];
   },
   crearBanco: async (dto: { codigo: string; nombre: string }): Promise<{ id: number; message: string }> => {
     const res = await apiClient.post('/catalogos/bancos', dto);

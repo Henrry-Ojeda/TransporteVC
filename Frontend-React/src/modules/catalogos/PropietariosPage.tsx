@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import type { PropietarioDto, CrearPropietarioDto, BancoDto, FincaDto } from '@/types';
 
@@ -44,6 +45,13 @@ export const PropietariosPage: React.FC = () => {
     queryKey: ['fincas'],
     queryFn: () => catalogosApi.getFincas(true),
   });
+
+  const bancosOptions = useMemo(() => {
+    return bancos.map((b) => ({
+      value: Number(b.id),
+      label: `${b.nombre} ${b.codigo ? `(${b.codigo})` : ''}`,
+    }));
+  }, [bancos]);
 
   // Mutaciones
   const guardarMutation = useMutation({
@@ -92,16 +100,18 @@ export const PropietariosPage: React.FC = () => {
 
   const abrirModalEditar = (item: PropietarioDto) => {
     setModoEdicionId(item.id);
+    const parsedBancoId = item.bancoId ? Number(item.bancoId) : undefined;
+    const parsedPmBancoId = item.pagoMovilBancoId ? Number(item.pagoMovilBancoId) : undefined;
     setForm({
       nombreCompleto: item.nombreCompleto || item.nombre || '',
       cedulaRif: item.cedulaRif || item.cedulaRIF || '',
       telefono: item.telefono || '',
       email: item.email || '',
-      bancoId: item.bancoId,
+      bancoId: parsedBancoId,
       numeroCuenta: item.numeroCuenta || '',
       pagoMovilTelefono: item.pagoMovilTelefono || '',
       pagoMovilCedula: item.pagoMovilCedula || '',
-      pagoMovilBancoId: item.pagoMovilBancoId,
+      pagoMovilBancoId: parsedPmBancoId,
       activo: item.activo,
     });
     setModalAbierto(true);
@@ -409,19 +419,13 @@ export const PropietariosPage: React.FC = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Entidad Bancaria
                   </label>
-                  <select
-                    value={form.bancoId || ''}
-                    onChange={(e) => setForm({ ...form, bancoId: e.target.value ? Number(e.target.value) : undefined })}
-                    className="form-input"
-                    style={{ width: '100%', height: '38px' }}
-                  >
-                    <option value="">-- Seleccionar Banco --</option>
-                    {bancos.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.nombre} ({b.codigo || ''})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={bancosOptions}
+                    value={form.bancoId ? Number(form.bancoId) : undefined}
+                    onChange={(val) => setForm({ ...form, bancoId: val ? Number(val) : undefined })}
+                    placeholder="-- Seleccionar Banco --"
+                    searchPlaceholder="Buscar banco..."
+                  />
                 </div>
 
                 <div>
