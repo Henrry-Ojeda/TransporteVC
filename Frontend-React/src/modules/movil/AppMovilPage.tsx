@@ -6,7 +6,7 @@ import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
 import { sistemaApi } from '@/api/sistema.api';
 import { notificacionesApi, type NotificacionMovil } from '@/api/notificaciones.api';
-import type { FincaDto, DespachoCompaniaDto } from '@/types';
+import type { FincaDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
 
 interface DispositivoMovilData {
   token: string;
@@ -131,6 +131,42 @@ export const AppMovilPage: React.FC = () => {
   // Despachos / Entregas Asignadas
   const [entregas, setEntregas] = useState<DespachoCompaniaDto[]>([]);
   const [cargandoEntregas, setCargandoEntregas] = useState(false);
+
+  // Viaje / Ticket Activo Asignado al Chofer (creado por Supervisor/Admin o por el chofer)
+  const [viajeActivo, setViajeActivo] = useState<ControlRutaDto | null>(() => {
+    try {
+      const saved = localStorage.getItem('movil_viaje_activo');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [paradasViajeActivo, setParadasViajeActivo] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('movil_paradas_activo');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [cargandoViaje, setCargandoViaje] = useState(false);
+
+  // Persistir viaje activo y paradas en LocalStorage
+  useEffect(() => {
+    if (viajeActivo) {
+      localStorage.setItem('movil_viaje_activo', JSON.stringify(viajeActivo));
+    } else {
+      localStorage.removeItem('movil_viaje_activo');
+    }
+  }, [viajeActivo]);
+
+  useEffect(() => {
+    if (paradasViajeActivo && paradasViajeActivo.length > 0) {
+      localStorage.setItem('movil_paradas_activo', JSON.stringify(paradasViajeActivo));
+    } else {
+      localStorage.removeItem('movil_paradas_activo');
+    }
+  }, [paradasViajeActivo]);
 
   // Fecha de hoy por defecto
   const hoyStr = new Date().toISOString().split('T')[0];
@@ -292,12 +328,13 @@ export const AppMovilPage: React.FC = () => {
     }
   }, [isOnline]);
 
-  // Si estamos en línea y hay conexión, refrescar lista de fincas y perfil
+  // Si estamos en línea y hay conexión, refrescar lista de fincas, perfil, entregas y viaje activo
   useEffect(() => {
     if (dispositivo && isOnline) {
       cargarFincasServidor();
       cargarEntregasChofer();
       cargarPerfilServidor();
+      cargarViajeActivo();
     }
   }, [dispositivo, isOnline]);
 
@@ -313,6 +350,42 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
+  const cargarViajeActivo = async () => {
+    if (!dispositivo?.id) return;
+    setCargandoViaje(true);
+    try {
+      // 1. Obtener viaje activo asignado al chofer (creado por él o asignado por supervisor/admin)
+      const v = await operacionesApi.getViajeActivo(dispositivo.id);
+      if (v && v.id) {
+        setViajeActivo(v);
+        // Si el ticket trae cisterna o placa específica, actualizar localmente
+        if (v.camionId || v.camionPlaca) {
+          setDispositivo((prev) => {
+            if (!prev) return null;
+            const updated = {
+              ...prev,
+              camionId: v.camionId || prev.camionId,
+              placaCamion: v.camionPlaca || prev.placaCamion,
+              capacidadTanqueLitros: v.capacidadCamionLitros || prev.capacidadTanqueLitros || 6000,
+            };
+            localStorage.setItem('movil_device_info', JSON.stringify(updated));
+            return updated;
+          });
+        }
+        // 2. Cargar paradas ya registradas en este ticket en el servidor
+        const paradas = await operacionesApi.getFincasViaje(v.id);
+        setParadasViajeActivo(Array.isArray(paradas) ? paradas : []);
+      } else {
+        setViajeActivo(null);
+        setParadasViajeActivo([]);
+      }
+    } catch (err) {
+      console.warn('No se pudo sincronizar el viaje activo con el servidor:', err);
+    } finally {
+      setCargandoViaje(false);
+    }
+  };
+
   const cargarEntregasChofer = async () => {
     if (!dispositivo?.id) return;
     setCargandoEntregas(true);
@@ -322,6 +395,7 @@ export const AppMovilPage: React.FC = () => {
         (d: any) =>
           d.choferId === dispositivo.id ||
           d.conductorId === dispositivo.id ||
+          d.usuarioId === dispositivo.id ||
           (dispositivo.camionId && d.camionId === dispositivo.camionId) ||
           (d.choferNombre && d.choferNombre.toLowerCase().includes((dispositivo.nombreCompleto || '').toLowerCase()))
       );
@@ -573,10 +647,14 @@ export const AppMovilPage: React.FC = () => {
       )
     ) {
       localStorage.removeItem('movil_device_info');
+      localStorage.removeItem('movil_viaje_activo');
+      localStorage.removeItem('movil_paradas_activo');
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
       setDispositivo(null);
+      setViajeActivo(null);
+      setParadasViajeActivo([]);
       setLoginUsername('');
       setLoginPassword('');
       toast.info('Sesión cerrada. La base de datos sigue guardada.');
@@ -591,6 +669,8 @@ export const AppMovilPage: React.FC = () => {
       )
     ) {
       localStorage.removeItem('movil_device_info');
+      localStorage.removeItem('movil_viaje_activo');
+      localStorage.removeItem('movil_paradas_activo');
       localStorage.removeItem('movil_tenant_domain');
       localStorage.removeItem('movil_tenant_empresa');
       localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -599,6 +679,8 @@ export const AppMovilPage: React.FC = () => {
       setTenantDomain('');
       setEmpresaGuardada('');
       setDispositivo(null);
+      setViajeActivo(null);
+      setParadasViajeActivo([]);
       setModoLogin('codigo');
       setCodigoInput('');
       toast.info('Dispositivo desvinculado. Ingresa el código de 6 dígitos de la nueva empresa.');
@@ -706,17 +788,58 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
-  // Cálculos de Cargas
-  const cargasHoy = useMemo(() => {
-    return cargas.filter((c) => c.fecha === hoyStr);
-  }, [cargas, hoyStr]);
+  // Cálculos de Cargas y Paradas del Viaje Activo
+  const todasLasParadas = useMemo(() => {
+    const lista: any[] = [];
 
-  const totalLitrosHoy = useMemo(() => {
-    return cargasHoy.reduce((acc, curr) => acc + (Number(curr.litros) || 0), 0);
-  }, [cargasHoy]);
+    // 1. Paradas confirmadas en el servidor para el viaje activo
+    (paradasViajeActivo || []).forEach((p, idx) => {
+      lista.push({
+        localId: `server_${p.id || idx}`,
+        id: p.id,
+        fincaNombre: p.fincaNombre || p.FincaNombre || p.finca || `Finca #${p.fincaId || p.FincaId}`,
+        litros: Number(p.litros ?? p.Litros ?? 0),
+        tipoLeche: (p.tipoLeche || p.TipoLeche || 'VACA').toUpperCase(),
+        esAcida: Boolean(p.esAcida || p.EsAcida),
+        esDiferido: Boolean(p.esDiferido || p.EsDiferido),
+        hora: p.horaRecoleccion || p.hora || (p.createdAt ? new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Confirmada'),
+        synced: true,
+        origen: 'Servidor',
+      });
+    });
 
-  const capacidad = dispositivo?.capacidadTanqueLitros || 6000;
-  const porcentajeLlenado = Math.min(Math.round((totalLitrosHoy / capacidad) * 100), 100);
+    // 2. Cargas locales en el teléfono aún pendientes de sincronizar
+    cargas.filter((c) => !c.synced).forEach((c) => {
+      lista.push({
+        localId: c.localId,
+        fincaNombre: c.fincaNombre,
+        litros: Number(c.litros) || 0,
+        tipoLeche: c.tipoLeche,
+        esAcida: c.esAcida,
+        esDiferido: c.esDiferido,
+        temperatura: c.temperatura,
+        hora: c.hora,
+        synced: false,
+        origen: 'Teléfono',
+      });
+    });
+
+    return lista;
+  }, [paradasViajeActivo, cargas]);
+
+  const totalLitrosCargados = useMemo(() => {
+    const sumParadasServer = (paradasViajeActivo || []).reduce((acc, p) => acc + Number(p.litros ?? p.Litros ?? 0), 0);
+    const sumPendientes = cargas.filter((c) => !c.synced).reduce((acc, c) => acc + (Number(c.litros) || 0), 0);
+    const serverTotal = (viajeActivo?.totalLitrosFinca && viajeActivo.totalLitrosFinca > sumParadasServer) ? viajeActivo.totalLitrosFinca : sumParadasServer;
+    return serverTotal + sumPendientes;
+  }, [viajeActivo, paradasViajeActivo, cargas]);
+
+  const capacidad = viajeActivo?.capacidadCamionLitros || dispositivo?.capacidadTanqueLitros || 6000;
+  const porcentajeLlenado = Math.min(Math.round((totalLitrosCargados / capacidad) * 100), 100);
+
+  // Mantener alias para compatibilidad
+  const cargasHoy = todasLasParadas;
+  const totalLitrosHoy = totalLitrosCargados;
 
   const pendientesSync = useMemo(() => {
     return cargas.filter((c) => !c.synced);
@@ -806,46 +929,45 @@ export const AppMovilPage: React.FC = () => {
     let sincronizadasCount = 0;
 
     try {
-      const fechaCarga = pendientes[0]?.fecha || hoyStr;
-      let viajes = await operacionesApi.getControles(fechaCarga);
-      let viajeExistente = viajes.find(
-        (v: any) =>
-          (v.camionId === dispositivo?.camionId || v.choferId === dispositivo?.id) &&
-          v.estado !== 'Cerrado' && v.estado !== 'Cancelado'
-      );
+      // 1. Priorizar el viaje activo ya cargado o asignado al chofer
+      let idViaje: number | undefined = viajeActivo?.id;
 
-      // Si no se encontró en la fecha de la carga y difiere de hoy, buscar en hoy
-      if (!viajeExistente && fechaCarga !== hoyStr) {
-        try {
-          const viajesHoy = await operacionesApi.getControles(hoyStr);
-          viajeExistente = viajesHoy.find(
-            (v: any) =>
-              (v.camionId === dispositivo?.camionId || v.choferId === dispositivo?.id) &&
-              v.estado !== 'Cerrado' && v.estado !== 'Cancelado'
-          );
-        } catch {
-          // ignore
+      if (!idViaje) {
+        // Consultar al servidor si existe un viaje activo abierto asignado a este chofer
+        const vActivo = await operacionesApi.getViajeActivo(dispositivo?.id);
+        if (vActivo && vActivo.id) {
+          idViaje = vActivo.id;
+          setViajeActivo(vActivo);
         }
       }
 
-      // Si aún no se encontró, buscar en todos los viajes abiertos del chofer
-      if (!viajeExistente) {
-        try {
+      // Si aún no se encontró, buscar en controles abiertos por chofer o unidad
+      if (!idViaje) {
+        const fechaCarga = pendientes[0]?.fecha || hoyStr;
+        let viajes = await operacionesApi.getControles(fechaCarga);
+        let viajeExistente = viajes.find(
+          (v: any) =>
+            (v.usuarioId === dispositivo?.id || v.conductorId === dispositivo?.id || v.choferId === dispositivo?.id || (dispositivo?.camionId && v.camionId === dispositivo.camionId)) &&
+            v.estado !== 'Cerrado' && v.estado !== 'FINALIZADO' && v.estado !== 'Cancelado'
+        );
+
+        if (!viajeExistente) {
           const todosLosViajes = await operacionesApi.getControles();
           viajeExistente = todosLosViajes.find(
             (v: any) =>
-              (v.camionId === dispositivo?.camionId || v.choferId === dispositivo?.id) &&
-              v.estado !== 'Cerrado' && v.estado !== 'Cancelado'
+              (v.usuarioId === dispositivo?.id || v.conductorId === dispositivo?.id || v.choferId === dispositivo?.id || (dispositivo?.camionId && v.camionId === dispositivo.camionId)) &&
+              v.estado !== 'Cerrado' && v.estado !== 'FINALIZADO' && v.estado !== 'Cancelado'
           );
-        } catch {
-          // ignore
+        }
+
+        if (viajeExistente && viajeExistente.id) {
+          idViaje = viajeExistente.id;
         }
       }
 
-      let idViaje: number;
-      if (viajeExistente && viajeExistente.id) {
-        idViaje = viajeExistente.id;
-      } else {
+      // Solo si absolutamente ningún viaje abierto existe para el chofer, iniciar uno
+      if (!idViaje) {
+        const fechaCarga = pendientes[0]?.fecha || hoyStr;
         const viajeIniciado = await operacionesApi.iniciarViaje({
           fecha: fechaCarga,
           camionId: dispositivo?.camionId,
@@ -892,6 +1014,9 @@ export const AppMovilPage: React.FC = () => {
       if (sincronizadasCount > 0) {
         toast.success(`¡Sincronización completada! ${sincronizadasCount} carga(s) enviadas a la central.`);
       }
+
+      // Actualizar paradas consolidadas y viaje activo desde la central
+      await cargarViajeActivo();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Error al conectar con la central para sincronizar.');
     } finally {
@@ -1664,6 +1789,112 @@ export const AppMovilPage: React.FC = () => {
            =================================================================== */}
         {tabActiva === 'principal' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* TARJETA DE TICKET / VIAJE ACTIVO ASIGNADO */}
+            {viajeActivo ? (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
+                  borderRadius: '18px',
+                  padding: '16px 18px',
+                  border: '1.5px solid #86efac',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '16px', fontWeight: 900, color: '#166534' }}>
+                      <i className="fa-solid fa-ticket mr-1 text-emerald-600"></i> Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
+                    </span>
+                    <span
+                      style={{
+                        background: '#dcfce7',
+                        color: '#15803d',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #bbf7d0',
+                      }}
+                    >
+                      ● {viajeActivo.estado || 'EN RUTA'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={cargarViajeActivo}
+                    disabled={cargandoViaje}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#334155',
+                      cursor: 'pointer',
+                    }}
+                    title="Actualizar datos del ticket"
+                  >
+                    <i className={`fa-solid fa-rotate ${cargandoViaje ? 'fa-spin' : ''}`}></i>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '12px', color: '#475569', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <i className="fa-solid fa-truck text-slate-500"></i>
+                    <strong>{viajeActivo.camionPlaca || dispositivo?.placaCamion || 'Cisterna en Turno'}</strong>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span>Capacidad: {(viajeActivo.capacidadCamionLitros || capacidad).toLocaleString()} L</span>
+                  </div>
+                  <div style={{ marginTop: '3px' }}>
+                    <i className="fa-solid fa-route text-slate-400 mr-1"></i>
+                    <span>{viajeActivo.rutaLogisticaNombre ? `Ruta: ${viajeActivo.rutaLogisticaNombre}` : 'Modo Libre (Paradas Flexibles)'}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '10px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Cargado en Cisterna</span>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#15803d' }}>
+                      {totalLitrosCargados.toLocaleString()} L
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Paradas</span>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>
+                      {todasLasParadas.length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: '#f8fafc',
+                  borderRadius: '18px',
+                  padding: '16px',
+                  border: '1.5px dashed #cbd5e1',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
+                  <i className="fa-solid fa-route mr-2 text-slate-400"></i>
+                  No tienes un ticket de ruta abierto actualmente
+                </div>
+                <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '4px 0 10px 0' }}>
+                  Al registrar tu primera carga en finca o cuando tu supervisor te asigne una ruta, aparecerá aquí.
+                </p>
+                <button
+                  type="button"
+                  onClick={cargarViajeActivo}
+                  className="btn btn-sm btn-outline"
+                  style={{ fontSize: '11px', padding: '4px 10px' }}
+                >
+                  <i className="fa-solid fa-rotate mr-1"></i> Verificar Asignación
+                </button>
+              </div>
+            )}
+
             {/* Widget Tanque */}
             <div
               style={{
@@ -1709,7 +1940,7 @@ export const AppMovilPage: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
-                <span>Recolectado Hoy: <strong style={{ color: '#0f172a' }}>{totalLitrosHoy.toLocaleString()} L</strong></span>
+                <span>Recolectado a Bordo: <strong style={{ color: '#0f172a' }}>{totalLitrosCargados.toLocaleString()} L</strong></span>
                 <span>Capacidad: <strong>{capacidad.toLocaleString()} L</strong></span>
               </div>
             </div>
@@ -1726,13 +1957,13 @@ export const AppMovilPage: React.FC = () => {
                 }}
               >
                 <div style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>
-                  Paradas en Fincas
+                  Paradas Registradas
                 </div>
                 <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
-                  {cargasHoy.length}
+                  {todasLasParadas.length}
                 </div>
                 <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                  {totalLitrosHoy.toLocaleString()} L recolectados
+                  {totalLitrosCargados.toLocaleString()} L recolectados
                 </div>
               </div>
 
@@ -1789,6 +2020,58 @@ export const AppMovilPage: React.FC = () => {
            =================================================================== */}
         {tabActiva === 'recoleccion' && (
           <div>
+            {/* Banner de Viaje / Ticket Activo */}
+            {viajeActivo && (
+              <div
+                style={{
+                  background: '#f0fdf4',
+                  border: '1.5px solid #86efac',
+                  borderRadius: '16px',
+                  padding: '12px 16px',
+                  marginBottom: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.08)',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 900, color: '#166534' }}>
+                      <i className="fa-solid fa-ticket mr-1"></i> Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
+                    </span>
+                    <span
+                      style={{
+                        background: '#dcfce7',
+                        color: '#15803d',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        padding: '1px 6px',
+                        borderRadius: '5px',
+                        border: '1px solid #bbf7d0',
+                      }}
+                    >
+                      ACTIVO
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#166534', marginTop: '2px' }}>
+                    <span>🚛 {viajeActivo.camionPlaca || dispositivo?.placaCamion || 'Cisterna'}</span>
+                    <span style={{ margin: '0 4px', color: '#86efac' }}>•</span>
+                    <span>{viajeActivo.rutaLogisticaNombre ? `Ruta: ${viajeActivo.rutaLogisticaNombre}` : 'Modo Libre'}</span>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#15803d' }}>
+                    {totalLitrosCargados.toLocaleString()} L
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#166534', fontWeight: 700 }}>
+                    {todasLasParadas.length} parada(s)
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Banner Sync si hay cargas pendientes */}
             {pendientesSync.length > 0 && (
               <div
@@ -1862,14 +2145,14 @@ export const AppMovilPage: React.FC = () => {
             {/* Historial de Cargas de Hoy */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <h3 style={{ fontSize: '14.5px', fontWeight: 800, color: '#1e293b', margin: 0 }}>
-                Mis Cargas de Hoy ({cargasHoy.length})
+                Paradas de este Viaje ({todasLasParadas.length})
               </h3>
               <span style={{ fontSize: '12px', color: '#64748b' }}>
-                Total: <strong>{totalLitrosHoy.toLocaleString()} L</strong>
+                Total: <strong>{totalLitrosCargados.toLocaleString()} L</strong>
               </span>
             </div>
 
-            {cargasHoy.length === 0 ? (
+            {todasLasParadas.length === 0 ? (
               <div
                 style={{
                   background: '#ffffff',
@@ -1882,7 +2165,7 @@ export const AppMovilPage: React.FC = () => {
               >
                 <i className="fa-solid fa-clipboard-list text-3xl mb-2 text-slate-300"></i>
                 <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#64748b' }}>
-                  No hay cargas registradas hoy
+                  No hay cargas registradas en este ticket
                 </div>
                 <p style={{ fontSize: '11.5px', margin: '4px 0 0 0' }}>
                   Pulsa el botón verde para registrar una recolección en finca.
@@ -1890,7 +2173,7 @@ export const AppMovilPage: React.FC = () => {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {cargasHoy.map((c) => (
+                {todasLasParadas.map((c) => (
                   <div
                     key={c.localId}
                     style={{
@@ -1912,6 +2195,11 @@ export const AppMovilPage: React.FC = () => {
                         {c.tipoLeche === 'BUFALA' && (
                           <span style={{ background: '#fed7aa', color: '#9a3412', fontSize: '10px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px' }}>
                             BÚFALA
+                          </span>
+                        )}
+                        {c.esDiferido && (
+                          <span style={{ background: '#fef3c7', color: '#b45309', fontSize: '10px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px' }}>
+                            DIFERIDO
                           </span>
                         )}
                       </div>

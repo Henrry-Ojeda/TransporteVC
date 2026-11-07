@@ -23,6 +23,17 @@ export const operacionesApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
+  getViajeActivo: async (choferId?: number): Promise<ControlRutaDto | null> => {
+    try {
+      const params: Record<string, any> = {};
+      if (choferId) params.choferId = choferId;
+      const res = await apiClient.get<ControlRutaDto>('/control-rutas/viaje-activo', { params });
+      return res.data || null;
+    } catch {
+      return null;
+    }
+  },
+
   getControlPorId: async (id: number): Promise<ControlRutaDto> => {
     const res = await apiClient.get<ControlRutaDto>(`/control-rutas/${id}`);
     return res.data;

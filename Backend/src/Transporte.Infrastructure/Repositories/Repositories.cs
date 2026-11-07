@@ -8459,6 +8459,11 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     pt.Nombre AS NombreProceso,
                     pt.Color AS ColorProceso,
                     pt.Icono AS IconoProceso,
+                    cr.RutaLogisticaId,
+                    rl.Nombre AS RutaLogisticaNombre,
+                    cam.Id AS CamionId,
+                    cam.Placa AS CamionPlaca,
+                    cam.CapacidadLitros AS CapacidadCamionLitros,
                     cr.TipoDestino,
                     cr.LitrosRecibidosReceptoria,
                     cr.DiferenciaReceptoria,
@@ -8478,7 +8483,10 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_PROCESOS_TICKET pt ON cr.ProcesoActualId = pt.Id
                 LEFT JOIN TB_COMPANIAS cp ON cr.CompaniaDestinoId = cp.Id
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
-                WHERE cr.UsuarioId = @choferId AND cr.ProcesoActualId IN (1, 2, 3)
+                LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
+                LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
+                WHERE (cr.UsuarioId = @choferId OR cr.CreatedBy = @choferId) 
+                  AND (cr.Estado NOT IN ('FINALIZADO', 'CERRADO') OR cr.ProcesoActualId IN (1, 2, 3))
                 ORDER BY cr.Id DESC";
 
             return await connection.QueryFirstOrDefaultAsync<ControlRutaDto>(sql, new { choferId });
