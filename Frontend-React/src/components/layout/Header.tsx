@@ -33,15 +33,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
   const [sincronizandoBcv, setSincronizandoBcv] = useState(false);
+  const userRol = String(user?.rol || '').toUpperCase();
+  const puedeVerYGestionarBcv = !['CHOFER', 'RECEPTOR'].includes(userRol);
 
-  // Query Tasa BCV
+  // Query Tasa BCV (Solo para usuarios autorizados; Chofer y Receptor no gestionan montos ni tasas)
   const { data: bcvData, isLoading: loadingBcv, refetch: refetchBcv } = useQuery<BcvResponse>({
     queryKey: ['bcv-hoy'],
     queryFn: async () => {
       const res = await apiClient.get<BcvResponse>('/bcv/hoy');
       return res.data;
     },
-    enabled: !!user,
+    enabled: !!user && puedeVerYGestionarBcv,
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 15,
   });
@@ -92,7 +94,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   }, []);
 
   // Roles autorizados para supervisión y administración
-  const userRol = String(user?.rol || '').toUpperCase();
   const esAdminOSupervisor = 
     userRol.includes('ADMIN') || 
     userRol.includes('SUPERVISOR') ||
@@ -281,6 +282,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   };
 
   const handleSyncBcv = async () => {
+    if (!puedeVerYGestionarBcv) return;
     if (sincronizandoBcv) return;
     setSincronizandoBcv(true);
     try {
@@ -381,43 +383,45 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       </div>
 
       <div className="nav-center">
-        {/* WIDGET TASA BCV HOY */}
-        <div
-          className="bcv-widget"
-          id="bcvWidget"
-          title="Consultar y registrar tasa oficial en vivo"
-          style={{ cursor: 'pointer' }}
-          onClick={handleSyncBcv}
-        >
-          <div className="bcv-icon">
-            <i className={`fa-solid ${sincronizandoBcv ? 'fa-spinner fa-spin' : 'fa-dollar-sign'}`}></i>
-          </div>
-          <div className="bcv-info">
-            <span className="bcv-label">TASA BCV HOY</span>
-            <span className="bcv-value" id="bcvHoyTexto">
-              {loadingBcv || sincronizandoBcv ? (
-                'Sincronizando...'
-              ) : tasa > 0 ? (
-                `Bs. ${tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
-              ) : (
-                'Por definir'
-              )}
-            </span>
-          </div>
-          <button
-            className="btn-icon"
-            id="btnSyncBcvApi"
-            title="Sincronizar tasa en vivo desde BCV"
-            disabled={sincronizandoBcv}
-            style={{ color: '#34d399', marginLeft: '4px', background: 'none', border: 'none', cursor: 'pointer' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSyncBcv();
-            }}
+        {/* WIDGET TASA BCV HOY (Exclusivo Administradores, Supervisores y Finanzas - Chofer y Receptor no gestionan montos ni tasas) */}
+        {puedeVerYGestionarBcv && (
+          <div
+            className="bcv-widget"
+            id="bcvWidget"
+            title="Consultar y registrar tasa oficial en vivo"
+            style={{ cursor: 'pointer' }}
+            onClick={handleSyncBcv}
           >
-            <i className={`fa-solid fa-arrows-rotate ${loadingBcv || sincronizandoBcv ? 'fa-spin' : ''}`}></i>
-          </button>
-        </div>
+            <div className="bcv-icon">
+              <i className={`fa-solid ${sincronizandoBcv ? 'fa-spinner fa-spin' : 'fa-dollar-sign'}`}></i>
+            </div>
+            <div className="bcv-info">
+              <span className="bcv-label">TASA BCV HOY</span>
+              <span className="bcv-value" id="bcvHoyTexto">
+                {loadingBcv || sincronizandoBcv ? (
+                  'Sincronizando...'
+                ) : tasa > 0 ? (
+                  `Bs. ${tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                ) : (
+                  'Por definir'
+                )}
+              </span>
+            </div>
+            <button
+              className="btn-icon"
+              id="btnSyncBcvApi"
+              title="Sincronizar tasa en vivo desde BCV"
+              disabled={sincronizandoBcv}
+              style={{ color: '#34d399', marginLeft: '4px', background: 'none', border: 'none', cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSyncBcv();
+              }}
+            >
+              <i className={`fa-solid fa-arrows-rotate ${loadingBcv || sincronizandoBcv ? 'fa-spin' : ''}`}></i>
+            </button>
+          </div>
+        )}
 
         {/* WIDGET SEMANA OPERATIVA */}
         <div className="ciclo-widget" id="cicloWidget">

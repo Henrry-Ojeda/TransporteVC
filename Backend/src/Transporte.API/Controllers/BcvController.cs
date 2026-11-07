@@ -51,7 +51,7 @@ namespace Transporte.API.Controllers
         [HttpPost]
         [HttpPost("registrar")]
         [HttpPost("guardar")]
-        [Authorize(Roles = "SUPERADMIN,ADMIN,FINANZAS,SUPERVISOR,RECEPTOR")]
+        [Authorize(Roles = "SUPERADMIN,ADMIN,FINANZAS,SUPERVISOR")]
         public async Task<IActionResult> GuardarTasa([FromBody] RegistrarBcvDto dto)
         {
             if (dto.TasaDolarBs <= 0)

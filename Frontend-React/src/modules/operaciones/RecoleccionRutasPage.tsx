@@ -362,6 +362,28 @@ export const RecoleccionRutasPage: React.FC = () => {
     const nuevosTitilando = { ...ticketsTitilando };
 
     viajes.forEach((v) => {
+      const est = (v.estado || '').toUpperCase();
+      const estP = (v.estadoProceso || '').toUpperCase();
+      const esFin =
+        est === 'FINALIZADO' ||
+        est === 'CERRADO' ||
+        est === 'CUADRADO' ||
+        est === 'ENTREGADO' ||
+        est === 'AUDITADO' ||
+        estP === 'FINALIZADO' ||
+        estP === 'CERRADO' ||
+        v.procesoActualId === 3 ||
+        v.procesoActualId === 4;
+
+      // Tickets finalizados nunca titilan; si estaban titilando se limpian inmediatamente
+      if (esFin) {
+        if (nuevosTitilando[v.id]) {
+          delete nuevosTitilando[v.id];
+          huboCambios = true;
+        }
+        return;
+      }
+
       const paradas = fincasTicketsMap[v.id] || [];
       const litrosActuales = v.totalLitrosFinca || paradas.reduce((acc: number, p: any) => acc + Number(p.litros || p.Litros || 0), 0);
       const paradasCount = paradas.length;
@@ -1059,11 +1081,31 @@ export const RecoleccionRutasPage: React.FC = () => {
           est !== 'FINALIZADO' &&
           est !== 'CERRADO' &&
           est !== 'ENTREGADO' &&
+          est !== 'CUADRADO' &&
           est !== 'AUDITADO' &&
           est !== 'CANCELADO' &&
           estP !== 'CERRADO' &&
           estP !== 'FINALIZADO' &&
+          v.procesoActualId !== 3 &&
           v.procesoActualId !== 4
+        );
+      });
+    } else if (filtroEstadoTicket === 'todos') {
+      // MODO "HISTORICO COMPLETO": SOLO SE VEN LOS FINALIZADOS, LOS QUE TIENEN ESTADO ABIERTO NO
+      list = list.filter((v) => {
+        const est = (v.estado || '').toUpperCase();
+        const estP = (v.estadoProceso || '').toUpperCase();
+        if (est === 'ABIERTO' || v.procesoActualId === 1) return false;
+        return (
+          est === 'FINALIZADO' ||
+          est === 'CERRADO' ||
+          est === 'ENTREGADO' ||
+          est === 'CUADRADO' ||
+          est === 'AUDITADO' ||
+          estP === 'CERRADO' ||
+          estP === 'FINALIZADO' ||
+          v.procesoActualId === 3 ||
+          v.procesoActualId === 4
         );
       });
     }
@@ -1094,10 +1136,27 @@ export const RecoleccionRutasPage: React.FC = () => {
           est !== 'FINALIZADO' &&
           est !== 'CERRADO' &&
           est !== 'ENTREGADO' &&
+          est !== 'CUADRADO' &&
           est !== 'AUDITADO' &&
           est !== 'CANCELADO' &&
           estP !== 'CERRADO' &&
           estP !== 'FINALIZADO'
+        );
+      });
+    } else if (filtroEstadoTicket === 'todos') {
+      // MODO "HISTORICO COMPLETO": SOLO SE VEN LOS FINALIZADOS, LOS QUE TIENEN ESTADO ABIERTO NO
+      list = list.filter((d) => {
+        const est = (d.estado || '').toUpperCase();
+        const estP = ((d as any).estadoProceso || '').toUpperCase();
+        if (est === 'ABIERTO') return false;
+        return (
+          est === 'FINALIZADO' ||
+          est === 'CERRADO' ||
+          est === 'ENTREGADO' ||
+          est === 'CUADRADO' ||
+          est === 'AUDITADO' ||
+          estP === 'CERRADO' ||
+          estP === 'FINALIZADO'
         );
       });
     }
@@ -2159,8 +2218,14 @@ export const RecoleccionRutasPage: React.FC = () => {
                 const esFinalizado =
                   item.estado === 'FINALIZADO' ||
                   item.estado === 'CERRADO' ||
+                  item.estado === 'CUADRADO' ||
+                  item.estado === 'ENTREGADO' ||
+                  item.estado === 'AUDITADO' ||
                   item.estadoProceso === 'CERRADO' ||
-                  item.procesoActualId === 4;
+                  item.estadoProceso === 'FINALIZADO' ||
+                  item.procesoActualId === 3 ||
+                  item.procesoActualId === 4 ||
+                  (!esRuta && item.esConfirmado);
 
                 const esAbierto = !esFinalizado && (item.estado === 'ABIERTO' || item.procesoActualId === 1);
                 const esMiTicket = item.usuarioId === user?.id || item.conductorId === user?.id;
@@ -2201,7 +2266,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   : item.camionPlaca || (item.camionId ? `Cisterna #${item.camionId}` : 'Cisterna en Turno');
 
                 const tiempoFinTitilar = ticketsTitilando[item.id] || 0;
-                const esTicketTitilando = tiempoFinTitilar > nowTick;
+                const esTicketTitilando = !esFinalizado && tiempoFinTitilar > nowTick;
 
                 return (
                   <div
