@@ -375,8 +375,11 @@ export const RecoleccionRutasPage: React.FC = () => {
         v.procesoActualId === 3 ||
         v.procesoActualId === 4;
 
-      // Tickets finalizados nunca titilan; si estaban titilando se limpian inmediatamente
-      if (esFin) {
+      const fechaTicketStr = (v.fecha || '').split('T')[0];
+      const esDeHoy = Boolean(fechaTicketStr && fechaTicketStr === hoyStr);
+
+      // Tickets finalizados o de fechas anteriores NUNCA titilan
+      if (esFin || !esDeHoy) {
         if (nuevosTitilando[v.id]) {
           delete nuevosTitilando[v.id];
           huboCambios = true;
@@ -388,20 +391,22 @@ export const RecoleccionRutasPage: React.FC = () => {
       const litrosActuales = v.totalLitrosFinca || paradas.reduce((acc: number, p: any) => acc + Number(p.litros || p.Litros || 0), 0);
       const paradasCount = paradas.length;
 
-      // Buscar si hay alguna parada nueva que nunca hayamos visto en esta sesión
-      let tieneParadaNueva = false;
+      // Buscar si hay alguna parada nueva que haya sido agregada en los últimos 45 segundos reales
+      let tieneParadaNuevaEnVivo = false;
       paradas.forEach((p: any) => {
+        const timeStamp = p.createdAt || (p as any).CreatedAt;
+        const fechaParadaMs = timeStamp ? new Date(timeStamp).getTime() : 0;
+        const esCreadaReciente = fechaParadaMs > 0 && (ahora - fechaParadaMs) < 45000;
+
         if (p.id && !paradasVistasRef.current.has(p.id)) {
           paradasVistasRef.current.add(p.id);
-          tieneParadaNueva = true;
+          if (esCreadaReciente) {
+            tieneParadaNuevaEnVivo = true;
+          }
         }
       });
 
-      const prev = prevTicketsDataRef.current[v.id];
-      const aumentoConteo = prev ? paradasCount > prev.count : false;
-      const aumentoLitros = prev ? litrosActuales > prev.litros : false;
-
-      if (tieneParadaNueva || aumentoConteo || aumentoLitros) {
+      if (tieneParadaNuevaEnVivo) {
         // Titila durante 20 segundos estrictos (menos de un minuto)
         nuevosTitilando[v.id] = ahora + 20000;
         huboCambios = true;
@@ -2265,8 +2270,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                   ? `${camionMatch.placa} - ${camionMatch.marca || 'Cisterna'}`
                   : item.camionPlaca || (item.camionId ? `Cisterna #${item.camionId}` : 'Cisterna en Turno');
 
+                const fechaTicketItem = (item.fecha || '').split('T')[0];
+                const esDeHoyItem = Boolean(fechaTicketItem && fechaTicketItem === hoyStr);
                 const tiempoFinTitilar = ticketsTitilando[item.id] || 0;
-                const esTicketTitilando = !esFinalizado && tiempoFinTitilar > nowTick;
+                const esTicketTitilando = !esFinalizado && esDeHoyItem && tiempoFinTitilar > nowTick;
 
                 return (
                   <div

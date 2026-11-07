@@ -1746,106 +1746,240 @@ export const ViajesTicketsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 5. MODAL EDITAR TICKET POR ADMIN 1:1 */}
+      {/* 5. MODAL EDITAR TICKET POR ADMIN 1:1 CON V2_3_11_26 */}
       {modalEditar && ticketParaEditar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-amber-600" />
-                Editar Ticket #{ticketParaEditar.id} ({ticketParaEditar._origen})
-              </h3>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            padding: '20px 16px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-full max-w-xl p-6 space-y-4 my-auto"
+            style={{ position: 'relative', maxHeight: '92vh', overflowY: 'auto' }}
+          >
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#0284c7',
+                    fontSize: '15px',
+                  }}
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 m-0">
+                  Editar Ticket de {ticketParaEditar._origen === 'SALIDAS' ? 'Salida' : 'Ruta'} #{ticketParaEditar.id}
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setModalEditar(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-xl transition-colors cursor-pointer"
+                title="Cerrar ventana"
               >
-                <X className="w-5 h-5" />
+                &times;
               </button>
+            </div>
+
+            {/* Cabecera Informativa 1:1 con V2_3_11_26 */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                border: '1.5px solid #bae6fd',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 10px rgba(2, 132, 199, 0.3)',
+                }}
+              >
+                <i className={`fa-solid ${ticketParaEditar._origen === 'SALIDAS' ? 'fa-truck-fast' : 'fa-route'}`}></i>
+              </div>
+              <div style={{ fontSize: '12.5px', color: '#0369a1', lineHeight: '1.4', fontWeight: 500 }}>
+                Edición de parámetros del <strong>Ticket #{ticketParaEditar.id} ({ticketParaEditar._origen || 'RUTA'})</strong>.<br />
+                Litros Recolectados en Fincas / Origen: <strong style={{ fontSize: '14px', color: '#0284c7' }}>{Number(ticketParaEditar.totalLitrosFinca || 0).toLocaleString()} Lts</strong>.
+              </div>
             </div>
 
             <form onSubmit={handleGuardarEdicion} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Fecha</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-xs">
+                    <i className="fa-solid fa-calendar-day text-sky-600 mr-1.5"></i> FECHA *
+                  </label>
                   <input
                     type="date"
                     value={ticketParaEditar.fechaEdit}
                     onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, fechaEdit: e.target.value })}
-                    className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold"
+                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-semibold text-sm"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Estado</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-xs">
+                    <i className="fa-solid fa-signal text-sky-600 mr-1.5"></i> ESTADO *
+                  </label>
                   <select
                     value={ticketParaEditar.estadoEdit}
                     onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, estadoEdit: e.target.value })}
-                    className="form-select w-full h-9 rounded-lg border border-slate-300 px-2 font-bold bg-white"
+                    className="form-select w-full h-10 rounded-lg border border-slate-300 px-3 font-bold bg-white text-sm text-slate-800"
                   >
                     <option value="ABIERTO">1: EN RUTA (ABIERTO)</option>
                     <option value="RECEPCIONADO">2: RECEPCIONADO</option>
-                    <option value="FINALIZADO">3: FINALIZADO</option>
+                    <option value="CAMINO A COMPAÑIA">3: EN QUESERA / ENTREGADO</option>
+                    <option value="FINALIZADO">4: FINALIZADO</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Conductor Responsable</label>
+                <label className="block font-bold text-slate-700 mb-1 text-xs">
+                  <i className="fa-solid fa-user-gear text-sky-600 mr-1.5"></i> CONDUCTOR RESPONSABLE *
+                </label>
                 <ChoferSelect
                   value={ticketParaEditar.choferEditId || undefined}
                   onChange={(val) => setTicketParaEditar({ ...ticketParaEditar, choferEditId: Number(val || 0) })}
-                  placeholder="-- Conductor asignado --"
+                  placeholder="-- Buscar conductor asignado... --"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Litros en Fincas / Origen</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-xs">
+                    <i className="fa-solid fa-cow text-sky-600 mr-1.5"></i> LITROS EN FINCAS / ORIGEN
+                  </label>
                   <input
                     type="text"
                     readOnly
-                    value={`${Number(ticketParaEditar.totalLitrosFinca || 0).toLocaleString()} L`}
-                    className="form-input w-full h-9 rounded-lg border border-slate-200 bg-slate-50 px-2 font-bold text-slate-500"
+                    value={`${Number(ticketParaEditar.totalLitrosFinca || 0).toLocaleString()} Lts`}
+                    className="form-input w-full h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 font-bold text-slate-500 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Recibido en Receptoría</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-xs">
+                    <i className="fa-solid fa-warehouse text-sky-600 mr-1.5"></i> RECIBIDO EN RECEPTORÍA
+                  </label>
                   <input
                     type="number"
                     value={ticketParaEditar.litrosRecibidosEdit || ''}
                     onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, litrosRecibidosEdit: Number(e.target.value) })}
-                    className="form-input w-full h-9 rounded-lg border border-slate-300 px-2 font-bold text-slate-900"
+                    placeholder="Sin pesaje aún"
+                    className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 font-extrabold text-slate-900 text-sm"
                   />
                 </div>
               </div>
 
+              {/* Box de Variación / Merma en tiempo real 1:1 */}
+              {(() => {
+                const ltsFincas = Number(ticketParaEditar.totalLitrosFinca || 0);
+                const ltsRecep = Number(ticketParaEditar.litrosRecibidosEdit || 0);
+                const dif = ltsRecep > 0 ? (ltsRecep - ltsFincas) : 0;
+                const difPct = ltsFincas > 0 && ltsRecep > 0 ? ((dif / ltsFincas) * 100) : 0;
+                const esExacto = ltsRecep > 0 && Math.abs(dif) < 0.01;
+                const esMerma = dif < 0;
+
+                return (
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${ltsRecep <= 0 ? '#cbd5e1' : esExacto ? '#a7f3d0' : esMerma ? '#fca5a5' : '#fed7aa'}`,
+                      background: ltsRecep <= 0 ? '#f8fafc' : esExacto ? '#ecfdf5' : esMerma ? '#fef2f2' : '#fffbeb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
+                      Diferencia Ruta vs Receptoría
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '13.5px',
+                        fontWeight: 800,
+                        color: ltsRecep <= 0 ? '#64748b' : esExacto ? '#059669' : esMerma ? '#dc2626' : '#d97706',
+                      }}
+                    >
+                      {ltsRecep > 0 ? `${dif > 0 ? '+' : ''}${dif.toLocaleString()} Lts (${difPct.toFixed(2)}%)` : '0 Lts (0.00%)'}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Observación</label>
+                <label className="block font-bold text-slate-700 mb-1 text-xs">
+                  <i className="fa-solid fa-comment-dots text-sky-600 mr-1.5"></i> OBSERVACIÓN
+                </label>
                 <input
                   type="text"
                   value={ticketParaEditar.observacionEdit}
                   onChange={(e) => setTicketParaEditar({ ...ticketParaEditar, observacionEdit: e.target.value })}
                   placeholder="Nota u observación del ticket..."
-                  className="form-input w-full h-9 rounded-lg border border-slate-300 px-2"
+                  className="form-input w-full h-10 rounded-lg border border-slate-300 px-3 text-sm"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setModalEditar(false)}
-                  className="btn btn-outline h-9 px-4 rounded-lg text-slate-600"
+                  className="btn btn-outline h-10 px-5 rounded-lg text-slate-600 font-bold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="btn h-9 px-5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg"
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0 20px',
+                    height: '40px',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
                 >
-                  Guardar Cambios
+                  <i className="fa-solid fa-floppy-disk"></i> Guardar Cambios
                 </button>
               </div>
             </form>
