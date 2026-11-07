@@ -7977,10 +7977,17 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<IEnumerable<ControlRutaDto>> ObtenerControlesAsync(int usuarioId, string rol, DateTime? fecha = null, DateTime? fechaInicio = null, DateTime? fechaFin = null, int? cicloId = null)
         {
             using var connection = new SqlConnection(_connectionString);
+            bool hayFiltroFecha = fecha.HasValue || fechaInicio.HasValue || fechaFin.HasValue;
             DateTime inicio = (fechaInicio ?? fecha ?? DateTime.Today.AddDays(-30)).Date;
             DateTime fin = (fechaFin ?? fecha ?? DateTime.Today.AddDays(30)).Date;
 
-            var sql = @"
+            // Si se pasa una fecha puntual (o rango), filtramos estrictamente por esa fecha o rango.
+            // Si NO se pasa ninguna fecha, mostramos el rango por defecto y tickets en curso.
+            var whereFecha = hayFiltroFecha
+                ? "(CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin)"
+                : "((CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin) OR (cr.ProcesoActualId = 1 AND cr.Estado NOT IN ('FINALIZADO', 'CERRADO')))";
+
+            var sql = $@"
                 SELECT 
                     cr.Id, cr.Fecha, cr.UsuarioId, u.NombreCompleto AS NombreConductor,
                     cr.CicloId, cr.TotalLitrosFinca, cr.TotalLitrosReceptoria,
@@ -8016,8 +8023,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
                 LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
                 LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
-                WHERE ((CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin)
-                       OR (cr.ProcesoActualId = 1 AND cr.Estado NOT IN ('FINALIZADO', 'CERRADO')))
+                WHERE {whereFecha}
                   AND (@cicloId IS NULL OR cr.CicloId = @cicloId)
                   AND (UPPER(@rol) LIKE '%ADMIN%' OR @rol IN ('SUPERVISOR', 'GERENTE') OR cr.UsuarioId = @usuarioId)
                 ORDER BY cr.Fecha DESC, cr.Id DESC";

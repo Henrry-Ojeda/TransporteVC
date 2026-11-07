@@ -525,6 +525,10 @@ export const RecoleccionRutasPage: React.FC = () => {
           (v.choferNombre && v.choferNombre.toLowerCase().includes((user.nombreCompleto || '').toLowerCase()))
       );
     }
+    // Filtrado estricto por Fecha Operativa seleccionada
+    if (fechaFiltro) {
+      list = list.filter((v) => (v.fecha || '').split('T')[0] === fechaFiltro);
+    }
     if (filtroEstadoTicket === 'activos') {
       list = list.filter((v) => {
         const est = (v.estado || '').toUpperCase();
@@ -542,7 +546,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       });
     }
     return list;
-  }, [viajes, filtroEstadoTicket, esChofer, user]);
+  }, [viajes, filtroEstadoTicket, esChofer, user, fechaFiltro]);
 
   const despachosFiltrados = useMemo(() => {
     let list = despachos;
@@ -555,6 +559,10 @@ export const RecoleccionRutasPage: React.FC = () => {
           ((user as any).camionId && d.camionId === (user as any).camionId) ||
           (d.choferNombre && d.choferNombre.toLowerCase().includes((user.nombreCompleto || '').toLowerCase()))
       );
+    }
+    // Filtrado estricto por Fecha Operativa seleccionada
+    if (fechaFiltro) {
+      list = list.filter((d) => (d.fecha || '').split('T')[0] === fechaFiltro);
     }
     if (filtroEstadoTicket === 'activos') {
       list = list.filter((d) => {
@@ -572,7 +580,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       });
     }
     return list;
-  }, [despachos, filtroEstadoTicket, esChofer, user]);
+  }, [despachos, filtroEstadoTicket, esChofer, user, fechaFiltro]);
 
   const ticketsCombinados = useMemo(() => {
     const normRutas = viajesFiltrados.map((v) => ({
