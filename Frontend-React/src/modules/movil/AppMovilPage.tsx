@@ -80,13 +80,11 @@ export const AppMovilPage: React.FC = () => {
       const host = typeof window !== 'undefined' ? window.location.hostname : '';
       if (host.includes('campoverde')) return 'Lácteos Campo Verde';
       if (host.includes('vergel')) return 'Transporte Vergel & Carrillo';
-      return 'Transporte Vergel & Carrillo';
+      return '';
     } catch {
-      return 'Transporte Vergel & Carrillo';
+      return '';
     }
   });
-
-  const [mostrarSelectorEmpresa, setMostrarSelectorEmpresa] = useState(false);
 
   // Modo de Login (cuando !dispositivo): 'credenciales' (Usuario y Contraseña) o 'codigo' (6 dígitos)
   const [modoLogin, setModoLogin] = useState<'credenciales' | 'codigo'>('credenciales');
@@ -421,10 +419,28 @@ export const AppMovilPage: React.FC = () => {
         version: 0
       }));
 
+      // Determinar dominio y empresa automáticamente a partir del código de vinculación
+      let nuevoDominio = 'transporte-vergel-carrillo.vercel.app';
+      const codUpper = (res.empresaCodigo || '').toUpperCase();
+      if (codUpper.includes('CAMPO')) {
+        nuevoDominio = 'lacteos-campoverde.vercel.app';
+      } else if (codUpper.includes('VERGEL')) {
+        nuevoDominio = 'transporte-vergel-carrillo.vercel.app';
+      } else if (tenantDomain) {
+        nuevoDominio = tenantDomain;
+      }
+
+      const nuevoNombreEmpresa = res.empresaNombre || (codUpper.includes('CAMPO') ? 'Lácteos Campo Verde' : 'Transporte Vergel & Carrillo');
+
+      setTenantDomain(nuevoDominio);
+      setEmpresaGuardada(nuevoNombreEmpresa);
+      localStorage.setItem('movil_tenant_domain', nuevoDominio);
+      localStorage.setItem('movil_tenant_empresa', nuevoNombreEmpresa);
+
       const dispData: DispositivoMovilData = {
         token: res.token,
         empresaCodigo: res.empresaCodigo,
-        empresaNombre: res.empresaNombre,
+        empresaNombre: nuevoNombreEmpresa,
         id: res.id,
         username: res.username,
         nombreCompleto: res.nombreCompleto,
@@ -436,14 +452,9 @@ export const AppMovilPage: React.FC = () => {
         modulosHabilitados: res.modulosHabilitados || [],
       };
 
-      if (res.empresaNombre) {
-        setEmpresaGuardada(res.empresaNombre);
-        localStorage.setItem('movil_tenant_empresa', res.empresaNombre);
-      }
-
       setDispositivo(dispData);
       localStorage.setItem('movil_device_info', JSON.stringify(dispData));
-      toast.success(`¡Dispositivo Vinculado con Éxito! Bienvenido ${res.nombreCompleto}`);
+      toast.success(`¡Dispositivo Vinculado a ${nuevoNombreEmpresa}! Bienvenido ${res.nombreCompleto}`);
 
       try {
         const fincasData = await catalogosApi.getFincas();
@@ -572,11 +583,11 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
-  // Acción: Desvincular por completo y cambiar de empresa
+  // Acción: Desvincular por completo y cambiar de base de datos / empresa
   const handleDesvincular = () => {
     if (
       window.confirm(
-        '¿Seguro que deseas desvincular este dispositivo y borrar la empresa guardada? Deberás seleccionar la empresa nuevamente para volver a ingresar.'
+        '¿Seguro que deseas desvincular este dispositivo? Deberás ingresar el código de 6 dígitos de la empresa correspondiente para volver a conectarlo.'
       )
     ) {
       localStorage.removeItem('movil_device_info');
@@ -585,19 +596,13 @@ export const AppMovilPage: React.FC = () => {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
+      setTenantDomain('');
+      setEmpresaGuardada('');
       setDispositivo(null);
-      toast.info('Dispositivo y empresa desvinculados correctamente');
+      setModoLogin('codigo');
+      setCodigoInput('');
+      toast.info('Dispositivo desvinculado. Ingresa el código de 6 dígitos de la nueva empresa.');
     }
-  };
-
-  // Seleccionar empresa manualmente
-  const seleccionarEmpresa = (domain: string, nombre: string) => {
-    setTenantDomain(domain);
-    setEmpresaGuardada(nombre);
-    localStorage.setItem('movil_tenant_domain', domain);
-    localStorage.setItem('movil_tenant_empresa', nombre);
-    setMostrarSelectorEmpresa(false);
-    toast.success(`Base de datos configurada: ${nombre}`);
   };
 
   // Acciones de Notificaciones
@@ -965,183 +970,117 @@ export const AppMovilPage: React.FC = () => {
               <i className="fa-solid fa-code-branch"></i> Versión {APP_VERSION}
             </span>
           </div>
-          {/* Tarjeta de Base de Datos / Empresa Conectada */}
-          <div
-            style={{
-              marginBottom: '20px',
-              background: 'rgba(15, 23, 42, 0.7)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              borderRadius: '16px',
-              padding: '12px 14px',
-              textAlign: 'left',
-              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.25)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
-                    background: 'rgba(14, 165, 233, 0.2)',
-                    color: '#38bdf8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '17px',
-                    flexShrink: 0,
-                  }}
-                >
-                  <i className="fa-solid fa-database"></i>
-                </div>
-                <div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px' }}>
-                    Base de Datos Activa
-                  </div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#f8fafc' }}>
-                    {empresaGuardada}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMostrarSelectorEmpresa(!mostrarSelectorEmpresa)}
+          {/* Tarjeta de Base de Datos / Empresa Conectada (Fija, sin selector manual) */}
+          {empresaGuardada ? (
+            <div
+              style={{
+                marginBottom: '18px',
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                borderRadius: '16px',
+                padding: '12px 16px',
+                textAlign: 'left',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#94a3b8',
-                  padding: '5px 10px',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  fontWeight: 700,
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(14, 165, 233, 0.2)',
+                  color: '#38bdf8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '17px',
                   flexShrink: 0,
                 }}
               >
-                {mostrarSelectorEmpresa ? 'Cerrar' : 'Cambiar'}
-              </button>
-            </div>
-
-            {/* Selector Desplegable de Empresa / Tenant */}
-            {mostrarSelectorEmpresa && (
-              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#cbd5e1' }}>
-                  Selecciona la empresa correspondiente:
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => seleccionarEmpresa('transporte-vergel-carrillo.vercel.app', 'Transporte Vergel & Carrillo')}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      background: empresaGuardada.includes('Vergel') ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                      border: empresaGuardada.includes('Vergel') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                      color: empresaGuardada.includes('Vergel') ? '#38bdf8' : '#e2e8f0',
-                      fontSize: '12.5px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <span>🏢 Transporte Vergel & Carrillo</span>
-                    {empresaGuardada.includes('Vergel') && <i className="fa-solid fa-check text-sky-400"></i>}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => seleccionarEmpresa('lacteos-campoverde.vercel.app', 'Lácteos Campo Verde')}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      background: empresaGuardada.includes('Campo') ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                      border: empresaGuardada.includes('Campo') ? '1px solid #34d399' : '1px solid rgba(255, 255, 255, 0.1)',
-                      color: empresaGuardada.includes('Campo') ? '#34d399' : '#e2e8f0',
-                      fontSize: '12.5px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <span>🥛 Lácteos Campo Verde</span>
-                    {empresaGuardada.includes('Campo') && <i className="fa-solid fa-check text-emerald-400"></i>}
-                  </button>
+                <i className="fa-solid fa-building"></i>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px' }}>
+                  Base de Datos Conectada
+                </div>
+                <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {empresaGuardada}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: '1.4' }}>
+              Ingresa el código numérico de 6 dígitos para verificar de qué base de datos proviene y conectar este teléfono.
+            </p>
+          )}
 
-          {/* Selector de Pestañas de Acceso */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '6px',
-              marginBottom: '20px',
-              background: 'rgba(15, 23, 42, 0.6)',
-              padding: '4px',
-              borderRadius: '14px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setModoLogin('credenciales')}
+          {/* Si tiene empresa guardada, muestra las opciones de acceso (Usuario/Clave o Código) */}
+          {empresaGuardada && (
+            <div
               style={{
-                padding: '9px 6px',
-                borderRadius: '10px',
-                border: 'none',
-                background: modoLogin === 'credenciales' ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'transparent',
-                color: modoLogin === 'credenciales' ? '#ffffff' : '#94a3b8',
-                fontWeight: 800,
-                fontSize: '12px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
                 gap: '6px',
-                transition: 'all 0.2s ease',
+                marginBottom: '20px',
+                background: 'rgba(15, 23, 42, 0.6)',
+                padding: '4px',
+                borderRadius: '14px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <i className="fa-solid fa-user-lock"></i>
-              <span>Usuario y Clave</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setModoLogin('credenciales')}
+                style={{
+                  padding: '9px 6px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: modoLogin === 'credenciales' ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'transparent',
+                  color: modoLogin === 'credenciales' ? '#ffffff' : '#94a3b8',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="fa-solid fa-user-lock"></i>
+                <span>Usuario y Clave</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setModoLogin('codigo')}
-              style={{
-                padding: '9px 6px',
-                borderRadius: '10px',
-                border: 'none',
-                background: modoLogin === 'codigo' ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'transparent',
-                color: modoLogin === 'codigo' ? '#ffffff' : '#94a3b8',
-                fontWeight: 800,
-                fontSize: '12px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <i className="fa-solid fa-key"></i>
-              <span>Código 6 Dígitos</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => setModoLogin('codigo')}
+                style={{
+                  padding: '9px 6px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: modoLogin === 'codigo' ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'transparent',
+                  color: modoLogin === 'codigo' ? '#ffffff' : '#94a3b8',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="fa-solid fa-key"></i>
+                <span>Código 6 Dígitos</span>
+              </button>
+            </div>
+          )}
 
           {/* MODO 1: LOGIN CON USUARIO Y CONTRASEÑA */}
-          {modoLogin === 'credenciales' ? (
+          {empresaGuardada && modoLogin === 'credenciales' ? (
             <form onSubmit={handleLoginUsuario} style={{ textAlign: 'left' }}>
               <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0', lineHeight: '1.4', textAlign: 'center' }}>
                 Ingresa con tu usuario y contraseña de {empresaGuardada}.
@@ -1360,6 +1299,30 @@ export const AppMovilPage: React.FC = () => {
                 )}
               </button>
             </form>
+          )}
+
+          {/* Botón inferior para desvincular la empresa y conectar a otra */}
+          {empresaGuardada && (
+            <div style={{ marginTop: '22px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <button
+                type="button"
+                onClick={handleDesvincular}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#f87171',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-link-slash"></i>
+                <span>Desvincular Teléfono / Conectar a Otra Empresa</span>
+              </button>
+            </div>
           )}
 
           {!esInstalada && (
