@@ -115,20 +115,20 @@ export const RecoleccionRutasPage: React.FC = () => {
     return obs.includes('[ORIGEN_MOVIL]') || obs.includes('APP MÓVIL') || obs.includes('APP MOVIL');
   };
 
-  // Helper para verificar si una parada debe estar titilando (máximo 1 minuto / 60 segundos)
+  // Helper para verificar si una parada debe estar titilando (25 segundos, menos de un minuto)
   const estaTitilando = (p: any): boolean => {
     if (!esOrigenMovil(p)) return false; // NUNCA titila si fue registrada desde la web
     const refTime = paradasDetectadasEnSesion[p.id];
     if (!refTime) return false;
     const diff = nowTick - refTime;
-    return diff >= 0 && diff < 60000;
+    return diff >= 0 && diff < 25000;
   };
 
   // Polling ultra-reactivo en vivo cada 2.5s cuando el modal Timelapse está abierto (sin recargar la página)
   useEffect(() => {
     if (!modalTimelapse || !viajeTimelapse?.id) return;
 
-    // Reloj cada segundo para animaciones y cuenta regresiva del minuto de titilar
+    // Reloj cada segundo para animaciones y cuenta regresiva del titilar
     const timerTick = setInterval(() => {
       setNowTick(Date.now());
     }, 1000);
@@ -149,7 +149,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     };
   }, [modalTimelapse, viajeTimelapse?.id]);
 
-  // Rastrear nuevas paradas que ingresan y calcular si les corresponde titilar (máx 1 min)
+  // Rastrear nuevas paradas que ingresan y calcular si les corresponde titilar (25 seg)
   useEffect(() => {
     if (!modalTimelapse || !viajeTimelapse?.id) return;
     const paradas = fincasTicketsMap[viajeTimelapse.id] || [];
@@ -168,15 +168,15 @@ export const RecoleccionRutasPage: React.FC = () => {
           const createdAtMs = serverCreated ? new Date(serverCreated).getTime() : ahora;
           const antiguedadMs = ahora - createdAtMs;
 
-          // Si fue creado hace menos de 60 segundos en el servidor o se detecta en vivo
-          if (antiguedadMs >= 0 && antiguedadMs < 60000) {
+          // Si fue creado hace menos de 25 segundos en el servidor o se detecta en vivo
+          if (antiguedadMs >= 0 && antiguedadMs < 25000) {
             nuevoMap[p.id] = createdAtMs;
             huboNuevos = true;
           } else if (!serverCreated) {
             nuevoMap[p.id] = ahora;
             huboNuevos = true;
           } else {
-            // Ya tiene más de 1 minuto de antigüedad; no debe titilar
+            // Ya tiene más de 25 segundos de antigüedad; no debe titilar
             nuevoMap[p.id] = 0;
             huboNuevos = true;
           }
@@ -298,21 +298,21 @@ export const RecoleccionRutasPage: React.FC = () => {
 
       const prev = prevTicketsDataRef.current[v.id];
       if (prev) {
-        // Si aumentaron las paradas o aumentaron los litros recolectados, ¡hacer titilar el ticket!
+        // Si aumentaron las paradas o aumentaron los litros recolectados, ¡hacer titilar el ticket 25s!
         if (paradasCount > prev.count || litrosActuales > prev.litros) {
-          nuevosTitilando[v.id] = ahora + 60000;
+          nuevosTitilando[v.id] = ahora + 25000;
           huboCambios = true;
         }
       }
 
-      // También verificar si alguna parada fue registrada hace menos de 60 segundos
+      // También verificar si alguna parada fue registrada hace menos de 25 segundos
       const tieneParadaReciente = paradas.some((p: any) => {
         const c = p.createdAt || p.CreatedAt;
-        return c && ahora - new Date(c).getTime() < 60000;
+        return c && ahora - new Date(c).getTime() < 25000;
       });
 
       if (tieneParadaReciente && (!nuevosTitilando[v.id] || nuevosTitilando[v.id] < ahora)) {
-        nuevosTitilando[v.id] = ahora + 60000;
+        nuevosTitilando[v.id] = ahora + 25000;
         huboCambios = true;
       }
 
@@ -1524,7 +1524,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                 const tiempoFinTitilar = ticketsTitilando[item.id] || 0;
                 const tieneParadaReciente = fincasTicket.some((p: any) => {
                   const c = p.createdAt || (p as any).CreatedAt;
-                  return c && (nowTick - new Date(c).getTime() < 60000);
+                  return c && (nowTick - new Date(c).getTime() < 25000);
                 });
                 const esTicketTitilando = (tiempoFinTitilar > nowTick) || tieneParadaReciente;
 
@@ -2318,7 +2318,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                     const esMovil = esOrigenMovil(p);
                     const titilando = estaTitilando(p);
                     const tiempoRef = paradasDetectadasEnSesion[p.id] || (timeStamp ? new Date(timeStamp).getTime() : 0);
-                    const segRestantes = Math.max(0, Math.ceil((60000 - (nowTick - tiempoRef)) / 1000));
+                    const segRestantes = Math.max(0, Math.ceil((25000 - (nowTick - tiempoRef)) / 1000));
 
                     return (
                       <div key={p.id} style={{ position: 'relative', marginBottom: '20px' }}>

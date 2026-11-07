@@ -1015,6 +1015,13 @@ export const AppMovilPage: React.FC = () => {
       setCargas(actualizadas);
       if (sincronizadasCount > 0) {
         toast.success(`¡Sincronización completada! ${sincronizadasCount} carga(s) enviadas a la central.`);
+        try {
+          localStorage.setItem('transporte_evento_finca_movil', JSON.stringify({
+            timestamp: Date.now(),
+            viajeId: idViaje,
+            totalCargas: sincronizadasCount,
+          }));
+        } catch { /* tolerante */ }
       }
 
       // Actualizar paradas consolidadas y viaje activo desde la central

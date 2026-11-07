@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
@@ -91,29 +91,164 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const { data: notificaciones = [] } = useQuery<NotificacionMovil[]>({
-    queryKey: ['mis-notificaciones'],
-    queryFn: () => notificacionesApi.getMisNotificaciones(20),
-    enabled: !!user,
-    refetchInterval: 4000,
+  // Roles autorizados para supervisión y administración
+  const userRol = String(user?.rol || '').toUpperCase();
+  const esAdminOSupervisor = 
+    userRol.includes('ADMIN') || 
+    userRol.includes('SUPERVISOR') ||
+    userRol.includes('GERENTE') ||
+    Boolean(user?.permisos?.some((p: string) => ['TODOS', 'ADMIN_TOTAL', 'RUTAS_CREAR', 'RUTAS_EDITAR'].includes(p)));
+
+  // IDs de notificaciones marcadas como leídas localmente
+  const [leidasIds, setLeidasIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('transporte_notif_leidas_ids') || '[]');
+    } catch {
+      return [];
+    }
   });
+
+  // Escuchar eventos de sincronización móvil entre pestañas / ventanas
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'transporte_evento_finca_movil' || e.key === 'transporte_notif_leidas_ids') {
+        if (e.key === 'transporte_notif_leidas_ids' && e.newValue) {
+          try {
+            setLeidasIds(JSON.parse(e.newValue));
+          } catch { /* tolerante */ }
+        }
+        queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
+        queryClient.invalidateQueries({ queryKey: ['header-paradas-hoy'] });
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [queryClient]);
+
+  // 1. Query Backend Directo (BD)
+  const { data: serverNotificaciones = [] } = useQuery<NotificacionMovil[]>({
+    queryKey: ['mis-notificaciones'],
+    queryFn: () => notificacionesApi.getMisNotificaciones(30),
+    enabled: !!user,
+    refetchInterval: 3500,
+  });
+
+  // 2. Query Paradas en Vivo para Administradores y Supervisores
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const { data: paradasEnVivo = [] } = useQuery<any[]>({
+    queryKey: ['header-paradas-hoy'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get<any[]>('/rutas?limite=40');
+        if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+        const fallback = await apiClient.get<any[]>(`/rutas/hoy?fecha=${hoyStr}`);
+        return Array.isArray(fallback.data) ? fallback.data : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!user && esAdminOSupervisor,
+    refetchInterval: 3500,
+  });
+
+  // Consolidación reactiva de notificaciones
+  const notificaciones = useMemo(() => {
+    const leidasSet = new Set(leidasIds);
+    const resultado: (NotificacionMovil & { keyId: string })[] = [];
+    const keysRegistradas = new Set<string>();
+
+    // 1. Notificaciones directas del servidor
+    serverNotificaciones.forEach((n) => {
+      const keyId = `srv_${n.id}`;
+      keysRegistradas.add(keyId);
+      const estaLeida = Boolean(n.leido || leidasSet.has(keyId) || leidasSet.has(String(n.id)));
+      resultado.push({
+        ...n,
+        keyId,
+        leido: estaLeida,
+      });
+    });
+
+    // 2. Paradas en vivo para roles Supervisor y Admin
+    if (esAdminOSupervisor && Array.isArray(paradasEnVivo)) {
+      const ordenadas = [...paradasEnVivo].sort((a, b) => (b.id || 0) - (a.id || 0));
+
+      ordenadas.slice(0, 20).forEach((p) => {
+        const keyId = `parada_${p.id}`;
+        if (keysRegistradas.has(keyId)) return;
+        keysRegistradas.add(keyId);
+
+        const ticketNum = p.ticketCodigo || p.controlRutaId || p.ControlRutaId || '';
+        const chofer = p.conductorNombre || p.conductor || p.ConductorNombre || 'Conductor';
+        const finca = p.fincaNombre || p.nombreFinca || p.FincaNombre || `Finca #${p.fincaId || ''}`;
+        const litros = Number(p.litros || p.Litros || 0).toLocaleString('es-VE');
+        const estaLeida = leidasSet.has(keyId);
+
+        resultado.push({
+          id: p.id,
+          keyId,
+          usuarioId: user?.id || 0,
+          tipo: 'FINCA_AGREGADA',
+          titulo: `🥛 Finca en Ticket #${ticketNum}`,
+          mensaje: `${chofer} agregó ${finca} (${litros} Lts) al Ticket #${ticketNum}.`,
+          fechaOperativa: p.fecha || hoyStr,
+          referenciaId: p.controlRutaId || (typeof ticketNum === 'number' ? ticketNum : undefined),
+          leido: estaLeida,
+          createdAt: p.createdAt || p.fecha || new Date().toISOString(),
+        });
+      });
+    }
+
+    // Ordenar todas por fecha / ID descendente
+    resultado.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return resultado;
+  }, [serverNotificaciones, paradasEnVivo, esAdminOSupervisor, leidasIds, user?.id, hoyStr]);
 
   const unreadCount = notificaciones.filter((n) => !n.leido).length;
 
   const handleMarcarTodasLeidas = async () => {
     try {
       await notificacionesApi.marcarTodasLeidas();
-      queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
     } catch { /* tolerante */ }
+
+    const nuevoSet = new Set(leidasIds);
+    notificaciones.forEach((n) => {
+      nuevoSet.add(n.keyId);
+      nuevoSet.add(String(n.id));
+    });
+    const nuevoArr = Array.from(nuevoSet);
+    setLeidasIds(nuevoArr);
+    try {
+      localStorage.setItem('transporte_notif_leidas_ids', JSON.stringify(nuevoArr));
+    } catch { /* tolerante */ }
+
+    queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
+    queryClient.invalidateQueries({ queryKey: ['header-paradas-hoy'] });
   };
 
-  const handleIrARecoleccion = async (notif: NotificacionMovil) => {
+  const handleIrARecoleccion = async (notif: NotificacionMovil & { keyId?: string }) => {
     try {
-      if (!notif.leido) {
+      if (typeof notif.id === 'number' && !notif.keyId?.startsWith('parada_')) {
         await notificacionesApi.marcarLeida(notif.id);
-        queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
       }
     } catch { /* tolerante */ }
+
+    const nuevoSet = new Set(leidasIds);
+    if (notif.keyId) nuevoSet.add(notif.keyId);
+    nuevoSet.add(String(notif.id));
+    const nuevoArr = Array.from(nuevoSet);
+    setLeidasIds(nuevoArr);
+    try {
+      localStorage.setItem('transporte_notif_leidas_ids', JSON.stringify(nuevoArr));
+    } catch { /* tolerante */ }
+
+    queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
+    queryClient.invalidateQueries({ queryKey: ['header-paradas-hoy'] });
 
     setOpenNotif(false);
     navigate('/operaciones/rutas');
@@ -422,7 +557,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
 
                     return (
                       <div
-                        key={n.id}
+                        key={(n as any).keyId || n.id}
                         style={{
                           padding: '12px 16px',
                           borderBottom: '1px solid #f1f5f9',

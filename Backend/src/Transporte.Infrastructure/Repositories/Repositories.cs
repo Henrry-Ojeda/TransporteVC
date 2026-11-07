@@ -7966,6 +7966,34 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
     {
         private readonly string _connectionString;
 
+        private static bool _notifTableEnsured = false;
+        private async Task EnsureTableNotificacionesExistsAsync(IDbConnection connection)
+        {
+            if (_notifTableEnsured) return;
+            try
+            {
+                var sql = @"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TB_NOTIFICACIONES_MOVIL')
+                    BEGIN
+                        CREATE TABLE TB_NOTIFICACIONES_MOVIL (
+                            Id BIGINT IDENTITY(1,1) PRIMARY KEY,
+                            UsuarioId INT NOT NULL,
+                            Tipo NVARCHAR(50) NOT NULL,
+                            Titulo NVARCHAR(150) NOT NULL,
+                            Mensaje NVARCHAR(500) NOT NULL,
+                            FechaOperativa DATE NULL,
+                            ReferenciaId BIGINT NULL,
+                            Leido BIT NOT NULL DEFAULT 0,
+                            CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
+                        );
+                        CREATE INDEX IX_TB_NOTIFICACIONES_MOVIL_UsuarioId ON TB_NOTIFICACIONES_MOVIL(UsuarioId, Leido, CreatedAt DESC);
+                    END";
+                await connection.ExecuteAsync(sql);
+                _notifTableEnsured = true;
+            }
+            catch { /* Tolerante */ }
+        }
+
         public ControlRutasRepository(IConfiguration configuration, Transporte.Core.Interfaces.ITenantService? tenantService = null)
         {
             _connectionString = tenantService?.GetConnectionString() 
@@ -8694,8 +8722,17 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 var choferNombre = await connection.ExecuteScalarAsync<string>("SELECT NombreCompleto FROM TB_USUARIOS WHERE Id = @id", new { id = (int)viaje.UsuarioId }) ?? "Conductor";
                 var ticketCodigo = viaje.CodigoTicket != null ? viaje.CodigoTicket.ToString() : viaje.Id.ToString();
 
-                var usuariosNotif = await connection.QueryAsync<int>(
-                    "SELECT Id FROM TB_USUARIOS WHERE Rol IN ('ADMIN', 'SUPERADMIN', 'SUPERVISOR') AND Activo = 1");
+                await EnsureTableNotificacionesExistsAsync(connection);
+
+                var usuariosNotif = await connection.QueryAsync<int>(@"
+                    SELECT DISTINCT u.Id 
+                    FROM TB_USUARIOS u
+                    LEFT JOIN TB_ROLES r ON u.RolId = r.Id OR (u.RolId IS NULL AND u.Rol = r.Codigo)
+                    WHERE (UPPER(ISNULL(u.Rol, '')) IN ('ADMIN', 'SUPERADMIN', 'SUPERVISOR', 'ADMINISTRADOR') 
+                        OR UPPER(ISNULL(r.Codigo, '')) IN ('ADMIN', 'SUPERADMIN', 'SUPERVISOR', 'ADMINISTRADOR')
+                        OR UPPER(ISNULL(r.Nombre, '')) LIKE '%ADMIN%'
+                        OR UPPER(ISNULL(r.Nombre, '')) LIKE '%SUPERVIS%')
+                      AND u.Activo = 1");
 
                 foreach (var destUserId in usuariosNotif)
                 {
@@ -11199,15 +11236,44 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
     public class NotificacionesRepository : INotificacionesRepository
     {
         private readonly string _connectionString;
+        private static bool _tableEnsured = false;
 
         public NotificacionesRepository(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection")!;
         }
 
+        private async Task EnsureTableAsync(IDbConnection connection)
+        {
+            if (_tableEnsured) return;
+            try
+            {
+                var sql = @"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TB_NOTIFICACIONES_MOVIL')
+                    BEGIN
+                        CREATE TABLE TB_NOTIFICACIONES_MOVIL (
+                            Id BIGINT IDENTITY(1,1) PRIMARY KEY,
+                            UsuarioId INT NOT NULL,
+                            Tipo NVARCHAR(50) NOT NULL,
+                            Titulo NVARCHAR(150) NOT NULL,
+                            Mensaje NVARCHAR(500) NOT NULL,
+                            FechaOperativa DATE NULL,
+                            ReferenciaId BIGINT NULL,
+                            Leido BIT NOT NULL DEFAULT 0,
+                            CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
+                        );
+                        CREATE INDEX IX_TB_NOTIFICACIONES_MOVIL_UsuarioId ON TB_NOTIFICACIONES_MOVIL(UsuarioId, Leido, CreatedAt DESC);
+                    END";
+                await connection.ExecuteAsync(sql);
+                _tableEnsured = true;
+            }
+            catch { /* Tolerante */ }
+        }
+
         public async Task<IEnumerable<NotificacionMovilDto>> ObtenerMisNotificacionesAsync(int usuarioId, int limite = 30)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableAsync(connection);
             var sql = @"
                 SELECT TOP (@limite)
                     Id, UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt
@@ -11221,6 +11287,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<long> CrearNotificacionAsync(CrearNotificacionMovilDto dto)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableAsync(connection);
             var sql = @"
                 INSERT INTO TB_NOTIFICACIONES_MOVIL (UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt)
                 VALUES (@UsuarioId, @Tipo, @Titulo, @Mensaje, @FechaOperativa, @ReferenciaId, 0, GETDATE());
@@ -11232,6 +11299,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<bool> MarcarComoLeidaAsync(long id, int usuarioId)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableAsync(connection);
             var sql = "UPDATE TB_NOTIFICACIONES_MOVIL SET Leido = 1 WHERE Id = @id AND UsuarioId = @usuarioId";
             var rows = await connection.ExecuteAsync(sql, new { id, usuarioId });
             return rows > 0;
@@ -11240,6 +11308,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<bool> MarcarTodasComoLeidasAsync(int usuarioId)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableAsync(connection);
             var sql = "UPDATE TB_NOTIFICACIONES_MOVIL SET Leido = 1 WHERE UsuarioId = @usuarioId AND Leido = 0";
             var rows = await connection.ExecuteAsync(sql, new { usuarioId });
             return rows > 0;
