@@ -156,6 +156,8 @@ export const useAuthStore = create<AuthState>()(
           'control-tanques': ['BALANCE_LECHE_VER', 'ENTREGAS_VER'],
           'bufala': ['TRAZABILIDAD_BUFALA_VER'],
           'planificacion-rutas': ['RUTAS_PLANIFICACION_VER', 'RUTAS_VER'],
+          'rutas-planificacion': ['RUTAS_PLANIFICACION_VER', 'RUTAS_VER'],
+          'planificacion-rutas-choferes': ['RUTAS_PLANIFICACION_VER', 'RUTAS_VER'],
           'evolucion-fincas': ['RUTAS_PLANIFICACION_VER', 'RUTAS_VER'],
 
           // Catálogos

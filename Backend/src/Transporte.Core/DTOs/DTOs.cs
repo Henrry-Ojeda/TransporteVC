@@ -2333,6 +2333,55 @@ namespace Transporte.Core.DTOs
         public DateTime? FechaOperativa { get; set; }
         public long? ReferenciaId { get; set; }
     }
+
+    // =========================================================================
+    // DTOs PARA PLANIFICACIÓN DE RUTAS - CHOFERES (ASIGNACIÓN DIARIA DE CAMIONES)
+    // =========================================================================
+    public class PlanificacionRutaChoferDto
+    {
+        public int Id { get; set; }
+        public DateTime Fecha { get; set; }
+        public int CamionId { get; set; }
+        public string? CamionPlaca { get; set; }
+        public int CapacidadCamionLitros { get; set; }
+        public int ConductorId { get; set; }
+        public string? ConductorNombre { get; set; }
+        public int? RutaLogisticaId { get; set; }
+        public string? RutaLogisticaNombre { get; set; }
+        public string? RutasIds { get; set; }
+        public string FincasIds { get; set; } = string.Empty;
+        public List<int> ListaFincasIds { get; set; } = new();
+        public int TotalFincas { get; set; }
+        public int LitrosEstimados { get; set; }
+        public int PorcentajeOcupacion { get; set; }
+        public string? Observacion { get; set; }
+        public bool Activo { get; set; } = true;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class GuardarPlanificacionRutaChoferDto
+    {
+        public int? Id { get; set; }
+        public DateTime Fecha { get; set; }
+        public int CamionId { get; set; }
+        public int ConductorId { get; set; }
+        public int? RutaLogisticaId { get; set; }
+        public string? RutasIds { get; set; }
+        public List<int> FincasIds { get; set; } = new();
+        public int LitrosEstimados { get; set; }
+        public string? Observacion { get; set; }
+    }
+
+    public class FincaPromedioDto
+    {
+        public int FincaId { get; set; }
+        public string FincaNombre { get; set; } = string.Empty;
+        public string? Propietario { get; set; }
+        public int? RutaId { get; set; }
+        public string? TipoLeche { get; set; }
+        public int PromedioLitros { get; set; }
+        public int DiasRecolectados15 { get; set; }
+    }
 }
 
 

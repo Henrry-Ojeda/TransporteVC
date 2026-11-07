@@ -7,6 +7,9 @@ import type {
   DespachoCompaniaDto,
   BalanceVolumetricoResumenDto,
   ControlTanquesDiarioDto,
+  PlanificacionRutaChoferDto,
+  GuardarPlanificacionRutaChoferDto,
+  FincaPromedioDto,
 } from '@/types';
 
 export const operacionesApi = {
@@ -219,6 +222,39 @@ export const operacionesApi = {
     } catch {
       const res = await apiClient.delete(`/rutaslogistica/${id}`);
       return res.data;
+    }
+  },
+
+  // PLANIFICACIÓN DE RUTAS - CHOFERES
+  getPlanificacionesChoferes: async (fecha?: string): Promise<PlanificacionRutaChoferDto[]> => {
+    try {
+      const params: Record<string, any> = {};
+      if (fecha) params.fecha = fecha;
+      const res = await apiClient.get<PlanificacionRutaChoferDto[]>('/rutas-logistica/planificacion-choferes', { params });
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  guardarPlanificacionChofer: async (dto: GuardarPlanificacionRutaChoferDto): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/rutas-logistica/planificacion-choferes', dto);
+    return res.data;
+  },
+
+  eliminarPlanificacionChofer: async (id: number): Promise<{ message: string }> => {
+    const res = await apiClient.delete(`/rutas-logistica/planificacion-choferes/${id}`);
+    return res.data;
+  },
+
+  getFincasPromedios15Dias: async (rutaId?: number): Promise<FincaPromedioDto[]> => {
+    try {
+      const params: Record<string, any> = {};
+      if (rutaId) params.rutaId = rutaId;
+      const res = await apiClient.get<FincaPromedioDto[]>('/rutas-logistica/fincas-promedios-15dias', { params });
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      return [];
     }
   },
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Swal from 'sweetalert2';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
@@ -557,14 +558,35 @@ export const RutasLogisticaPage: React.FC = () => {
 
           <h1 className="view-title">
             <RouteIcon className="inline-block text-blue-600 mr-2 w-6 h-6" />
-            Planificación de Rutas Logísticas
+            Logísticas — Circuitos y Rutas Base
           </h1>
           <p className="view-subtitle">
             Definición de circuitos lecheros, vinculación de fincas ganaderas y asignación logística flexible de cisternas y conductores.
           </p>
         </div>
 
-        <div className="view-actions">
+        <div className="view-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Link
+            to="/planificacion-rutas-choferes"
+            className="btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 700,
+              borderRadius: '10px',
+              padding: '9px 16px',
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1.5px solid #a7f3d0',
+              textDecoration: 'none',
+              fontSize: '12px',
+            }}
+          >
+            <Truck className="w-4 h-4 text-emerald-600" />
+            Planificación Rutas-Choferes
+          </Link>
+
           <button
             type="button"
             onClick={abrirModalCrear}

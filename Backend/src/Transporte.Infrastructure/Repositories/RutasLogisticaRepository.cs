@@ -19,6 +19,10 @@ namespace Transporte.Infrastructure.Repositories
         Task<bool> EliminarRutaAsync(int id);
         Task<IEnumerable<dynamic>> ObtenerFincasDeRutaAsync(int rutaId);
         Task<bool> AsignarFincasARutaAsync(int rutaId, List<int> fincaIds);
+        Task<IEnumerable<PlanificacionRutaChoferDto>> ObtenerPlanificacionesPorFechaAsync(DateTime fecha);
+        Task<int> GuardarPlanificacionChoferAsync(GuardarPlanificacionRutaChoferDto dto, int usuarioId);
+        Task<bool> EliminarPlanificacionChoferAsync(int id);
+        Task<IEnumerable<FincaPromedioDto>> ObtenerFincasConPromedio15DiasAsync(int? rutaId = null);
     }
 
     public class RutasLogisticaRepository : IRutasLogisticaRepository
@@ -201,6 +205,159 @@ namespace Transporte.Infrastructure.Repositories
                 tx.Rollback();
                 throw;
             }
+        }
+
+        public async Task<IEnumerable<PlanificacionRutaChoferDto>> ObtenerPlanificacionesPorFechaAsync(DateTime fecha)
+        {
+            using var connection = CreateConnection();
+            var sql = @"
+                SELECT 
+                    p.Id,
+                    p.Fecha,
+                    p.CamionId,
+                    c.Placa AS CamionPlaca,
+                    ISNULL(c.CapacidadLitros, p.CapacidadCamionLitros) AS CapacidadCamionLitros,
+                    p.ConductorId,
+                    u.NombreCompleto AS ConductorNombre,
+                    p.RutaLogisticaId,
+                    r.Nombre AS RutaLogisticaNombre,
+                    p.RutasIds,
+                    p.FincasIds,
+                    p.TotalFincas,
+                    p.LitrosEstimados,
+                    p.PorcentajeOcupacion,
+                    p.Observacion,
+                    p.Activo,
+                    p.CreatedAt
+                FROM TB_PLANIFICACION_RUTAS_CHOFERES p
+                LEFT JOIN TB_CAMIONES c ON p.CamionId = c.Id
+                LEFT JOIN TB_USUARIOS u ON p.ConductorId = u.Id
+                LEFT JOIN TB_RUTAS_LOGISTICA r ON p.RutaLogisticaId = r.Id
+                WHERE p.Fecha = @fecha AND p.Activo = 1
+                ORDER BY p.Id ASC";
+            var list = (await connection.QueryAsync<PlanificacionRutaChoferDto>(sql, new { fecha = fecha.Date })).ToList();
+            foreach (var item in list)
+            {
+                if (!string.IsNullOrWhiteSpace(item.FincasIds))
+                {
+                    item.ListaFincasIds = item.FincasIds
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => int.TryParse(s.Trim(), out var val) ? val : 0)
+                        .Where(x => x > 0)
+                        .ToList();
+                }
+            }
+            return list;
+        }
+
+        public async Task<int> GuardarPlanificacionChoferAsync(GuardarPlanificacionRutaChoferDto dto, int usuarioId)
+        {
+            using var connection = CreateConnection();
+            var fincasIdsStr = string.Join(",", dto.FincasIds.Distinct());
+            var totalFincas = dto.FincasIds.Distinct().Count();
+
+            var capacidad = await connection.ExecuteScalarAsync<int?>(
+                "SELECT CapacidadLitros FROM TB_CAMIONES WHERE Id = @CamionId", new { dto.CamionId }) ?? 10000;
+
+            int porcentaje = capacidad > 0 ? (int)Math.Round((double)dto.LitrosEstimados / capacidad * 100) : 0;
+
+            if (dto.Id.HasValue && dto.Id.Value > 0)
+            {
+                var sqlUpdate = @"
+                    UPDATE TB_PLANIFICACION_RUTAS_CHOFERES
+                    SET Fecha = @Fecha,
+                        CamionId = @CamionId,
+                        ConductorId = @ConductorId,
+                        RutaLogisticaId = @RutaLogisticaId,
+                        RutasIds = @RutasIds,
+                        FincasIds = @FincasIds,
+                        TotalFincas = @TotalFincas,
+                        LitrosEstimados = @LitrosEstimados,
+                        CapacidadCamionLitros = @CapacidadCamionLitros,
+                        PorcentajeOcupacion = @PorcentajeOcupacion,
+                        Observacion = @Observacion,
+                        ModifiedAt = GETDATE(),
+                        ModifiedBy = @usuarioId
+                    WHERE Id = @Id";
+                await connection.ExecuteAsync(sqlUpdate, new
+                {
+                    Id = dto.Id.Value,
+                    Fecha = dto.Fecha.Date,
+                    dto.CamionId,
+                    dto.ConductorId,
+                    dto.RutaLogisticaId,
+                    dto.RutasIds,
+                    FincasIds = fincasIdsStr,
+                    TotalFincas = totalFincas,
+                    dto.LitrosEstimados,
+                    CapacidadCamionLitros = capacidad,
+                    PorcentajeOcupacion = porcentaje,
+                    dto.Observacion,
+                    usuarioId
+                });
+                return dto.Id.Value;
+            }
+            else
+            {
+                var sqlInsert = @"
+                    INSERT INTO TB_PLANIFICACION_RUTAS_CHOFERES
+                    (Fecha, CamionId, ConductorId, RutaLogisticaId, RutasIds, FincasIds, TotalFincas, LitrosEstimados, CapacidadCamionLitros, PorcentajeOcupacion, Observacion, Activo, CreatedAt, CreatedBy)
+                    VALUES
+                    (@Fecha, @CamionId, @ConductorId, @RutaLogisticaId, @RutasIds, @FincasIds, @TotalFincas, @LitrosEstimados, @CapacidadCamionLitros, @PorcentajeOcupacion, @Observacion, 1, GETDATE(), @usuarioId);
+                    SELECT CAST(SCOPE_IDENTITY() AS INT);";
+                return await connection.ExecuteScalarAsync<int>(sqlInsert, new
+                {
+                    Fecha = dto.Fecha.Date,
+                    dto.CamionId,
+                    dto.ConductorId,
+                    dto.RutaLogisticaId,
+                    dto.RutasIds,
+                    FincasIds = fincasIdsStr,
+                    TotalFincas = totalFincas,
+                    dto.LitrosEstimados,
+                    CapacidadCamionLitros = capacidad,
+                    PorcentajeOcupacion = porcentaje,
+                    dto.Observacion,
+                    usuarioId
+                });
+            }
+        }
+
+        public async Task<bool> EliminarPlanificacionChoferAsync(int id)
+        {
+            using var connection = CreateConnection();
+            var rows = await connection.ExecuteAsync("DELETE FROM TB_PLANIFICACION_RUTAS_CHOFERES WHERE Id = @id", new { id });
+            return rows > 0;
+        }
+
+        public async Task<IEnumerable<FincaPromedioDto>> ObtenerFincasConPromedio15DiasAsync(int? rutaId = null)
+        {
+            using var connection = CreateConnection();
+            var sql = @"
+                SELECT 
+                    f.Id AS FincaId,
+                    f.Nombre AS FincaNombre,
+                    f.Propietario,
+                    f.RutaId,
+                    CASE WHEN f.TieneDosTiposLeche = 1 THEN 'BUFALA' ELSE 'VACA' END AS TipoLeche,
+                    CAST(ISNULL(p15.Promedio15Dias, ISNULL(pTotal.PromedioTotal, 0)) AS INT) AS PromedioLitros,
+                    ISNULL(p15.DiasRecolectados, 0) AS DiasRecolectados15
+                FROM TB_FINCAS f
+                LEFT JOIN (
+                    SELECT FincaId, ROUND(AVG(CAST(Litros AS FLOAT)), 0) AS Promedio15Dias, COUNT(1) AS DiasRecolectados
+                    FROM TB_RUTAS_RECOLECCION
+                    WHERE Fecha >= DATEADD(day, -15, CAST(GETDATE() AS DATE))
+                    GROUP BY FincaId
+                ) p15 ON f.Id = p15.FincaId
+                LEFT JOIN (
+                    SELECT FincaId, ROUND(AVG(CAST(Litros AS FLOAT)), 0) AS PromedioTotal
+                    FROM TB_RUTAS_RECOLECCION
+                    GROUP BY FincaId
+                ) pTotal ON f.Id = pTotal.FincaId
+                WHERE f.IsDeleted = 0 AND f.Activo = 1 " +
+                (rutaId.HasValue && rutaId.Value > 0 ? " AND f.RutaId = @rutaId " : "") +
+                " ORDER BY f.Nombre ASC";
+            return await connection.QueryAsync<FincaPromedioDto>(sql, new { rutaId });
         }
     }
 }

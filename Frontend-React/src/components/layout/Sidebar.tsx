@@ -9,10 +9,11 @@ interface SidebarProps {
 
 interface NavSubItem {
   name: string;
-  href: string;
+  href?: string;
   tabId: string;
   icon: string;
   color?: string;
+  subItems?: NavSubItem[];
 }
 
 interface NavGroupDef {
@@ -32,10 +33,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [pinnedGroupId, setPinnedGroupId] = useState<string | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isItemVisible = (item: NavSubItem) => {
+  const isItemVisible = (item: NavSubItem): boolean => {
+    if (item.subItems && item.subItems.length > 0) {
+      return item.subItems.some(sub => isItemVisible(sub));
+    }
     if (item.tabId === 'bufala' && !hasTenantModule('MOD_LECHE_BUFALA')) return false;
     return canAccessTab(item.tabId);
   };
+
+  const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({
+    'Balance Silos': true,
+    'Logísticas': true,
+  });
+
+  const toggleSubMenu = (name: string) => {
+    setOpenSubMenus(prev => ({
+      ...prev,
+      [name]: !prev[name],
+    }));
+  };
+
+  useEffect(() => {
+    if (location.pathname === '/balance' || location.pathname === '/control-tanques') {
+      setOpenSubMenus(prev => ({ ...prev, 'Balance Silos': true }));
+    }
+    if (location.pathname === '/planificacion-rutas' || location.pathname === '/planificacion-rutas-choferes') {
+      setOpenSubMenus(prev => ({ ...prev, 'Logísticas': true }));
+    }
+  }, [location.pathname]);
 
   const handleMouseEnter = (groupId: string) => {
     if (closeTimerRef.current) {
@@ -81,12 +106,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { name: 'Principal', href: '/dashboard', tabId: 'dashboard', icon: 'fa-solid fa-chart-pie' },
         { name: 'Recolección en Ruta', href: '/rutas', tabId: 'rutas', icon: 'fa-solid fa-route' },
         { name: 'Entregas Receptoría', href: '/receptoria', tabId: 'receptoria', icon: 'fa-solid fa-truck-ramp-box' },
-        { name: 'Balance Silos (Receptoría)', href: '/balance', tabId: 'balance', icon: 'fa-solid fa-chart-line' },
+        {
+          name: 'Balance Silos',
+          tabId: 'balance',
+          icon: 'fa-solid fa-cubes-stacked',
+          color: '#2563eb',
+          subItems: [
+            { name: 'Balance General Silos', href: '/balance', tabId: 'balance', icon: 'fa-solid fa-chart-line' },
+            { name: 'Formulario Silos-01', href: '/control-tanques', tabId: 'control-tanques', icon: 'fa-solid fa-clipboard-list', color: '#6366f1' },
+          ],
+        },
         { name: 'Control de Viajes / Tickets', href: '/viajes', tabId: 'control-rutas', icon: 'fa-solid fa-clipboard-check' },
-        { name: 'Formulario Silos-01', href: '/control-tanques', tabId: 'control-tanques', icon: 'fa-solid fa-clipboard-list', color: '#6366f1' },
         { name: 'Trazabilidad Búfala', href: '/bufala', tabId: 'bufala', icon: 'fa-solid fa-gem', color: '#0d9488' },
         { name: 'Evolución Fincas & Flota', href: '/evolucion-fincas', tabId: 'evolucion-fincas', icon: 'fa-solid fa-arrow-trend-up', color: '#10b981' },
-        { name: 'Planificación de Rutas', href: '/planificacion-rutas', tabId: 'rutas-planificacion', icon: 'fa-solid fa-map-location-dot', color: '#3b82f6' },
+        {
+          name: 'Logísticas',
+          tabId: 'rutas-planificacion',
+          icon: 'fa-solid fa-map-location-dot',
+          color: '#3b82f6',
+          subItems: [
+            { name: 'Circuitos y Rutas Base', href: '/planificacion-rutas', tabId: 'rutas-planificacion', icon: 'fa-solid fa-route' },
+            { name: 'Planificación de Rutas-choferes', href: '/planificacion-rutas-choferes', tabId: 'planificacion-rutas-choferes', icon: 'fa-solid fa-calendar-check', color: '#10b981' },
+          ],
+        },
       ],
     },
     {
@@ -183,7 +225,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   // Identificar qué grupo tiene la ruta actual activa
   const isGroupActive = (grp: NavGroupDef) => {
-    return grp.items.some(it => isItemVisible(it) && location.pathname === it.href);
+    return grp.items.some(it => {
+      if (it.subItems && it.subItems.length > 0) {
+        return it.subItems.some(sub => isItemVisible(sub) && location.pathname === sub.href);
+      }
+      return isItemVisible(it) && location.pathname === it.href;
+    });
   };
 
   // Estado para contraer/achicar menú lateral
@@ -392,11 +439,52 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       {/* Lista de enlaces directos */}
                       <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto">
                         {visibleItems.map(item => {
+                          if (item.subItems && item.subItems.length > 0) {
+                            const visibleSubs = item.subItems.filter(isItemVisible);
+                            if (visibleSubs.length === 0) return null;
+                            return (
+                              <div key={item.name} className="mt-1 pt-1 border-t border-slate-100">
+                                <div className="px-2.5 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <i className={`${item.icon} text-[11px]`} style={item.color ? { color: item.color } : undefined}></i>
+                                  <span>{item.name}</span>
+                                </div>
+                                <div className="flex flex-col gap-0.5 pl-1.5">
+                                  {visibleSubs.map(sub => {
+                                    const isSubActive = location.pathname === sub.href;
+                                    return (
+                                      <NavLink
+                                        key={sub.href}
+                                        to={sub.href!}
+                                        onClick={() => {
+                                          setHoveredGroupId(null);
+                                          setPinnedGroupId(null);
+                                          if (isOpen) onClose();
+                                        }}
+                                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                                          isSubActive
+                                            ? 'bg-blue-50 text-blue-700 font-bold border-l-[3px] border-l-blue-600 shadow-xs'
+                                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
+                                        }`}
+                                        style={{ textDecoration: 'none' }}
+                                      >
+                                        <i
+                                          className={`${sub.icon} text-[11px] w-3.5 text-center`}
+                                          style={sub.color ? { color: sub.color } : undefined}
+                                        ></i>
+                                        <span className="truncate">{sub.name}</span>
+                                      </NavLink>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }
+
                           const isItemActive = location.pathname === item.href;
                           return (
                             <NavLink
                               key={item.href}
-                              to={item.href}
+                              to={item.href!}
                               onClick={() => {
                                 setHoveredGroupId(null);
                                 setPinnedGroupId(null);
@@ -449,22 +537,85 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 </div>
                 <div className="nav-accordion-body">
                   <div className="accordion-subitems">
-                    {visibleItems.map((item) => (
-                      <NavLink
-                        key={item.href}
-                        to={item.href}
-                        onClick={() => {
-                          if (isOpen) onClose();
-                        }}
-                        title={item.name}
-                        className={({ isActive }) =>
-                          isActive ? 'nav-item active' : 'nav-item'
-                        }
-                      >
-                        <i className={item.icon} style={item.color ? { color: item.color } : undefined}></i>
-                        <span>{item.name}</span>
-                      </NavLink>
-                    ))}
+                    {visibleItems.map((item) => {
+                      if (item.subItems && item.subItems.length > 0) {
+                        const visibleSubs = item.subItems.filter(isItemVisible);
+                        if (visibleSubs.length === 0) return null;
+                        const isSubActive = visibleSubs.some(s => location.pathname === s.href);
+                        const isSubOpen = openSubMenus[item.name] !== false;
+
+                        return (
+                          <div key={item.name} className="nav-sub-group mb-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleSubMenu(item.name)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer border-0 ${
+                                isSubActive
+                                  ? 'bg-blue-50/90 text-blue-700 font-bold'
+                                  : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 bg-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <i className={`${item.icon} text-[12px] w-4 text-center`} style={item.color ? { color: item.color } : undefined}></i>
+                                <span className="tracking-tight">{item.name}</span>
+                              </div>
+                              <i
+                                className={`fa-solid fa-chevron-right text-[9px] text-slate-400 transition-transform duration-200 ${
+                                  isSubOpen ? 'rotate-90 text-blue-600' : ''
+                                }`}
+                              ></i>
+                            </button>
+
+                            {isSubOpen && (
+                              <div className="pl-3.5 pr-1 py-1 flex flex-col gap-0.5 border-l-2 border-blue-200 ml-4 my-1">
+                                {visibleSubs.map((sub) => {
+                                  const isActive = location.pathname === sub.href;
+                                  return (
+                                    <NavLink
+                                      key={sub.href}
+                                      to={sub.href!}
+                                      onClick={() => {
+                                        if (isOpen) onClose();
+                                      }}
+                                      title={sub.name}
+                                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11.5px] transition-colors ${
+                                        isActive
+                                          ? 'bg-blue-600 text-white font-bold shadow-xs'
+                                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                                      }`}
+                                      style={{ textDecoration: 'none' }}
+                                    >
+                                      <i
+                                        className={`${sub.icon} text-[11px] w-3.5 text-center`}
+                                        style={!isActive && sub.color ? { color: sub.color } : undefined}
+                                      ></i>
+                                      <span className="truncate">{sub.name}</span>
+                                    </NavLink>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <NavLink
+                          key={item.href}
+                          to={item.href!}
+                          onClick={() => {
+                            if (isOpen) onClose();
+                          }}
+                          title={item.name}
+                          className={({ isActive }) =>
+                            isActive ? 'nav-item active' : 'nav-item'
+                          }
+                        >
+                          <i className={item.icon} style={item.color ? { color: item.color } : undefined}></i>
+                          <span>{item.name}</span>
+                        </NavLink>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

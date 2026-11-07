@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Transporte.Core.DTOs;
@@ -112,6 +113,60 @@ namespace Transporte.API.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [HttpGet("planificacion-choferes")]
+        public async Task<IActionResult> ObtenerPlanificaciones([FromQuery] System.DateTime? fecha)
+        {
+            var fechaConsulta = (fecha ?? System.DateTime.Today).Date;
+            var list = await _rutasLogisticaRepository.ObtenerPlanificacionesPorFechaAsync(fechaConsulta);
+            return Ok(list);
+        }
+
+        [HttpPost("planificacion-choferes")]
+        public async Task<IActionResult> GuardarPlanificacion([FromBody] GuardarPlanificacionRutaChoferDto dto)
+        {
+            if (dto.CamionId <= 0 || dto.ConductorId <= 0)
+            {
+                return BadRequest(new { message = "El camión y el conductor son obligatorios." });
+            }
+            if (dto.FincasIds == null || dto.FincasIds.Count == 0)
+            {
+                return BadRequest(new { message = "Debe asignar al menos una finca a este camión." });
+            }
+
+            var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : 1;
+            try
+            {
+                var id = await _rutasLogisticaRepository.GuardarPlanificacionChoferAsync(dto, userId);
+                return Ok(new { message = "Planificación guardada exitosamente.", id });
+            }
+            catch (System.Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("planificacion-choferes/{id:int}")]
+        public async Task<IActionResult> EliminarPlanificacion(int id)
+        {
+            try
+            {
+                var ok = await _rutasLogisticaRepository.EliminarPlanificacionChoferAsync(id);
+                if (!ok) return NotFound(new { message = "Planificación no encontrada." });
+                return Ok(new { message = "Planificación eliminada exitosamente." });
+            }
+            catch (System.Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("fincas-promedios-15dias")]
+        public async Task<IActionResult> ObtenerFincasPromedios([FromQuery] int? rutaId)
+        {
+            var fincas = await _rutasLogisticaRepository.ObtenerFincasConPromedio15DiasAsync(rutaId);
+            return Ok(fincas);
         }
     }
 }

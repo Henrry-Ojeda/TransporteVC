@@ -158,4 +158,47 @@ export interface ControlTanquesDiarioDto {
   puedeModificar?: boolean;
 }
 
+export interface PlanificacionRutaChoferDto {
+  id: number;
+  fecha: string;
+  camionId: number;
+  camionPlaca?: string;
+  capacidadCamionLitros: number;
+  conductorId: number;
+  conductorNombre?: string;
+  rutaLogisticaId?: number;
+  rutaLogisticaNombre?: string;
+  rutasIds?: string;
+  fincasIds: string;
+  listaFincasIds: number[];
+  totalFincas: number;
+  litrosEstimados: number;
+  porcentajeOcupacion: number;
+  observacion?: string;
+  activo: boolean;
+  createdAt: string;
+}
+
+export interface GuardarPlanificacionRutaChoferDto {
+  id?: number;
+  fecha: string;
+  camionId: number;
+  conductorId: number;
+  rutaLogisticaId?: number;
+  rutasIds?: string;
+  fincasIds: number[];
+  litrosEstimados: number;
+  observacion?: string;
+}
+
+export interface FincaPromedioDto {
+  fincaId: number;
+  fincaNombre: string;
+  propietario?: string;
+  rutaId?: number;
+  tipoLeche?: string;
+  promedioLitros: number;
+}
+
+
 

@@ -13,6 +13,7 @@ import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 
 // Operaciones
 import { RutasLogisticaPage } from '@/modules/operaciones/RutasLogisticaPage';
+import { PlanificacionRutasChoferesPage } from '@/modules/operaciones/PlanificacionRutasChoferesPage';
 import { RecoleccionRutasPage } from '@/modules/operaciones/RecoleccionRutasPage';
 import { ViajesTicketsPage } from '@/modules/operaciones/ViajesTicketsPage';
 import { ReceptoriaPage } from '@/modules/operaciones/ReceptoriaPage';
@@ -111,6 +112,7 @@ export const App: React.FC = () => {
             <Route path="/evolucion-fincas" element={<EvolucionFincasPage />} />
             <Route path="/control-tanques" element={<ControlTanquesPage />} />
             <Route path="/planificacion-rutas" element={<RutasLogisticaPage />} />
+            <Route path="/planificacion-rutas-choferes" element={<PlanificacionRutasChoferesPage />} />
             <Route path="/bufala" element={<BufalaPage />} />
 
             {/* Catálogos */}
