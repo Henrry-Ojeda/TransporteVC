@@ -815,59 +815,86 @@ export const ReceptoriaPage: React.FC = () => {
                   const camionObj = camiones.find((c) => c.id === d.camionId);
                   const nombreComp = d.nombreCompania || d.companiaNombre || compObj?.nombre || `Planta #${d.companiaId}`;
                   const placaCamion = d.camionPlaca || camionObj?.placa || 'Cisterna Planta';
+                  const despachados = Number(d.litrosDespachados || 0);
 
                   return (
                     <div
                       key={d.id}
                       style={{
-                        background: '#faf5ff',
-                        border: '1px solid #f3e8ff',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderTop: '4px solid #9333ea',
                         borderRadius: '10px',
                         padding: '14px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '8px',
+                        justifyContent: 'space-between',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 800, color: '#6d28d9', fontSize: '14px' }}>
-                          <i className="fa-solid fa-building" style={{ color: '#9333ea', marginRight: '6px' }}></i>
-                          {nombreComp}
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {hasBufala && (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <strong style={{ color: '#9333ea', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="fa-solid fa-file-invoice"></i> Salida #{d.id}
+                          </strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {hasBufala && (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: (d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#f3e8ff' : '#e0f2fe',
+                                  color: (d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#7e22ce' : '#0369a1',
+                                  border: `1px solid ${(d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#d8b4fe' : '#bae6fd'}`,
+                                  fontWeight: 800,
+                                  fontSize: '10.5px',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                {(d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '🐃 BÚFALA' : '🥛 VACA'}
+                              </span>
+                            )}
                             <span
                               className="badge"
                               style={{
-                                background: (d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#f3e8ff' : '#e0f2fe',
-                                color: (d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#7e22ce' : '#0369a1',
-                                border: `1px solid ${(d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '#d8b4fe' : '#bae6fd'}`,
+                                background: '#f3e8ff',
+                                color: '#7e22ce',
                                 fontWeight: 800,
-                                fontSize: '10.5px',
-                                padding: '2px 8px',
+                                fontSize: '11px',
+                                border: '1px solid #d8b4fe',
+                                letterSpacing: '0.04em',
+                                padding: '3px 8px',
                                 borderRadius: '6px',
                               }}
                             >
-                              {(d.tipoLeche || '').toUpperCase().includes('BUFAL') ? '🐃 BÚFALA' : '🥛 VACA'}
+                              EN VÍA
                             </span>
-                          )}
-                          <span className="badge" style={{ background: '#f3e8ff', color: '#7e22ce', fontWeight: 800 }}>
-                            Ctrl #{d.id}
-                          </span>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <i className="fa-regular fa-calendar-days" style={{ color: '#9333ea' }}></i>
+                          <span>Fecha: <strong style={{ color: '#0f172a' }}>{d.fecha ? new Date(d.fecha).toLocaleDateString('es-VE') : hoyStr}</strong></span>
+                        </div>
+
+                        <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <i className="fa-solid fa-user-tie" style={{ color: '#9333ea' }}></i>
+                          <span>{d.nombreConductor || (d as any).conductorNombre || 'Chofer Asignado'}</span>
+                          <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}>• {placaCamion}</span>
+                        </div>
+
+                        <div style={{ fontSize: '12.5px', color: '#475569', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <i className="fa-solid fa-building-wheat" style={{ color: '#9333ea' }}></i>
+                          <span>Destino: <strong style={{ color: '#1e293b' }}>{nombreComp}</strong></span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#faf5ff', border: '1px solid #e9d5ff', padding: '8px 10px', borderRadius: '6px', margin: '10px 0' }}>
+                          <span style={{ fontSize: '12px', color: '#7e22ce', fontWeight: 600 }}>Litros Salida:</span>
+                          <strong style={{ fontFamily: 'monospace', fontSize: '16px', color: '#9333ea', fontWeight: 800 }}>{despachados.toLocaleString()} Lts</strong>
                         </div>
                       </div>
-                      <div style={{ fontSize: '12px', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>
-                          <i className="fa-solid fa-truck" style={{ marginRight: '4px' }}></i> {placaCamion}
-                        </span>
-                        <span>
-                          <i className="fa-regular fa-user" style={{ marginRight: '4px' }}></i> {d.nombreConductor || 'Conductor'}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', paddingTop: '8px', borderTop: '1px solid #e9d5ff' }}>
-                        <span style={{ fontWeight: 900, color: '#7e22ce', fontSize: '16px' }}>
-                          {(d.litrosDespachados || 0).toLocaleString()} <small style={{ fontSize: '11px', color: '#64748b' }}>Lts Salida</small>
-                        </span>
+
+                      <div>
                         <button
                           type="button"
                           className="btn btn-sm btn-primary"
@@ -878,17 +905,22 @@ export const ReceptoriaPage: React.FC = () => {
                             setModalConfirmar(true);
                           }}
                           style={{
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            padding: '4px 12px',
-                            background: 'linear-gradient(135deg, #059669, #047857)',
+                            width: '100%',
+                            fontWeight: 800,
+                            background: 'linear-gradient(135deg, #10b981, #059669)',
                             border: 'none',
+                            padding: '8px',
                             borderRadius: '6px',
-                            color: '#ffffff',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 6px rgba(16,185,129,0.25)',
+                            color: '#fff',
                             cursor: 'pointer',
                           }}
                         >
-                          <i className="fa-solid fa-check"></i> Validar Entrega
+                          <i className="fa-solid fa-clipboard-check"></i> Validar Entrega en Quesera
                         </button>
                       </div>
                     </div>
@@ -2013,135 +2045,223 @@ export const ReceptoriaPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL VALIDAR ENTREGA COMPAÑÍA */}
-      {modalConfirmar && despachoSeleccionado && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-          }}
-        >
+      {/* MODAL VALIDAR ENTREGA COMPAÑÍA (1:1 V2_3_11_26) */}
+      {modalConfirmar && despachoSeleccionado && (() => {
+        const despachados = Number(despachoSeleccionado.litrosDespachados || 0);
+        const recibidos = Number(litrosConfirmadosInput || 0);
+        const dif = despachados - recibidos;
+        const mermaPct = despachados > 0 ? ((Math.abs(dif) / despachados) * 100).toFixed(2) : '0.00';
+        const tipoDespachoRaw = (despachoSeleccionado.tipoLeche || (despachoSeleccionado as any).TipoLeche || '').toUpperCase();
+        const esBufala = tipoDespachoRaw.includes('BUFAL');
+        const esAcida = tipoDespachoRaw.includes('ACID') || (despachoSeleccionado.observaciones || '').toUpperCase().includes('ACID');
+
+        return (
           <div
-            className="content-card"
             style={{
-              width: '100%',
-              maxWidth: '480px',
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: 0,
-              overflow: 'hidden',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+              position: 'fixed',
+              inset: 0,
+              zIndex: 1000,
+              background: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
             }}
           >
             <div
+              className="content-card"
               style={{
-                padding: '16px 20px',
-                background: 'linear-gradient(135deg, #059669, #047857)',
-                color: '#ffffff',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                width: '100%',
+                maxWidth: '560px',
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: 0,
+                overflow: 'hidden',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+                border: '1px solid #cbd5e1',
               }}
             >
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fa-solid fa-clipboard-check"></i> Validar y Confirmar Entrega
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalConfirmar(false)}
-                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '16px', cursor: 'pointer' }}
+              {/* CABECERA */}
+              <div
+                style={{
+                  padding: '16px 20px',
+                  background: 'linear-gradient(135deg, #059669, #047857)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
               >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                validarMutation.mutate({
-                  id: despachoSeleccionado.id,
-                  litros: litrosConfirmadosInput,
-                  obs: obsConfirmacionInput,
-                });
-              }}
-              style={{ padding: '20px' }}
-            >
-              <p style={{ margin: '0 0 14px 0', fontSize: '13.5px', color: '#334155' }}>
-                Confirmación de recepción en{' '}
-                <strong>{despachoSeleccionado.nombreCompania || `Planta #${despachoSeleccionado.companiaId}`}</strong>:
-              </p>
-
-              <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', color: '#64748b' }}>
-                  <span>Litros Despachados:</span>
-                  <strong style={{ color: '#0f172a' }}>{despachoSeleccionado.litrosDespachados?.toLocaleString()} Lts</strong>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Litros Confirmados / Recibidos por Planta *
-                </label>
-                <input
-                  type="number"
-                  className="form-input"
-                  required
-                  value={litrosConfirmadosInput || ''}
-                  onChange={(e) => setLitrosConfirmadosInput(Number(e.target.value))}
-                  style={{ height: '40px', fontWeight: 800, fontSize: '16px', color: '#059669', background: '#ecfdf5', border: '1.5px solid #a7f3d0' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  Observaciones de Validación (Balanza, Acidez, etc.)
-                </label>
-                <textarea
-                  className="form-input"
-                  rows={2}
-                  placeholder="Ej: Pesaje conforme según ticket #..."
-                  value={obsConfirmacionInput}
-                  onChange={(e) => setObsConfirmacionInput(e.target.value)}
-                  style={{ width: '100%', resize: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-clipboard-check"></i> Validar Entrega en Queseras / Destinos
+                </h3>
                 <button
                   type="button"
-                  className="btn btn-outline"
                   onClick={() => setModalConfirmar(false)}
-                  style={{ height: '38px', padding: '0 16px' }}
+                  style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '18px', cursor: 'pointer' }}
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={validarMutation.isPending}
-                  style={{
-                    height: '38px',
-                    padding: '0 20px',
-                    fontWeight: 700,
-                    background: 'linear-gradient(135deg, #059669, #047857)',
-                    border: 'none',
-                  }}
-                >
-                  <i className="fa-solid fa-check-double"></i>
-                  {validarMutation.isPending ? 'Validando...' : 'Confirmar y Conciliar'}
+                  <i className="fa-solid fa-xmark"></i>
                 </button>
               </div>
-            </form>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  validarMutation.mutate({
+                    id: despachoSeleccionado.id,
+                    litros: litrosConfirmadosInput,
+                    obs: obsConfirmacionInput,
+                  });
+                }}
+                style={{ padding: '20px', maxHeight: '85vh', overflowY: 'auto' }}
+              >
+                {/* BANNER DE INFORMACIÓN DEL TICKET (PURPLE GRADIENT 1:1) */}
+                <div style={{ background: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', border: '1.5px solid #d8b4fe', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12.5px' }}>
+                    <span><strong>Ticket de Salida:</strong> <span style={{ color: '#7e22ce', fontWeight: 800 }}>#{despachoSeleccionado.id}</span></span>
+                    <span><strong>Fecha:</strong> {despachoSeleccionado.fecha ? new Date(despachoSeleccionado.fecha).toLocaleDateString('es-VE') : hoyStr}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12.5px' }}>
+                    <span><strong>Conductor:</strong> <strong style={{ color: '#6b21a8' }}>{despachoSeleccionado.nombreConductor || (despachoSeleccionado as any).conductorNombre || 'Chofer'}</strong></span>
+                    <span><strong>Destino Inicial:</strong> <strong>{despachoSeleccionado.nombreCompania || `Planta #${despachoSeleccionado.companiaId}`}</strong></span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px', fontSize: '12.5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <strong>Tipo Despachado:</strong>
+                      <span className="badge" style={{ background: esBufala ? '#faf5ff' : '#eff6ff', color: esBufala ? '#7e22ce' : '#1d4ed8', border: `1px solid ${esBufala ? '#d8b4fe' : '#bfdbfe'}`, fontWeight: 800, padding: '2px 8px', borderRadius: '6px' }}>
+                        {esBufala ? '🐃 BÚFALA' : '🥛 VACA'}
+                      </span>
+                      {esAcida && (
+                        <span className="badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', fontWeight: 800, padding: '2px 6px', borderRadius: '6px' }}>
+                          ⚠️ ÁCIDA
+                        </span>
+                      )}
+                    </div>
+                    <span><strong>Ticket Estado:</strong> <span className="badge" style={{ background: '#faf5ff', color: '#9333ea', border: '1px solid #d8b4fe', fontWeight: 700, padding: '2px 8px', borderRadius: '6px' }}>EN VÍA</span></span>
+                  </div>
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #d8b4fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: '#7e22ce', fontSize: '13px' }}>Litros Despachados:</span>
+                    <strong style={{ fontSize: '18px', color: '#9333ea', fontWeight: 900 }}>{despachados.toLocaleString('es-VE')} Lts</strong>
+                  </div>
+                </div>
+
+                {/* CAMPO DE LITROS CONFIRMADOS */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
+                    Litros Confirmados / Recibidos por Planta *
+                  </label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    required
+                    value={litrosConfirmadosInput || ''}
+                    onChange={(e) => setLitrosConfirmadosInput(Number(e.target.value))}
+                    style={{ height: '44px', fontWeight: 900, fontSize: '18px', color: '#059669', background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: '10px' }}
+                    min="0"
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* INDICADOR EN VIVO DE DIFERENCIA / MERMA / SOBRANTE */}
+                <div
+                  style={{
+                    marginBottom: '16px',
+                    background: dif === 0 ? '#f0fdf4' : dif > 0 ? '#fffbeb' : '#eff6ff',
+                    border: `1.5px solid ${dif === 0 ? '#86efac' : dif > 0 ? '#fde68a' : '#bfdbfe'}`,
+                    borderRadius: '10px',
+                    padding: '12px 14px',
+                    fontSize: '13px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: dif === 0 ? '#166534' : dif > 0 ? '#b45309' : '#1e40af' }}>
+                      Total Recibido: <strong style={{ fontSize: '15px', color: '#0f172a' }}>{recibidos.toLocaleString('es-VE')} Lts</strong>
+                    </span>
+                    <strong
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 800,
+                        color: dif === 0 ? '#16a34a' : dif > 0 ? '#d97706' : '#2563eb',
+                      }}
+                    >
+                      {dif === 0
+                        ? 'Diferencia: 0 Lts (0.00%)'
+                        : dif > 0
+                        ? `Falla / Merma: -${dif.toLocaleString('es-VE')} Lts (${mermaPct}%)`
+                        : `Sobrante: +${Math.abs(dif).toLocaleString('es-VE')} Lts (${mermaPct}%)`}
+                    </strong>
+                  </div>
+                  <div style={{ fontSize: '12px', color: dif === 0 ? '#15803d' : dif > 0 ? '#b45309' : '#1d4ed8', marginTop: '4px', fontWeight: 600 }}>
+                    {dif === 0 && (
+                      <>
+                        <i className="fa-solid fa-circle-check"></i> Entrega 100% exacta sin variación.
+                      </>
+                    )}
+                    {dif > 0 && (
+                      <>
+                        <i className="fa-solid fa-triangle-exclamation"></i> Se registrará una merma / faltante de leche de {dif.toLocaleString('es-VE')} litros.
+                      </>
+                    )}
+                    {dif < 0 && (
+                      <>
+                        <i className="fa-solid fa-circle-info"></i> Se registrará un excedente de leche de {Math.abs(dif).toLocaleString('es-VE')} litros.
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* OBSERVACIONES */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    OBSERVACIÓN GENERAL / TICKET DE PESAJE QUESERA
+                  </label>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    placeholder="Ej: Pesaje conforme según ticket #..."
+                    value={obsConfirmacionInput}
+                    onChange={(e) => setObsConfirmacionInput(e.target.value)}
+                    style={{ width: '100%', resize: 'none', borderRadius: '8px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => setModalConfirmar(false)}
+                    style={{ height: '40px', padding: '0 18px', fontWeight: 700 }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={validarMutation.isPending}
+                    style={{
+                      height: '40px',
+                      padding: '0 22px',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #059669, #047857)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 2px 6px rgba(5,150,105,0.3)',
+                    }}
+                  >
+                    <i className="fa-solid fa-check-double"></i>
+                    {validarMutation.isPending ? 'Validando...' : 'Confirmar y Conciliar Entrega'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL EDITAR TICKET SALIDA / FECHA */}
       {modalEditarDespacho && despachoAEditar && (

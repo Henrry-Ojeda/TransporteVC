@@ -49,6 +49,16 @@ export const operacionesApi = {
     return res.data;
   },
 
+  procesarOcrImagen: async (imagenBase64: string): Promise<{ items: any[]; mensaje?: string }> => {
+    const res = await apiClient.post('/rutas/ocr-imagen', { imagenBase64 });
+    return res.data;
+  },
+
+  guardarRutasMasivo: async (payload: { fecha: string; conductorId: number; controlRutaId?: number | null; items: any[] }): Promise<{ message: string; ids?: any[] }> => {
+    const res = await apiClient.post('/rutas/masivo', payload);
+    return res.data;
+  },
+
   finalizarViajeAdmin: async (id: number, observacion?: string): Promise<{ message: string }> => {
     const res = await apiClient.post(`/control-rutas/${id}/finalizar`, { observacion });
     return res.data;

@@ -43,6 +43,7 @@ export const RecoleccionRutasPage: React.FC = () => {
   const rol = user?.rol?.toUpperCase() || '';
   const esAdminOSup = ['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE', 'SUPERADMIN', 'SUPER_ADMIN'].includes(rol) || rol.includes('ADMIN');
   const esChofer = rol === 'CHOFER';
+  const isSuperAdmin = ['SUPERADMIN', 'SUPER_ADMIN'].includes(rol);
 
   // Fecha local real (evita saltos al día siguiente por UTC en horario nocturno)
   const hoyStr = (() => {
@@ -66,7 +67,7 @@ export const RecoleccionRutasPage: React.FC = () => {
   });
 
   // Sub-filtros en la vista de Rutas & Camiones
-  const [filtroOrigenTicket, setFiltroOrigenTicket] = useState<'todos' | 'RUTA' | 'RECEPTORIA'>('todos');
+  const [filtroOrigenTicket, setFiltroOrigenTicket] = useState<'todos' | 'RUTA' | 'RECEPTORIA' | 'SALIDAS'>('todos');
   const [filtroEstadoTicket, setFiltroEstadoTicket] = useState<'activos' | 'todos'>('activos');
   const [busquedaTexto, setBusquedaTexto] = useState<string>(() => {
     return new URLSearchParams(window.location.search).get('ticket') || '';
@@ -551,6 +552,248 @@ export const RecoleccionRutasPage: React.FC = () => {
     },
   });
 
+  // =========================================================================
+  // CARGA MASIVA Y ESCANEO POR FOTO / IA (EXCLUSIVO SUPERADMIN)
+  // =========================================================================
+  const [modalRutasMasivo, setModalRutasMasivo] = useState(false);
+  const [masivoFecha, setMasivoFecha] = useState(hoyStr);
+  const [masivoConductorId, setMasivoConductorId] = useState<number>(0);
+  const [masivoControlRutaId, setMasivoControlRutaId] = useState<number | null>(null);
+  const [masivoFilas, setMasivoFilas] = useState<Array<{
+    idTemp: string;
+    fincaId: number;
+    litros: number | '';
+    tipoLeche: string;
+    esAcida: boolean;
+    observacion: string;
+  }>>([]);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [ocrMensaje, setOcrMensaje] = useState<string | null>(null);
+
+  const videoWebcamRef = useRef<HTMLVideoElement | null>(null);
+  const canvasWebcamRef = useRef<HTMLCanvasElement | null>(null);
+  const streamWebcamRef = useRef<MediaStream | null>(null);
+  const fileInputMasivoRef = useRef<HTMLInputElement | null>(null);
+  const [camaraActiva, setCamaraActiva] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+
+  const abrirModalRutasMasivo = (ticket?: any) => {
+    const tkt = ticket || viajeActivo || null;
+    setMasivoControlRutaId(tkt ? tkt.id : null);
+    setMasivoFecha(tkt?.fecha ? tkt.fecha.split('T')[0] : (fechaFiltro || hoyStr));
+    setMasivoConductorId(tkt ? (tkt.usuarioId || tkt.conductorId || 0) : 0);
+    setOcrMensaje(null);
+    setIsOcrLoading(false);
+    setCamaraActiva(false);
+    setMasivoFilas([
+      { idTemp: '1', fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+      { idTemp: '2', fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+      { idTemp: '3', fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+    ]);
+    setModalRutasMasivo(true);
+  };
+
+  const agregarFilaMasiva = () => {
+    setMasivoFilas((prev) => [
+      ...prev,
+      { idTemp: Math.random().toString(), fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+    ]);
+  };
+
+  const removerFilaMasiva = (index: number) => {
+    setMasivoFilas((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+      return next.length > 0 ? next : [{ idTemp: Math.random().toString(), fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' }];
+    });
+  };
+
+  const actualizarFilaMasiva = (index: number, campo: string, valor: any) => {
+    setMasivoFilas((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [campo]: valor };
+      return copy;
+    });
+  };
+
+  const iniciarCamara = async () => {
+    setCamaraActiva(true);
+    setOcrMensaje(null);
+    try {
+      if (streamWebcamRef.current) {
+        streamWebcamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamWebcamRef.current = stream;
+      if (videoWebcamRef.current) {
+        videoWebcamRef.current.srcObject = stream;
+        await videoWebcamRef.current.play();
+      }
+    } catch (err: any) {
+      toast.error('No se pudo acceder a la cámara: ' + (err.message || 'Verifique permisos'));
+      detenerCamara();
+    }
+  };
+
+  const detenerCamara = () => {
+    if (streamWebcamRef.current) {
+      streamWebcamRef.current.getTracks().forEach((t) => t.stop());
+      streamWebcamRef.current = null;
+    }
+    if (videoWebcamRef.current) {
+      videoWebcamRef.current.srcObject = null;
+    }
+    setCamaraActiva(false);
+  };
+
+  const cambiarCamara = async () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    try {
+      if (streamWebcamRef.current) {
+        streamWebcamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: nextMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamWebcamRef.current = stream;
+      if (videoWebcamRef.current) {
+        videoWebcamRef.current.srcObject = stream;
+        await videoWebcamRef.current.play();
+      }
+    } catch (err: any) {
+      toast.error('No se pudo cambiar de cámara');
+    }
+  };
+
+  const capturarFoto = () => {
+    const video = videoWebcamRef.current;
+    if (!video || !canvasWebcamRef.current) return;
+    const canvas = canvasWebcamRef.current;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const base64 = canvas.toDataURL('image/jpeg', 0.92);
+      detenerCamara();
+      procesarImagenOcr(base64);
+    }
+  };
+
+  const handleSubirArchivoFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64 = evt.target?.result as string;
+      if (base64) {
+        procesarImagenOcr(base64);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const procesarImagenOcr = async (base64: string) => {
+    setIsOcrLoading(true);
+    setOcrMensaje(null);
+    try {
+      const resp = await operacionesApi.procesarOcrImagen(base64);
+      const items = resp.items || [];
+      if (items.length > 0) {
+        const nuevasFilas = items.map((it: any) => {
+          let fincaId = it.fincaId || 0;
+          const fincaNombreDetectado = it.fincaNombreDetectado || '';
+          if (!fincaId && fincaNombreDetectado) {
+            const fMatch = fincas.find(
+              (f) =>
+                f.nombre.toLowerCase().includes(fincaNombreDetectado.toLowerCase()) ||
+                fincaNombreDetectado.toLowerCase().includes(f.nombre.toLowerCase())
+            );
+            if (fMatch) fincaId = fMatch.id;
+          }
+          const isAcida = Boolean(it.esAcida) || (it.observacion && String(it.observacion).toLowerCase().includes('acid'));
+          const tipoLeche = (it.tipoLeche || (fincas.find((f) => f.id === fincaId)?.tipoLeche || 'VACA')).toUpperCase();
+
+          return {
+            idTemp: Math.random().toString(),
+            fincaId,
+            litros: (Number(it.litros) || '') as number | '',
+            tipoLeche: tipoLeche.includes('BUFAL') ? 'BUFALA' : 'VACA',
+            esAcida: isAcida,
+            observacion: it.observacion || '',
+          };
+        });
+        setMasivoFilas(nuevasFilas);
+        setOcrMensaje(`Se extrajeron ${items.length} registros con IA. Verifica y edita cualquier dato en la tabla antes de guardar.`);
+        toast.success(`Se extrajeron ${items.length} registros de la foto con IA`);
+      } else {
+        toast.warning('No se detectaron registros legibles en la imagen. Puedes ingresarlos manualmente.');
+      }
+    } catch (err: any) {
+      toast.error('Error al procesar la imagen con IA: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsOcrLoading(false);
+    }
+  };
+
+  const guardarMasivoMutation = useMutation({
+    mutationFn: async () => {
+      const filasValidas = masivoFilas.filter((f) => f.fincaId > 0 || (f.litros !== '' && Number(f.litros) > 0));
+      if (filasValidas.length === 0) {
+        throw new Error('Debes completar al menos una finca con sus litros recolectados.');
+      }
+      for (let i = 0; i < filasValidas.length; i++) {
+        const f = filasValidas[i];
+        if (!f.fincaId || f.fincaId <= 0) {
+          throw new Error(`La fila #${i + 1} no tiene una finca válida seleccionada.`);
+        }
+        if (!f.litros || Number(f.litros) <= 0) {
+          throw new Error(`La fila #${i + 1} debe tener una cantidad válida de litros.`);
+        }
+      }
+      const payload = {
+        fecha: masivoFecha,
+        conductorId: masivoConductorId > 0 ? masivoConductorId : (viajeActivo?.usuarioId || user?.id || 1),
+        controlRutaId: masivoControlRutaId || viajeActivo?.id || null,
+        items: filasValidas.map((f) => ({
+          fincaId: f.fincaId,
+          litros: Number(f.litros),
+          tipoLeche: f.tipoLeche,
+          esAcida: f.esAcida,
+          observacion: f.observacion || '',
+        })),
+      };
+      return operacionesApi.guardarRutasMasivo(payload);
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || `Se registraron las recolecciones exitosamente.`);
+      queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
+      setModalRutasMasivo(false);
+      setMasivoFilas([]);
+      detenerCamara();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Error al guardar recolección masiva');
+    },
+  });
+
+  const totalLitrosMasivo = useMemo(() => {
+    return masivoFilas.reduce((acc, f) => acc + (Number(f.litros) || 0), 0);
+  }, [masivoFilas]);
+
+  const limpiarTablaMasiva = () => {
+    setMasivoFilas([
+      { idTemp: Math.random().toString(), fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+      { idTemp: Math.random().toString(), fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+      { idTemp: Math.random().toString(), fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+    ]);
+    setOcrMensaje(null);
+  };
+
   const editarRecoleccionMutation = useMutation({
     mutationFn: (dto: typeof formEditar) =>
       operacionesApi.editarRecoleccion(dto.id, {
@@ -795,29 +1038,43 @@ export const RecoleccionRutasPage: React.FC = () => {
       _conductor: v.choferNombre || v.nombreConductor || 'Sin asignar',
     }));
 
-    const normDespachos = despachosFiltrados.map((d) => ({
-      id: d.id,
-      codigoTicket: String(d.id),
-      fecha: d.fecha,
-      camionPlaca: d.camionPlaca,
-      camionId: d.camionId,
-      observacion: d.observaciones || d.observacion,
-      estado: d.estado,
-      _tipoTicket: 'RECEPTORIA' as const,
-      _origenBadge: 'RECEPTORÍA / SALIDA',
-      _origenColor: '#9333ea',
-      _origenBg: '#f3e8ff',
-      _origenBorder: '#e9d5ff',
-      _origenIcon: 'fa-building-wheat',
-      _litrosRecogidos: d.litrosDespachados || 0,
-      _litrosEntregados: d.litrosRecibidosCompania || d.litrosConfirmados || 0,
-      _conductor: d.choferNombre || d.nombreConductor || 'Chofer Asignado',
-      nombreCompania: d.nombreCompania || d.companiaNombre,
-    }));
+    const normDespachos = despachosFiltrados.map((d) => {
+      const comp = (d.nombreCompania || d.companiaNombre || '').toUpperCase();
+      const esSalida = comp !== '' && !comp.includes('RECEPTOR') && !comp.includes('PLANTA');
+      const esConfirmado =
+        (d.litrosRecibidosCompania != null && Number(d.litrosRecibidosCompania) > 0) ||
+        (d.litrosConfirmados != null && Number(d.litrosConfirmados) > 0) ||
+        (d as any).procesoActualId === 4 ||
+        d.estado === 'FINALIZADO' ||
+        d.estado === 'CONFIRMADO';
+
+      return {
+        id: d.id,
+        codigoTicket: String(d.id),
+        fecha: d.fecha,
+        camionPlaca: d.camionPlaca,
+        camionId: d.camionId,
+        observacion: d.observaciones || d.observacion,
+        estado: esConfirmado ? 'FINALIZADO' : 'RECEPCIONADO',
+        _tipoTicket: (esSalida ? 'SALIDAS' : 'RECEPTORIA') as 'SALIDAS' | 'RECEPTORIA',
+        _origenBadge: esSalida ? 'SALIDA' : 'RECEPTORÍA',
+        _origenColor: esSalida ? '#dc2626' : '#9333ea',
+        _origenBg: esSalida ? '#fef2f2' : '#f3e8ff',
+        _origenBorder: esSalida ? '#fecaca' : '#e9d5ff',
+        _origenIcon: esSalida ? 'fa-industry' : 'fa-building-wheat',
+        _litrosRecogidos: d.litrosDespachados || 0,
+        _litrosEntregados: d.litrosRecibidosCompania || d.litrosConfirmados || 0,
+        _conductor: d.choferNombre || d.nombreConductor || 'Chofer Asignado',
+        nombreCompania: d.nombreCompania || d.companiaNombre,
+        esSalida,
+        esConfirmado,
+      };
+    });
 
     let combinados: any[] = [];
     if (filtroOrigenTicket === 'RUTA') combinados = normRutas;
-    else if (filtroOrigenTicket === 'RECEPTORIA') combinados = normDespachos;
+    else if (filtroOrigenTicket === 'RECEPTORIA') combinados = normDespachos.filter((d) => !d.esSalida);
+    else if (filtroOrigenTicket === 'SALIDAS') combinados = normDespachos.filter((d) => d.esSalida);
     else combinados = [...normRutas, ...normDespachos];
 
     if (busquedaTexto.trim()) {
@@ -903,7 +1160,11 @@ export const RecoleccionRutasPage: React.FC = () => {
 
   // Totales de flota para tarjetas KPI superiores
   const kpisFlota = useMemo(() => {
-    const totalViajes = viajes.length;
+    const salidasExternas = despachos.filter((d: any) => {
+      const comp = (d.nombreCompania || d.companiaNombre || '').toUpperCase();
+      return comp !== '' && !comp.includes('RECEPTOR') && !comp.includes('PLANTA');
+    });
+    const totalViajes = viajes.length + salidasExternas.length;
     const activosEnRuta = viajes.filter((v) => v.procesoActualId === 1 && v.estado !== 'FINALIZADO' && v.estado !== 'CERRADO').length;
     const totalRecogido = viajes.reduce((acc, v) => acc + Number(v.totalLitrosFinca || v.totalLitrosRecogidos || 0), 0);
     const totalDespachado = despachos.reduce((acc, d) => acc + Number(d.litrosDespachados || 0), 0);
@@ -1326,6 +1587,30 @@ export const RecoleccionRutasPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => abrirModalRutasMasivo()}
+              style={{
+                fontWeight: 700,
+                fontSize: '13px',
+                padding: '9px 18px',
+                borderRadius: '9px',
+                background: 'linear-gradient(135deg, #4f46e5 0%, #2563eb 100%)',
+                border: 'none',
+                boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#ffffff',
+                cursor: 'pointer',
+              }}
+              title="Registro masivo rápido y escaneo por IA / OCR exclusivo para SuperAdmin"
+            >
+              <i className="fa-solid fa-bolt"></i> Carga Masiva / Escanear Foto
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
@@ -1589,7 +1874,28 @@ export const RecoleccionRutasPage: React.FC = () => {
                 }}
               >
                 <i className="fa-solid fa-building-wheat" style={{ color: '#9333ea' }}></i>
-                Receptorías / Salidas ({despachosFiltrados.length})
+                Receptoría ({despachosFiltrados.filter((d: any) => !((d.nombreCompania || d.companiaNombre || '').toUpperCase() !== '' && !(d.nombreCompania || d.companiaNombre || '').toUpperCase().includes('RECEPTOR') && !(d.nombreCompania || d.companiaNombre || '').toUpperCase().includes('PLANTA'))).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroOrigenTicket('SALIDAS')}
+                style={{
+                  border: 'none',
+                  padding: '5px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: filtroOrigenTicket === 'SALIDAS' ? '#ffffff' : 'transparent',
+                  color: filtroOrigenTicket === 'SALIDAS' ? '#dc2626' : '#64748b',
+                  boxShadow: filtroOrigenTicket === 'SALIDAS' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-truck-arrow-right" style={{ color: '#dc2626' }}></i>
+                Salidas ({despachosFiltrados.filter((d: any) => (d.nombreCompania || d.companiaNombre || '').toUpperCase() !== '' && !(d.nombreCompania || d.companiaNombre || '').toUpperCase().includes('RECEPTOR') && !(d.nombreCompania || d.companiaNombre || '').toUpperCase().includes('PLANTA')).length})
               </button>
             </div>
 
@@ -1974,9 +2280,27 @@ export const RecoleccionRutasPage: React.FC = () => {
                             </div>
                           </>
                         ) : (
-                          <div style={{ background: '#faf5ff', padding: '10px', borderRadius: '8px', border: '1px solid #e9d5ff' }}>
-                            <span style={{ fontSize: '11px', color: '#7e22ce', fontWeight: 700, display: 'block' }}>Despacho Externo</span>
-                            <strong style={{ fontSize: '13px', color: '#581c87' }}>{item.nombreCompania || 'Planta Externa'}</strong>
+                          <div
+                            style={{
+                              background: item.esSalida ? '#fef2f2' : '#faf5ff',
+                              padding: '10px',
+                              borderRadius: '8px',
+                              border: `1px solid ${item.esSalida ? '#fecaca' : '#e9d5ff'}`,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                color: item.esSalida ? '#b91c1c' : '#7e22ce',
+                                fontWeight: 700,
+                                display: 'block',
+                              }}
+                            >
+                              {item.esSalida ? 'Salida / Flete a Compañía' : 'Recepción en Planta'}
+                            </span>
+                            <strong style={{ fontSize: '13px', color: item.esSalida ? '#991b1b' : '#581c87' }}>
+                              {item.nombreCompania || (item.esSalida ? 'Compañía Externa' : 'Receptoría Planta')}
+                            </strong>
                           </div>
                         )}
                       </div>
@@ -2184,9 +2508,43 @@ export const RecoleccionRutasPage: React.FC = () => {
                           </div>
                         ) : (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span className="badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 800, fontSize: '11px', padding: '5px 12px', borderRadius: '6px' }}>
-                              <i className="fa-solid fa-circle-check" style={{ marginRight: '5px' }}></i> FINALIZADO
-                            </span>
+                            {!esRuta && !item.esConfirmado && item.estado !== 'FINALIZADO' ? (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: '#fef3c7',
+                                  color: '#b45309',
+                                  border: '1px solid #fde68a',
+                                  fontWeight: 800,
+                                  fontSize: '11px',
+                                  padding: '5px 12px',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <i className="fa-solid fa-clock-rotate-left"></i> RECEPCIONADO
+                              </span>
+                            ) : (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: '#ecfdf5',
+                                  color: '#047857',
+                                  border: '1px solid #a7f3d0',
+                                  fontWeight: 800,
+                                  fontSize: '11px',
+                                  padding: '5px 12px',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <i className="fa-solid fa-circle-check"></i> FINALIZADO
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -3628,6 +3986,732 @@ export const RecoleccionRutasPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: CARGA MASIVA Y ESCANEO POR FOTO / IA (EXCLUSIVO SUPERADMIN)        */}
+      {/* ========================================================================= */}
+      {modalRutasMasivo && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1250,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            padding: '16px',
+          }}
+        >
+          <div
+            className="content-card"
+            style={{
+              maxWidth: '1040px',
+              width: '95%',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#ffffff',
+              color: '#1e293b',
+              borderRadius: '16px',
+              border: '1px solid #cbd5e1',
+              overflow: 'hidden',
+              boxShadow: '0 25px 60px rgba(15,23,42,0.35)',
+              padding: 0,
+            }}
+          >
+            {/* CABECERA */}
+            <div
+              style={{
+                flexShrink: 0,
+                background: 'linear-gradient(135deg, #1e1b4b, #3b82f6)',
+                padding: '18px 24px',
+                borderBottom: '1px solid #3b82f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    background: 'rgba(255,255,255,0.18)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  <i className="fa-solid fa-bolt" style={{ color: '#ffffff', fontSize: '22px' }}></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, color: '#ffffff', fontWeight: 800, fontSize: '18px', letterSpacing: '-0.2px' }}>
+                    Registro Masivo de Recolección en Rutas
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', color: '#dbeafe', fontSize: '12.5px' }}>
+                    Carga rápida por lista continua o lectura automática por Foto/Planilla con IA (OCR)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  detenerCamara();
+                  setModalRutasMasivo(false);
+                }}
+                style={{
+                  color: '#ffffff',
+                  opacity: 0.85,
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '28px',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+                onMouseOver={(e) => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+                onMouseOut={(e) => ((e.currentTarget as HTMLElement).style.opacity = '0.85')}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* CUERPO DEL MODAL */}
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', background: '#f8fafc' }}>
+              {/* BANNER DE ASIGNACIÓN A TICKET */}
+              <div
+                style={{
+                  background: '#eff6ff',
+                  border: '1.5px solid #bfdbfe',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  boxShadow: '0 1px 3px rgba(37,99,235,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-ticket" style={{ color: '#2563eb', fontSize: '15px' }}></i>
+                  <span style={{ fontSize: '12.5px', color: '#1e3a8a', fontWeight: 700 }}>Ticket de Viaje:</span>
+                  <span
+                    className="badge"
+                    style={{
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      fontSize: '12px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    {masivoControlRutaId ? `Ticket #${masivoControlRutaId}` : 'Auto-Apertura'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
+                  Las fincas se vincularán automáticamente al ticket correspondiente.
+                </span>
+              </div>
+
+              {/* CABECERA DATOS GENERALES */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '14px',
+                  background: '#ffffff',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  marginBottom: '14px',
+                  border: '1.5px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#475569',
+                      display: 'block',
+                      marginBottom: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    <i className="fa-solid fa-calendar-day" style={{ color: '#2563eb', marginRight: '4px' }}></i> FECHA DE RECOLECCIÓN *
+                  </label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={masivoFecha}
+                    onChange={(e) => setMasivoFecha(e.target.value)}
+                    style={{
+                      height: '38px',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '7px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#475569',
+                      display: 'block',
+                      marginBottom: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    <i className="fa-solid fa-user-tie" style={{ color: '#2563eb', marginRight: '4px' }}></i> CONDUCTOR *
+                  </label>
+                  <ChoferSelect
+                    value={masivoConductorId || undefined}
+                    onChange={(val) => setMasivoConductorId(Number(val) || 0)}
+                    placeholder="-- SELECCIONAR CONDUCTOR --"
+                  />
+                </div>
+              </div>
+
+              {/* SECCIÓN OCR / ESCANEO DE FOTO */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1.5px dashed #93c5fd',
+                  borderRadius: '10px',
+                  padding: '10px 16px',
+                  marginBottom: '14px',
+                  boxShadow: '0 1px 3px rgba(37,99,235,0.03)',
+                }}
+              >
+                {!camaraActiva && !isOcrLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '8px',
+                          background: '#eff6ff',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <i className="fa-solid fa-camera" style={{ fontSize: '16px', color: '#2563eb' }}></i>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
+                          ¿Cargar por foto o planilla con IA (OCR)?
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '6px' }}>
+                          Pre-llena la lista automáticamente.
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                      <input
+                        type="file"
+                        ref={fileInputMasivoRef}
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={handleSubirArchivoFoto}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputMasivoRef.current?.click()}
+                        style={{
+                          background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          border: 'none',
+                          padding: '7px 16px',
+                          borderRadius: '7px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12.5px',
+                          boxShadow: '0 2px 6px rgba(37,99,235,0.2)',
+                        }}
+                      >
+                        <i className="fa-solid fa-upload"></i> Subir Imagen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={iniciarCamara}
+                        style={{
+                          background: 'linear-gradient(135deg, #059669, #10b981)',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          border: 'none',
+                          padding: '7px 16px',
+                          borderRadius: '7px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12.5px',
+                          boxShadow: '0 2px 6px rgba(16,185,129,0.2)',
+                        }}
+                      >
+                        <i className="fa-solid fa-video"></i> Activar Cámara
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {camaraActiva && (
+                  <div style={{ padding: '6px 0' }}>
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '280px',
+                        maxHeight: '45vh',
+                        background: '#000000',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        border: '2px solid #10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '10px',
+                      }}
+                    >
+                      <video
+                        ref={videoWebcamRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000000' }}
+                      />
+                      <canvas ref={canvasWebcamRef} style={{ display: 'none' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={capturarFoto}
+                        style={{
+                          background: '#10b981',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '13px',
+                          padding: '8px 20px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 6px rgba(16,185,129,0.3)',
+                        }}
+                      >
+                        <i className="fa-solid fa-circle-dot"></i> Capturar Foto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cambiarCamara}
+                        style={{
+                          background: '#3b82f6',
+                          color: '#ffffff',
+                          fontWeight: 600,
+                          fontSize: '12.5px',
+                          padding: '8px 16px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <i className="fa-solid fa-camera-rotate"></i> Cambiar Cámara
+                      </button>
+                      <button
+                        type="button"
+                        onClick={detenerCamara}
+                        style={{
+                          background: '#64748b',
+                          color: '#ffffff',
+                          fontWeight: 600,
+                          fontSize: '12.5px',
+                          padding: '8px 16px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <i className="fa-solid fa-xmark"></i> Apagar Cámara
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {isOcrLoading && (
+                  <div style={{ padding: '16px', textAlign: 'center' }}>
+                    <i className="fa-solid fa-wand-magic-sparkles fa-spin" style={{ fontSize: '28px', color: '#2563eb', marginBottom: '8px' }}></i>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#1e3a8a' }}>
+                      Leyendo datos de la imagen con IA...
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                      Reconociendo nombres de fincas, litros y notas en la planilla
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ALERTA DE ÉXITO OCR */}
+              {ocrMensaje && (
+                <div
+                  style={{
+                    background: '#f0fdf4',
+                    border: '1.5px solid #86efac',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    marginBottom: '12px',
+                    color: '#15803d',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fa-solid fa-circle-check" style={{ fontSize: '16px', color: '#16a34a' }}></i>
+                    <span>{ocrMensaje}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOcrMensaje(null)}
+                    style={{ background: 'none', border: 'none', color: '#15803d', cursor: 'pointer', fontSize: '16px' }}
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+
+              {/* TABLA DINÁMICA DE FILAS */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fa-solid fa-list-check" style={{ color: '#2563eb', fontSize: '15px' }}></i>
+                    <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>
+                      Filas de Recolección ({masivoFilas.length})
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={agregarFilaMasiva}
+                    style={{
+                      fontWeight: 700,
+                      background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '6px 16px',
+                      borderRadius: '7px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '12.5px',
+                      boxShadow: '0 2px 6px rgba(37,99,235,0.2)',
+                    }}
+                  >
+                    <i className="fa-solid fa-plus"></i> Agregar Finca
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: '440px',
+                    minHeight: '220px',
+                    overflowY: 'auto',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '10px',
+                    background: '#ffffff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  }}
+                >
+                  <table style={{ width: '100%', margin: 0, borderCollapse: 'collapse', color: '#1e293b', fontSize: '13px', tableLayout: 'fixed' }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                      <tr
+                        style={{
+                          background: '#f1f5f9',
+                          textAlign: 'left',
+                          color: '#475569',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          borderBottom: '2px solid #cbd5e1',
+                        }}
+                      >
+                        <th style={{ padding: '10px 10px', width: '34%' }}>Finca / Ganadero *</th>
+                        <th style={{ padding: '10px 6px', width: '17%', textAlign: 'center' }}>Tipo Leche</th>
+                        <th style={{ padding: '10px 6px', width: '13%', textAlign: 'right' }}>Litros (L) *</th>
+                        <th style={{ padding: '10px 4px', width: '11%', textAlign: 'center' }}>¿Ácida?</th>
+                        <th style={{ padding: '10px 6px', width: '19%' }}>Comentarios / Obs.</th>
+                        <th style={{ padding: '10px 4px', width: '6%', textAlign: 'center' }}>Quitar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {masivoFilas.map((fila, idx) => (
+                        <tr
+                          key={fila.idTemp || idx}
+                          style={{
+                            borderBottom: '1px solid #e2e8f0',
+                            background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                          }}
+                        >
+                          <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                            <FincaSelect
+                              value={fila.fincaId || undefined}
+                              onChange={(val) => {
+                                const fId = Number(val) || 0;
+                                actualizarFilaMasiva(idx, 'fincaId', fId);
+                                const fObj = fincas.find((f) => f.id === fId);
+                                if (fObj?.tipoLeche) {
+                                  actualizarFilaMasiva(
+                                    idx,
+                                    'tipoLeche',
+                                    fObj.tipoLeche.toUpperCase().includes('BUFAL') ? 'BUFALA' : 'VACA'
+                                  );
+                                }
+                              }}
+                              placeholder="-- Seleccionar Finca --"
+                            />
+                          </td>
+                          <td style={{ padding: '8px 6px', verticalAlign: 'middle', textAlign: 'center' }}>
+                            <select
+                              className="form-select"
+                              value={fila.tipoLeche}
+                              onChange={(e) => actualizarFilaMasiva(idx, 'tipoLeche', e.target.value)}
+                              style={{
+                                width: '100%',
+                                height: '36px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                borderRadius: '7px',
+                                border: '1.5px solid #cbd5e1',
+                                background: fila.tipoLeche === 'BUFALA' ? '#fdf4ff' : '#f0fdf4',
+                                color: fila.tipoLeche === 'BUFALA' ? '#9333ea' : '#15803d',
+                              }}
+                            >
+                              <option value="VACA">🥛 Vaca</option>
+                              <option value="BUFALA">🐃 Búfala</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: '8px 6px', verticalAlign: 'middle' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              className="form-input"
+                              value={fila.litros}
+                              onChange={(e) => actualizarFilaMasiva(idx, 'litros', e.target.value)}
+                              placeholder="0"
+                              style={{
+                                width: '100%',
+                                height: '36px',
+                                textAlign: 'right',
+                                fontWeight: 800,
+                                fontSize: '13.5px',
+                                borderRadius: '7px',
+                                border: '1.5px solid #cbd5e1',
+                                color: '#047857',
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 4px', verticalAlign: 'middle', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={fila.esAcida}
+                              onChange={(e) => actualizarFilaMasiva(idx, 'esAcida', e.target.checked)}
+                              style={{
+                                width: '18px',
+                                height: '18px',
+                                cursor: 'pointer',
+                                accentColor: '#dc2626',
+                              }}
+                              title="Marcar si es leche ácida o deteriorada"
+                            />
+                          </td>
+                          <td style={{ padding: '8px 6px', verticalAlign: 'middle' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={fila.observacion}
+                              onChange={(e) => actualizarFilaMasiva(idx, 'observacion', e.target.value)}
+                              placeholder="Opcional..."
+                              style={{
+                                width: '100%',
+                                height: '36px',
+                                fontSize: '12px',
+                                borderRadius: '7px',
+                                border: '1.5px solid #cbd5e1',
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 4px', verticalAlign: 'middle', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => removerFilaMasiva(idx)}
+                              style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                color: '#dc2626',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '7px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              title="Eliminar fila"
+                            >
+                              <i className="fa-solid fa-trash-can" style={{ fontSize: '13px' }}></i>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* RESUMEN TOTAL DE LITROS */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#ffffff',
+                  padding: '10px 16px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #e2e8f0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-calculator" style={{ color: '#2563eb', fontSize: '16px' }}></i>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Total de Litros en Lote:
+                  </span>
+                </div>
+                <span style={{ fontSize: '20px', fontWeight: 900, color: '#059669' }}>
+                  {totalLitrosMasivo.toLocaleString()} L
+                </span>
+              </div>
+            </div>
+
+            {/* PIE DEL MODAL */}
+            <div
+              style={{
+                flexShrink: 0,
+                padding: '14px 20px',
+                background: '#ffffff',
+                borderTop: '1.5px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={limpiarTablaMasiva}
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: '1.5px solid #cbd5e1',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-eraser"></i> Limpiar Todo
+              </button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    detenerCamara();
+                    setModalRutasMasivo(false);
+                  }}
+                  style={{
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1.5px solid #cbd5e1',
+                    padding: '9px 20px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => guardarMasivoMutation.mutate()}
+                  disabled={guardarMasivoMutation.isPending}
+                  style={{
+                    background: 'linear-gradient(135deg, #059669, #10b981)',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '13.5px',
+                    padding: '9px 24px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
+                  }}
+                >
+                  {guardarMasivoMutation.isPending ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin"></i> Guardando Registros...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-floppy-disk"></i> Guardar Todos los Registros
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL 4: EDITAR PARADA EN FINCA (DENTRO DEL TICKET ABIERTO)               */}
       {/* ========================================================================= */}
       {modalEditarRecoleccion && (
@@ -4118,7 +5202,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                     {/* Filas dinámicas */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {filasEntregaDirecta.map((fila, idx) => (
-                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.8fr 140px 130px 38px', gap: '10px', alignItems: 'center' }}>
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.8fr 140px 130px 38px', gap: '10px', alignItems: 'flex-end' }}>
                           <div>
                             {fila.origenServicio && (
                               <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
