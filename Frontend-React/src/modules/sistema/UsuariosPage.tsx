@@ -80,11 +80,11 @@ export const UsuariosPage: React.FC = () => {
   const [showPass1, setShowPass1] = useState(false);
   const [showPass2, setShowPass2] = useState(false);
 
-  // Formulario de Contraseña Directa
-  const [formPass, setFormPass] = useState({
-    passwordActual: '',
-    nuevoPassword: '',
-  });
+  // Formulario de Contraseña Directa (1:1 V2_3_11_26)
+  const [nuevaPassModal, setNuevaPassModal] = useState('');
+  const [confirmarPassModal, setConfirmarPassModal] = useState('');
+  const [showEyePass1, setShowEyePass1] = useState(false);
+  const [showEyePass2, setShowEyePass2] = useState(false);
 
   const { data: usuarios = [], isLoading } = useQuery<UsuarioDto[]>({
     queryKey: ['usuarios'],
@@ -118,17 +118,20 @@ export const UsuariosPage: React.FC = () => {
   });
 
   const cambiarPassMutation = useMutation({
-    mutationFn: (dto: typeof formPass) =>
+    mutationFn: (pass: string) =>
       usuarioSeleccionado
-        ? sistemaApi.actualizarPassword(usuarioSeleccionado.id, dto.passwordActual, dto.nuevoPassword)
+        ? sistemaApi.actualizarPassword(usuarioSeleccionado.id, pass)
         : Promise.reject(new Error('Sin usuario seleccionado')),
     onSuccess: (data: any) => {
-      toast.success(data.message || 'Contraseña cambiada exitosamente');
+      toast.success(data.message || 'Contraseña modificada exitosamente');
       setModalPassword(false);
-      setFormPass({ passwordActual: '', nuevoPassword: '' });
+      setNuevaPassModal('');
+      setConfirmarPassModal('');
+      setShowEyePass1(false);
+      setShowEyePass2(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al cambiar contraseña');
+      toast.error(err.response?.data?.message || err.message || 'Error al cambiar contraseña');
     },
   });
 
@@ -419,7 +422,10 @@ export const UsuariosPage: React.FC = () => {
               type="button"
               onClick={() => {
                 setUsuarioSeleccionado(row);
-                setFormPass({ passwordActual: '', nuevoPassword: '' });
+                setNuevaPassModal('');
+                setConfirmarPassModal('');
+                setShowEyePass1(false);
+                setShowEyePass2(false);
                 setModalPassword(true);
               }}
               className="btn btn-sm btn-outline"
@@ -1195,7 +1201,7 @@ export const UsuariosPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL CAMBIAR CONTRASEÑA - ESTILO OSCURO 1:1 CON V2_3_11_26 */}
+      {/* MODAL CAMBIAR CONTRASEÑA - RÉPLICA EXACTA 1:1 CON V2_3_11_26 */}
       {modalPassword && usuarioSeleccionado && (
         <div
           style={{
@@ -1214,7 +1220,7 @@ export const UsuariosPage: React.FC = () => {
             className="content-card"
             style={{
               width: '100%',
-              maxWidth: '460px',
+              maxWidth: '480px',
               padding: '0',
               overflow: 'hidden',
               borderRadius: '16px',
@@ -1222,111 +1228,289 @@ export const UsuariosPage: React.FC = () => {
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
             }}
           >
-            {/* Header Oscuro */}
+            {/* Header Oscuro con degradado 1:1 */}
             <div
               style={{
                 background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                padding: '16px 20px',
+                padding: '18px 24px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 borderBottom: '1px solid rgba(255,255,255,0.1)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '8px',
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '10px',
                     background: 'rgba(245, 158, 11, 0.25)',
                     color: '#fbbf24',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '16px',
+                    fontSize: '18px',
+                    border: '1px solid rgba(251, 191, 36, 0.3)',
                   }}
                 >
                   <i className="fa-solid fa-key"></i>
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>
+                  <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
                     Actualizar Contraseña
-                  </h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#94a3b8' }}>
-                    {usuarioSeleccionado.nombreCompleto || usuarioSeleccionado.nombreUsuario}
+                  </h2>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                    Cambiar clave de acceso del usuario
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalPassword(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '24px' }}
+                title="Cerrar"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '22px',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  padding: '4px 8px',
+                }}
               >
-                &times;
+                <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!formPass.nuevoPassword.trim()) {
-                  toast.error('Debe ingresar la nueva contraseña');
+                if (!nuevaPassModal || nuevaPassModal.length < 6) {
+                  toast.error('La nueva contraseña debe contener al menos 6 caracteres.');
                   return;
                 }
-                cambiarPassMutation.mutate(formPass);
+                if (nuevaPassModal !== confirmarPassModal) {
+                  toast.error('La contraseña y la confirmación no son iguales. Por favor verifíquelas.');
+                  return;
+                }
+                cambiarPassMutation.mutate(nuevaPassModal);
               }}
-              style={{ padding: '20px', background: '#f8fafc' }}
             >
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
-                  Contraseña Actual (Administrador)
-                </label>
-                <input
-                  type="password"
-                  value={formPass.passwordActual}
-                  onChange={(e) => setFormPass({ ...formPass, passwordActual: e.target.value })}
-                  placeholder="••••••••"
+              <div style={{ padding: '22px 24px', background: '#ffffff' }}>
+                {/* INFO USUARIO */}
+                <div
                   style={{
-                    width: '100%',
-                    height: '40px',
+                    background: '#eff6ff',
+                    border: '1.5px solid #bfdbfe',
                     borderRadius: '8px',
-                    border: '1.5px solid #cbd5e1',
-                    background: '#ffffff',
-                    padding: '0 12px',
-                    fontSize: '13px',
+                    padding: '12px 14px',
+                    marginBottom: '18px',
                   }}
-                />
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: '#2563eb',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Usuario de Acceso
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: '13.5px',
+                        fontWeight: 800,
+                        color: '#1d4ed8',
+                      }}
+                    >
+                      @{usuarioSeleccionado.nombreUsuario}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      marginTop: '3px',
+                    }}
+                  >
+                    {usuarioSeleccionado.nombreCompleto || usuarioSeleccionado.nombreUsuario}
+                  </div>
+                </div>
+
+                {/* NUEVA CONTRASEÑA */}
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label
+                    style={{
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      color: '#1e293b',
+                      marginBottom: '6px',
+                      display: 'block',
+                    }}
+                  >
+                    Nueva Contraseña <span style={{ color: '#e11d48' }}>*</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showEyePass1 ? 'text' : 'password'}
+                      value={nuevaPassModal}
+                      onChange={(e) => setNuevaPassModal(e.target.value)}
+                      required
+                      placeholder="Mínimo 6 caracteres"
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        fontSize: '13.5px',
+                        color: '#0f172a',
+                        padding: '0 40px 0 12px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${
+                          nuevaPassModal && confirmarPassModal
+                            ? nuevaPassModal === confirmarPassModal
+                              ? '#10b981'
+                              : '#ef4444'
+                            : '#cbd5e1'
+                        }`,
+                        background: '#ffffff',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEyePass1(!showEyePass1)}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: '4px',
+                      }}
+                      title="Ver/Ocultar contraseña"
+                    >
+                      <i className={`fa-solid ${showEyePass1 ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                {/* CONFIRMAR NUEVA CONTRASEÑA */}
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label
+                    style={{
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      color: '#1e293b',
+                      marginBottom: '6px',
+                      display: 'block',
+                    }}
+                  >
+                    Confirmar Nueva Contraseña <span style={{ color: '#e11d48' }}>*</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showEyePass2 ? 'text' : 'password'}
+                      value={confirmarPassModal}
+                      onChange={(e) => setConfirmarPassModal(e.target.value)}
+                      required
+                      placeholder="Repite la nueva contraseña"
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        fontSize: '13.5px',
+                        color: '#0f172a',
+                        padding: '0 40px 0 12px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${
+                          nuevaPassModal && confirmarPassModal
+                            ? nuevaPassModal === confirmarPassModal
+                              ? '#10b981'
+                              : '#ef4444'
+                            : '#cbd5e1'
+                        }`,
+                        background: '#ffffff',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEyePass2(!showEyePass2)}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: '4px',
+                      }}
+                      title="Ver/Ocultar contraseña"
+                    >
+                      <i className={`fa-solid ${showEyePass2 ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                {/* FEEDBACK COINCIDENCIA */}
+                {nuevaPassModal && confirmarPassModal && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      marginBottom: '8px',
+                      color: nuevaPassModal === confirmarPassModal ? '#10b981' : '#ef4444',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    {nuevaPassModal === confirmarPassModal ? (
+                      <>
+                        <i className="fa-solid fa-circle-check"></i>
+                        <span>Las contraseñas coinciden correctamente</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-circle-xmark"></i>
+                        <span>Las contraseñas no coinciden</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
-                  Nueva Contraseña <span style={{ color: '#e11d48' }}>*</span>
-                </label>
-                <input
-                  type="password"
-                  value={formPass.nuevoPassword}
-                  onChange={(e) => setFormPass({ ...formPass, nuevoPassword: e.target.value })}
-                  placeholder="Mínimo 6 caracteres"
-                  required
-                  style={{
-                    width: '100%',
-                    height: '40px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #cbd5e1',
-                    background: '#ffffff',
-                    padding: '0 12px',
-                    fontSize: '13px',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              {/* FOOTER */}
+              <div
+                style={{
+                  padding: '16px 24px',
+                  background: '#f8fafc',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px',
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setModalPassword(false)}
                   className="btn btn-outline"
-                  style={{ height: '38px', padding: '0 16px', borderRadius: '8px', fontWeight: 700 }}
+                  style={{
+                    height: '42px',
+                    padding: '0 18px',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    background: '#ffffff',
+                    border: '1.5px solid #cbd5e1',
+                    color: '#475569',
+                  }}
                 >
                   <i className="fa-solid fa-xmark"></i> Cancelar
                 </button>
@@ -1335,16 +1519,22 @@ export const UsuariosPage: React.FC = () => {
                   disabled={cambiarPassMutation.isPending}
                   className="btn btn-primary"
                   style={{
-                    height: '38px',
-                    padding: '0 20px',
+                    height: '42px',
+                    padding: '0 24px',
                     borderRadius: '8px',
-                    background: '#f59e0b',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                     border: 'none',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.35)',
                     fontWeight: 800,
                     color: '#ffffff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
                   }}
                 >
-                  {cambiarPassMutation.isPending ? 'Guardando...' : 'Cambiar Clave'}
+                  <i className="fa-solid fa-key"></i>
+                  {cambiarPassMutation.isPending ? 'Actualizando...' : 'Actualizar Contraseña'}
                 </button>
               </div>
             </form>

@@ -42,8 +42,12 @@ export const sistemaApi = {
     return res.data;
   },
 
-  actualizarPassword: async (id: number, passwordActual: string, nuevoPassword: string): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.put(`/usuarios/${id}/password`, { passwordActual, nuevoPassword });
+  actualizarPassword: async (id: number, nuevaPassword: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.put(`/usuarios/${id}/password`, {
+      nuevaPassword,
+      nuevoPassword: nuevaPassword,
+      password: nuevaPassword,
+    });
     return res.data;
   },
 

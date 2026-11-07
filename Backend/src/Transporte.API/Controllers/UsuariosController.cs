@@ -115,7 +115,8 @@ namespace Transporte.API.Controllers
         [HttpPut("{id}/password")]
         public async Task<IActionResult> ActualizarPassword([FromRoute] int id, [FromBody] CambiarPasswordDto dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.NuevaPassword) || dto.NuevaPassword.Length < 6)
+            var pass = dto?.ObtenerPasswordValida() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(pass) || pass.Length < 6)
                 return BadRequest(new { message = "La nueva contraseña debe tener al menos 6 caracteres." });
 
             var target = await _usuariosRepository.ObtenerUsuarioPorIdAsync(id);
@@ -127,7 +128,7 @@ namespace Transporte.API.Controllers
                 return StatusCode(403, new { message = "Acceso denegado: Solo el SuperAdmin puede cambiar la contraseña del usuario SuperAdmin principal." });
             }
 
-            var ok = await _usuariosRepository.ActualizarPasswordAsync(id, dto.NuevaPassword);
+            var ok = await _usuariosRepository.ActualizarPasswordAsync(id, pass);
             if (!ok) return NotFound(new { message = "Usuario no encontrado." });
             return Ok(new { message = "Contraseña actualizada exitosamente." });
         }

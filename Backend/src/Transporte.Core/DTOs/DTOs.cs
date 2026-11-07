@@ -1295,7 +1295,17 @@ namespace Transporte.Core.DTOs
 
     public class CambiarPasswordDto
     {
-        public string NuevaPassword { get; set; } = string.Empty;
+        public string? NuevaPassword { get; set; }
+        public string? NuevoPassword { get; set; }
+        public string? Password { get; set; }
+
+        public string ObtenerPasswordValida()
+        {
+            if (!string.IsNullOrWhiteSpace(NuevaPassword)) return NuevaPassword.Trim();
+            if (!string.IsNullOrWhiteSpace(NuevoPassword)) return NuevoPassword.Trim();
+            if (!string.IsNullOrWhiteSpace(Password)) return Password.Trim();
+            return string.Empty;
+        }
     }
 
     // =====================================================================
