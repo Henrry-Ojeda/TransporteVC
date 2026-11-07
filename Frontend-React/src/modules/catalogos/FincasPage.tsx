@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
-import { PropietarioSelect } from '@/components/selectors';
+import { PropietarioSelect, CompaniaSelect } from '@/components/selectors';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import { useAuthStore } from '@/stores/authStore';
 import type { FincaDto, GuardarFincaDto, PropietarioDto } from '@/types';
@@ -23,6 +23,8 @@ export const FincasPage: React.FC = () => {
     nombre: '',
     propietarioId: undefined,
     rutaId: undefined,
+    tipoServicioId: 1,
+    companiaId: undefined,
     precioLitroUSD: 0.35,
     precioLitroAcidaUSD: 0.20,
     tieneDosTiposLeche: false,
@@ -69,6 +71,8 @@ export const FincasPage: React.FC = () => {
 
       const payload: any = {
         ...dto,
+        tipoServicioId: Number(dto.tipoServicioId) || 1,
+        companiaId: Number(dto.tipoServicioId) === 2 ? (dto.companiaId ? Number(dto.companiaId) : null) : null,
         propietario: propNombre,
         propietarioNombre: propNombre,
         rutaId: dto.activo === false ? undefined : dto.rutaId,
@@ -133,6 +137,8 @@ export const FincasPage: React.FC = () => {
       nombre: item.nombre,
       propietarioId: matchedProp ? matchedProp.id : item.propietarioId,
       rutaId: item.activo !== false ? item.rutaId : undefined,
+      tipoServicioId: item.tipoServicioId || 1,
+      companiaId: item.companiaId || undefined,
       precioLitroUSD: item.precioLitroUSD || 0.35,
       precioLitroAcidaUSD: item.precioLitroAcidaUSD || 0.20,
       tieneDosTiposLeche: Boolean(item.tieneDosTiposLeche),
@@ -173,10 +179,72 @@ export const FincasPage: React.FC = () => {
         </div>
       ),
     },
+    {
+      header: 'SERVICIO',
+      accessorKey: 'tipoServicioId',
+      sortable: true,
+      cell: (row: FincaDto) => {
+        const tipoServId = Number(row.tipoServicioId) || 1;
+        if (tipoServId === 2) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+              <span
+                className="badge"
+                style={{
+                  background: '#faf5ff',
+                  color: '#7e22ce',
+                  border: '1.5px solid #d8b4fe',
+                  fontWeight: 800,
+                  fontSize: '11px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <i className="fa-solid fa-truck"></i> TRANSPORTE
+              </span>
+              {row.companiaNombre && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#9333ea',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                  }}
+                  title={`Compañía destino: ${row.companiaNombre}`}
+                >
+                  <i className="fa-solid fa-building" style={{ fontSize: '10px' }}></i>
+                  {row.companiaNombre}
+                </span>
+              )}
+            </div>
+          );
+        }
+        return (
+          <span
+            className="badge"
+            style={{
+              background: '#eff6ff',
+              color: '#1d4ed8',
+              border: '1.5px solid #bfdbfe',
+              fontWeight: 800,
+              fontSize: '11px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <i className="fa-solid fa-road"></i> RUTA
+          </span>
+        );
+      },
+    },
     ...(hasBufala
       ? [
           {
-            header: 'SERVICIO',
+            header: 'TIPO LECHE',
             accessorKey: 'tipoLeche',
             sortable: true,
             cell: (row: FincaDto) => {
@@ -682,6 +750,10 @@ export const FincasPage: React.FC = () => {
                   toast.error('El nombre de la finca es obligatorio');
                   return;
                 }
+                if (Number(form.tipoServicioId) === 2 && (!form.companiaId || Number(form.companiaId) <= 0)) {
+                  toast.error('Para fincas de servicio TRANSPORTE debe seleccionar la compañía a la que pertenece');
+                  return;
+                }
                 guardarMutation.mutate(form);
               }}
               style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
@@ -771,6 +843,83 @@ export const FincasPage: React.FC = () => {
                     onChange={(val) => setForm({ ...form, propietarioId: val })}
                     placeholder="-- Seleccionar o buscar ganadero --"
                   />
+                </div>
+
+                {/* 3. Tipo de Servicio y Compañía Destino Habitual (1:1 V2_3_11_26) */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: Number(form.tipoServicioId) === 2 ? '1fr 1fr' : '1fr',
+                    gap: '14px',
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        marginBottom: '6px',
+                      }}
+                    >
+                      <i className="fa-solid fa-truck-ramp-box" style={{ color: '#2563eb' }}></i> Tipo de Servicio{' '}
+                      <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <select
+                      value={form.tipoServicioId || 1}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 1;
+                        setForm({
+                          ...form,
+                          tipoServicioId: val,
+                          companiaId: val === 2 ? form.companiaId : undefined,
+                        });
+                      }}
+                      className="form-input"
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        fontSize: '13.5px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        borderRadius: '8px',
+                        border: '1.5px solid #cbd5e1',
+                        background: '#ffffff',
+                      }}
+                      required
+                    >
+                      <option value={1}>RUTA</option>
+                      <option value={2}>TRANSPORTE</option>
+                    </select>
+                  </div>
+
+                  {Number(form.tipoServicioId) === 2 && (
+                    <div style={{ animation: 'fadeIn 0.2s ease-out' }}>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#86198f',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        <i className="fa-solid fa-building" style={{ color: '#9333ea' }}></i> Compañía / Destino Habitual (Transporte){' '}
+                        <span style={{ color: '#e11d48' }}>*</span>
+                      </label>
+                      <CompaniaSelect
+                        value={form.companiaId}
+                        onChange={(val) => setForm({ ...form, companiaId: val })}
+                        placeholder="-- Seleccionar Compañía (ej. COLONA) --"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. Selector Tipo de Leche (SOLO SI EL TENANT TIENE BÚFALA HABILITADA) */}

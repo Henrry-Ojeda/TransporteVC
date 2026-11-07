@@ -271,6 +271,8 @@ export const RecoleccionRutasPage: React.FC = () => {
     companiaId: number;
     litros: number | string;
     tipoLeche: string;
+    origenServicio?: 'RUTA' | 'TRANSPORTE' | 'ACIDA';
+    origenFincasCount?: number;
   }
   const [filasEntregaDirecta, setFilasEntregaDirecta] = useState<FilaEntregaDirecta[]>([
     { companiaId: 0, litros: '', tipoLeche: 'VACA' },
@@ -601,6 +603,7 @@ export const RecoleccionRutasPage: React.FC = () => {
         destinos: filasEntregaDirecta.map((f) => ({
           companiaId: Number(f.companiaId),
           litros: Number(f.litros || 0),
+          litrosDespachados: Number(f.litros || 0),
           tipoLeche: f.tipoLeche || 'VACA',
         })),
       });
@@ -1010,20 +1013,118 @@ export const RecoleccionRutasPage: React.FC = () => {
     setModalEnviarReceptoria(true);
   };
 
-  const handleAbrirCompania = (item: any) => {
+  const handleAbrirCompania = async (item: any) => {
     setViajeActivo(item);
-    const fincasT = fincasTicketsMap[item.id] || [];
+    let fincasT = fincasTicketsMap[item.id] || [];
+    if (!fincasT || fincasT.length === 0) {
+      fincasT = await cargarFincasTicket(item.id, true);
+    }
     const totalCamion = item._litrosRecogidos > 0 ? item._litrosRecogidos : fincasT.reduce((a: number, f: any) => a + Number(f.litros || f.Litros || 0), 0);
     const yaAsignado = item._litrosEntregados || 0;
     const faltante = Math.max(0, totalCamion - yaAsignado);
 
-    setFilasEntregaDirecta([
-      {
-        companiaId: item.companiaDestinoId || (companias.length > 0 ? companias[0].id : 0),
-        litros: faltante > 0 ? faltante : totalCamion,
-        tipoLeche: 'VACA',
-      },
-    ]);
+    // Identificar compañías por defecto para Receptoría y Transporte (ej. COLONA)
+    const compRecep = companias.find((c) => {
+      const nom = (c.nombre || '').toUpperCase();
+      return nom.includes('RECEPTORIA') || nom.includes('RECEPTORÍA');
+    });
+
+    const compTranspDefault = companias.find((c) => {
+      const nom = (c.nombre || '').toUpperCase();
+      const ts = Number((c as any).tipoServicioId || 1);
+      return ts === 2 || nom.includes('COLONA');
+    }) || companias.find((c) => {
+      const nom = (c.nombre || '').toUpperCase();
+      return !nom.includes('RECEPTORIA') && !nom.includes('RECEPTORÍA');
+    });
+
+    // Detectar si alguna finca del ticket tiene compañía asignada
+    let compTicketTranspId: number | undefined = undefined;
+    const fincaConCompTransp = fincasT.find(
+      (x: any) => Number(x.tipoServicioId || x.TipoServicioId) === 2 && (x.companiaId || x.CompaniaId)
+    );
+    if (fincaConCompTransp) {
+      compTicketTranspId = Number(fincaConCompTransp.companiaId || fincaConCompTransp.CompaniaId);
+    }
+    if (!compTicketTranspId && compTranspDefault) {
+      compTicketTranspId = compTranspDefault.id;
+    }
+
+    // Agrupar por destino (Compañía), tipo de leche y origen (Ruta vs Transporte vs Ácida)
+    const destinosAgrupados: Record<string, FilaEntregaDirecta> = {};
+
+    if (fincasT && fincasT.length > 0) {
+      fincasT.forEach((f: any) => {
+        const rawTipo = (f.tipoLeche || f.TipoLeche || 'VACA').toUpperCase();
+        const isBuf = rawTipo.includes('BUFAL');
+        const obs = (f.observacion || f.Observacion || '').toUpperCase();
+        const esAcida =
+          f.esAcida === true ||
+          f.EsAcida === true ||
+          f.esAcida === 1 ||
+          f.EsAcida === 1 ||
+          String(f.esAcida).toLowerCase() === 'true' ||
+          String(f.EsAcida).toLowerCase() === 'true' ||
+          rawTipo.includes('ACID') ||
+          rawTipo.includes('ÁCID') ||
+          rawTipo.includes('MALA') ||
+          obs.includes('[ACIDA]') ||
+          obs.includes('[LECHE ÁCIDA]') ||
+          obs.includes('[LECHE ACIDA]') ||
+          obs.includes('ÁCIDA') ||
+          obs.includes('ACIDA') ||
+          obs.includes('MALA');
+
+        const tipo = esAcida ? (isBuf ? 'BUFALA_ACIDA' : 'ACIDA') : (isBuf ? 'BUFALA' : 'VACA');
+        const lts = Number(f.litros || f.Litros || 0);
+        const tipoServ = Number(f.tipoServicioId || f.TipoServicioId || 1);
+        const compFincaId = Number(f.companiaId || f.CompaniaId) || 0;
+
+        let targetCompId: number = 0;
+        let origenServ: 'RUTA' | 'TRANSPORTE' | 'ACIDA' = 'RUTA';
+
+        if (esAcida) {
+          origenServ = 'ACIDA';
+          targetCompId = compRecep ? compRecep.id : (compFincaId || (companias[0]?.id || 0));
+        } else if (tipoServ === 1) {
+          origenServ = 'RUTA';
+          targetCompId = compRecep ? compRecep.id : (compFincaId || (companias[0]?.id || 0));
+        } else {
+          // tipoServ === 2 (TRANSPORTE)
+          origenServ = 'TRANSPORTE';
+          targetCompId = compFincaId || compTicketTranspId || (companias[0]?.id || 0);
+        }
+
+        const key = `${targetCompId}_${tipo}_${origenServ}`;
+        if (!destinosAgrupados[key]) {
+          destinosAgrupados[key] = {
+            companiaId: targetCompId,
+            litros: 0,
+            tipoLeche: tipo,
+            origenServicio: origenServ,
+            origenFincasCount: 0,
+          };
+        }
+        destinosAgrupados[key].litros = Number(destinosAgrupados[key].litros) + lts;
+        destinosAgrupados[key].origenFincasCount = (destinosAgrupados[key].origenFincasCount || 0) + 1;
+      });
+    }
+
+    const filas = Object.values(destinosAgrupados).filter((d) => Number(d.litros) > 0);
+
+    if (filas.length > 0) {
+      setFilasEntregaDirecta(filas);
+    } else {
+      setFilasEntregaDirecta([
+        {
+          companiaId: item.companiaDestinoId || compRecep?.id || (companias.length > 0 ? companias[0].id : 0),
+          litros: faltante > 0 ? faltante : totalCamion,
+          tipoLeche: 'VACA',
+          origenServicio: 'RUTA',
+        },
+      ]);
+    }
+
     setObsEntregaDirecta('');
     setModalEnviarCompania(true);
   };
@@ -3666,6 +3767,25 @@ export const RecoleccionRutasPage: React.FC = () => {
                       {filasEntregaDirecta.map((fila, idx) => (
                         <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.8fr 140px 130px 38px', gap: '10px', alignItems: 'center' }}>
                           <div>
+                            {fila.origenServicio && (
+                              <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {fila.origenServicio === 'TRANSPORTE' && (
+                                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#7e22ce', background: '#faf5ff', border: '1px solid #d8b4fe', padding: '1px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <i className="fa-solid fa-truck"></i> SERVICIO TRANSPORTE {fila.origenFincasCount ? `(${fila.origenFincasCount} finca${fila.origenFincasCount > 1 ? 's' : ''})` : ''}
+                                  </span>
+                                )}
+                                {fila.origenServicio === 'ACIDA' && (
+                                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fca5a5', padding: '1px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <i className="fa-solid fa-flask"></i> LECHE ÁCIDA SEPARADA
+                                  </span>
+                                )}
+                                {fila.origenServicio === 'RUTA' && (
+                                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <i className="fa-solid fa-road"></i> SERVICIO RUTA {fila.origenFincasCount ? `(${fila.origenFincasCount} finca${fila.origenFincasCount > 1 ? 's' : ''})` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <CompaniaSelect
                               value={fila.companiaId}
                               onChange={(val) => actualizarFila(idx, 'companiaId', val)}
@@ -3682,6 +3802,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                               <option value="VACA">🥛 Vaca</option>
                               {hasBufala && <option value="BUFALA">🐃 Búfala</option>}
                               <option value="ACIDA">🍋 Ácida</option>
+                              {hasBufala && <option value="BUFALA_ACIDA">🍋🐃 Búfala Ácida</option>}
                             </select>
                           </div>
                           <div style={{ position: 'relative' }}>

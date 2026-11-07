@@ -21,6 +21,10 @@ export interface FincaDto {
   numeroCuenta?: string;
   pagoMovil?: string;
   cedulaRif?: string;
+  tipoServicioId?: number;
+  tipoServicioNombre?: string;
+  companiaId?: number;
+  companiaNombre?: string;
 }
 
 export interface GuardarFincaDto {
@@ -28,6 +32,8 @@ export interface GuardarFincaDto {
   nombre: string;
   propietarioId?: number;
   rutaId?: number;
+  tipoServicioId?: number;
+  companiaId?: number;
   precioLitroUSD: number;
   precioLitroAcidaUSD?: number;
   tieneDosTiposLeche?: boolean;
