@@ -683,9 +683,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     setIsOcrLoading(false);
     setCamaraActiva(false);
     setMasivoFilas([
-      { idTemp: '1', fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
-      { idTemp: '2', fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
-      { idTemp: '3', fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
+      { idTemp: Math.random().toString(), fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, observacion: '' },
     ]);
     setModalRutasMasivo(true);
   };
@@ -1382,6 +1380,13 @@ export const RecoleccionRutasPage: React.FC = () => {
   const timelapseData = useMemo(() => {
     if (!viajeTimelapse) return null;
 
+    const esFinalizado =
+      (viajeTimelapse.estado || '').toUpperCase() === 'FINALIZADO' ||
+      (viajeTimelapse.estado || '').toUpperCase() === 'CERRADO' ||
+      (viajeTimelapse.estado || '').toUpperCase() === 'ENTREGADO' ||
+      (viajeTimelapse.estado || '').toUpperCase() === 'CUADRADO' ||
+      (viajeTimelapse.procesoActualId || 1) >= 3;
+
     const parsedRutasActivas = (() => {
       const obs = viajeTimelapse.observacion || '';
       const match = obs.match(/\[RUTAS:([^\]]+)\]/);
@@ -1427,7 +1432,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     });
 
     let pendientes: FincaDto[] = [];
-    if (tieneRuta) {
+    if (tieneRuta && !esFinalizado) {
       const idsVisitadas = new Set(visitadas.map((v) => v.fincaId || (v as any).FincaId));
       pendientes = fincas.filter((f) => f.rutaId && parsedRutasActivas.includes(f.rutaId) && !idsVisitadas.has(f.id));
     }
@@ -1440,6 +1445,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       .join(', ');
 
     return {
+      esFinalizado,
       tieneRuta,
       rutaNombre: nombresRutas || viajeTimelapse.rutaLogisticaNombre || (tieneRuta ? `Ruta #${viajeTimelapse.rutaLogisticaId}` : 'Modo Libre (Sin Ruta)'),
       chofer: viajeTimelapse.choferNombre || viajeTimelapse.nombreConductor || 'Sin Asignar',
@@ -1448,8 +1454,8 @@ export const RecoleccionRutasPage: React.FC = () => {
       totalLitros,
       porcentajeLlenado,
       paradas: paradasConIntervalo,
-      pendientes,
-      totalParadasEstimadas: paradasConIntervalo.length + pendientes.length,
+      pendientes: esFinalizado ? [] : pendientes,
+      totalParadasEstimadas: paradasConIntervalo.length + (esFinalizado ? 0 : pendientes.length),
     };
   }, [viajeTimelapse, fincasTicketsMap, recolecciones, fincas, camiones]);
 
@@ -2661,29 +2667,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                               </span>
                             </div>
                           ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleAbrirReceptoria(item)}
-                                className="btn btn-sm"
-                                style={{
-                                  background: '#f0fdf4',
-                                  color: '#15803d',
-                                  border: '1px solid #bbf7d0',
-                                  fontWeight: 700,
-                                  fontSize: '11px',
-                                  padding: '6px 2px',
-                                  borderRadius: '6px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '4px',
-                                }}
-                                title="Descargar en receptoría"
-                              >
-                                <i className="fa-solid fa-scale-balanced"></i> Receptoría
-                              </button>
-
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '6px' }}>
                               <button
                                 type="button"
                                 onClick={() => handleAbrirCompania(item)}
@@ -2694,16 +2678,17 @@ export const RecoleccionRutasPage: React.FC = () => {
                                   border: '1px solid #e9d5ff',
                                   fontWeight: 700,
                                   fontSize: '11px',
-                                  padding: '6px 2px',
+                                  padding: '6px 10px',
                                   borderRadius: '6px',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  gap: '4px',
+                                  gap: '5px',
+                                  boxShadow: '0 1px 3px rgba(126,34,206,0.1)',
                                 }}
-                                title="Despachar a quesera / compañía"
+                                title="Despachar o entregar leche a Receptoría o Compañías / Queseras"
                               >
-                                <i className="fa-solid fa-building"></i> Compañías
+                                <i className="fa-solid fa-building"></i> Receptoría/Compañía
                               </button>
 
                               <button
@@ -2716,7 +2701,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                                   border: '1px solid #99f6e4',
                                   fontWeight: 700,
                                   fontSize: '11px',
-                                  padding: '6px 2px',
+                                  padding: '6px 8px',
                                   borderRadius: '6px',
                                   display: 'flex',
                                   alignItems: 'center',
@@ -3081,24 +3066,45 @@ export const RecoleccionRutasPage: React.FC = () => {
                 </h3>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1px solid #10b981',
-                    color: '#34d399',
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                  title="Sondeo activo: las paradas registradas en la app móvil aparecen automáticamente sin recargar la página"
-                >
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
-                  EN VIVO (Sin Recargar)
-                </span>
+                {timelapseData.esFinalizado ? (
+                  <span
+                    style={{
+                      background: 'rgba(100, 116, 139, 0.2)',
+                      border: '1.5px solid #64748b',
+                      color: '#cbd5e1',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                    title="Viaje finalizado y conciliado por Receptoría"
+                  >
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }}></span>
+                    FINALIZADO
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid #10b981',
+                      color: '#34d399',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                    title="Sondeo activo: las paradas registradas en la app móvil aparecen automáticamente sin recargar la página"
+                  >
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                    EN VIVO (Sin Recargar)
+                  </span>
+                )}
                 <button type="button" onClick={() => setModalTimelapse(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer' }}>
                   <i className="fa-solid fa-xmark"></i>
                 </button>
@@ -3141,7 +3147,11 @@ export const RecoleccionRutasPage: React.FC = () => {
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Progreso del Circuito</span>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#2563eb', marginTop: '2px' }}>
-                  {timelapseData.paradas.length} {timelapseData.tieneRuta ? `de ${timelapseData.totalParadasEstimadas} paradas` : 'paradas registradas'}
+                  {timelapseData.esFinalizado
+                    ? `${timelapseData.paradas.length} paradas recolectadas (Finalizado)`
+                    : timelapseData.tieneRuta
+                      ? `${timelapseData.paradas.length} de ${timelapseData.totalParadasEstimadas} paradas`
+                      : `${timelapseData.paradas.length} paradas registradas`}
                 </div>
               </div>
             </div>
@@ -4905,22 +4915,24 @@ export const RecoleccionRutasPage: React.FC = () => {
                           }}
                         >
                           <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
-                            <FincaSelect
-                              value={fila.fincaId || undefined}
-                              onChange={(val) => {
-                                const fId = Number(val) || 0;
-                                actualizarFilaMasiva(idx, 'fincaId', fId);
-                                const fObj = fincas.find((f) => f.id === fId);
-                                if (fObj?.tipoLeche) {
-                                  actualizarFilaMasiva(
-                                    idx,
-                                    'tipoLeche',
-                                    fObj.tipoLeche.toUpperCase().includes('BUFAL') ? 'BUFALA' : 'VACA'
-                                  );
-                                }
-                              }}
-                              placeholder="-- Seleccionar Finca --"
-                            />
+                            <div className={`masivo-finca-row-${idx}`}>
+                              <FincaSelect
+                                value={fila.fincaId || undefined}
+                                onChange={(val) => {
+                                  const fId = Number(val) || 0;
+                                  actualizarFilaMasiva(idx, 'fincaId', fId);
+                                  const fObj = fincas.find((f) => f.id === fId);
+                                  if (fObj?.tipoLeche) {
+                                    actualizarFilaMasiva(
+                                      idx,
+                                      'tipoLeche',
+                                      fObj.tipoLeche.toUpperCase().includes('BUFAL') ? 'BUFALA' : 'VACA'
+                                    );
+                                  }
+                                }}
+                                placeholder="-- Seleccionar Finca --"
+                              />
+                            </div>
                           </td>
                           <td style={{ padding: '8px 6px', verticalAlign: 'middle', textAlign: 'center' }}>
                             <select
@@ -4983,7 +4995,24 @@ export const RecoleccionRutasPage: React.FC = () => {
                               className="form-input"
                               value={fila.observacion}
                               onChange={(e) => actualizarFilaMasiva(idx, 'observacion', e.target.value)}
-                              placeholder="Opcional..."
+                              onKeyDown={(e) => {
+                                if (e.key === 'Tab' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  if (idx === masivoFilas.length - 1) {
+                                    agregarFilaMasiva();
+                                  }
+                                  setTimeout(() => {
+                                    const nextContainer = document.querySelector<HTMLElement>(`.masivo-finca-row-${idx + 1}`);
+                                    if (nextContainer) {
+                                      const focusable = nextContainer.querySelector<HTMLElement>('[tabindex="0"], button, input');
+                                      if (focusable) {
+                                        focusable.focus();
+                                      }
+                                    }
+                                  }, 80);
+                                }
+                              }}
+                              placeholder="Opcional... (Tab para nueva fila)"
                               style={{
                                 width: '100%',
                                 height: '36px',
@@ -4996,6 +5025,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                           <td style={{ padding: '8px 4px', verticalAlign: 'middle', textAlign: 'center' }}>
                             <button
                               type="button"
+                              tabIndex={-1}
                               onClick={() => removerFilaMasiva(idx)}
                               style={{
                                 background: '#fef2f2',
