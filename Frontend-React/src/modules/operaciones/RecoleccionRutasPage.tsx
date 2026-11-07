@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import apiClient from '@/api/client';
@@ -97,6 +97,16 @@ export const RecoleccionRutasPage: React.FC = () => {
   // Estado para rastrear momento de detección de paradas móviles y reloj en vivo
   const [paradasDetectadasEnSesion, setParadasDetectadasEnSesion] = useState<Record<number, number>>({});
   const [nowTick, setNowTick] = useState(Date.now());
+  const [ticketsTitilando, setTicketsTitilando] = useState<Record<number, number>>({});
+  const prevTicketsDataRef = useRef<Record<number, { count: number; litros: number }>>({});
+
+  // Reloj permanente cada segundo para animaciones y cuenta regresiva de titilar en toda la vista
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Helper para verificar si proviene de la App Móvil (estricto)
   const esOrigenMovil = (item: any): boolean => {
@@ -260,19 +270,59 @@ export const RecoleccionRutasPage: React.FC = () => {
   const { data: viajes = [], refetch: refetchViajes } = useQuery<ControlRutaDto[]>({
     queryKey: ['rutas-viajes-hoy', fechaFiltro],
     queryFn: () => operacionesApi.getControles(fechaFiltro),
-    refetchInterval: 8000,
+    refetchInterval: 3500,
   });
 
-  // Precargar paradas reales para todos los viajes visibles (garantiza ver fincas de cualquier fecha)
+  // Precargar y actualizar paradas reales para todos los viajes visibles (detecta nuevas fincas al instante)
   useEffect(() => {
     if (viajes && viajes.length > 0) {
       viajes.forEach((v) => {
         if (v.id) {
-          cargarFincasTicket(v.id);
+          cargarFincasTicket(v.id, true);
         }
       });
     }
   }, [viajes]);
+
+  // Rastrear actividad reciente en tickets para hacerlos TITILAR con destello brillante (durante 60 segundos)
+  useEffect(() => {
+    if (!viajes || viajes.length === 0) return;
+    const ahora = Date.now();
+    let huboCambios = false;
+    const nuevosTitilando = { ...ticketsTitilando };
+
+    viajes.forEach((v) => {
+      const paradas = fincasTicketsMap[v.id] || [];
+      const litrosActuales = v.totalLitrosFinca || paradas.reduce((acc: number, p: any) => acc + Number(p.litros || p.Litros || 0), 0);
+      const paradasCount = paradas.length;
+
+      const prev = prevTicketsDataRef.current[v.id];
+      if (prev) {
+        // Si aumentaron las paradas o aumentaron los litros recolectados, ¡hacer titilar el ticket!
+        if (paradasCount > prev.count || litrosActuales > prev.litros) {
+          nuevosTitilando[v.id] = ahora + 60000;
+          huboCambios = true;
+        }
+      }
+
+      // También verificar si alguna parada fue registrada hace menos de 60 segundos
+      const tieneParadaReciente = paradas.some((p: any) => {
+        const c = p.createdAt || p.CreatedAt;
+        return c && ahora - new Date(c).getTime() < 60000;
+      });
+
+      if (tieneParadaReciente && (!nuevosTitilando[v.id] || nuevosTitilando[v.id] < ahora)) {
+        nuevosTitilando[v.id] = ahora + 60000;
+        huboCambios = true;
+      }
+
+      prevTicketsDataRef.current[v.id] = { count: paradasCount, litros: litrosActuales };
+    });
+
+    if (huboCambios) {
+      setTicketsTitilando(nuevosTitilando);
+    }
+  }, [viajes, fincasTicketsMap]);
 
   const { data: despachos = [], refetch: refetchDespachos } = useQuery<DespachoCompaniaDto[]>({
     queryKey: ['rutas-despachos-hoy', fechaFiltro],
@@ -1324,6 +1374,27 @@ export const RecoleccionRutasPage: React.FC = () => {
 
           {/* ESTILOS PARA VISTA TABULAR DE TARJETAS DE TICKETS */}
           <style>{`
+            @keyframes ticketGlowFlash {
+              0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.85);
+                border-color: #10b981;
+                background-color: #f0fdf4;
+              }
+              50% {
+                box-shadow: 0 0 25px 8px rgba(16, 185, 129, 0.5);
+                border-color: #059669;
+                background-color: #dcfce7;
+              }
+              100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.85);
+                border-color: #10b981;
+                background-color: #f0fdf4;
+              }
+            }
+            .ticket-card-titilando {
+              animation: ticketGlowFlash 1.2s infinite ease-in-out !important;
+              border: 2.5px solid #10b981 !important;
+            }
             .ticket-table-card {
               background: #ffffff;
               border: 1.5px solid #e2e8f0;
@@ -1444,12 +1515,19 @@ export const RecoleccionRutasPage: React.FC = () => {
                   ? `${camionMatch.placa} - ${camionMatch.marca || 'Cisterna'}`
                   : item.camionPlaca || (item.camionId ? `Cisterna #${item.camionId}` : 'Cisterna en Turno');
 
+                const tiempoFinTitilar = ticketsTitilando[item.id] || 0;
+                const tieneParadaReciente = fincasTicket.some((p: any) => {
+                  const c = p.createdAt || (p as any).CreatedAt;
+                  return c && (nowTick - new Date(c).getTime() < 60000);
+                });
+                const esTicketTitilando = (tiempoFinTitilar > nowTick) || tieneParadaReciente;
+
                 return (
                   <div
                     key={`${item._tipoTicket}_${item.id}`}
-                    className="ticket-table-card"
+                    className={`ticket-table-card ${esTicketTitilando ? 'ticket-card-titilando' : ''}`}
                     style={{
-                      borderLeft: `5px solid ${item._origenColor}`,
+                      borderLeft: `5px solid ${esTicketTitilando ? '#10b981' : item._origenColor}`,
                     }}
                   >
                     {/* FILA PRINCIPAL: FORMATO COLUMNAS TIPO TABLA */}
@@ -1477,6 +1555,26 @@ export const RecoleccionRutasPage: React.FC = () => {
                               <i className={`fa-solid ${item._origenIcon}`} style={{ marginRight: '4px' }}></i>
                               {item._origenBadge}
                             </span>
+                            {esTicketTitilando && (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                  color: '#ffffff',
+                                  fontWeight: 800,
+                                  fontSize: '10px',
+                                  padding: '2px 7px',
+                                  borderRadius: '6px',
+                                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.4)',
+                                  animation: 'pulse 0.9s infinite ease-in-out',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <i className="fa-solid fa-bolt"></i> ¡NUEVA FINCA!
+                              </span>
+                            )}
                           </div>
                           {puedeEditarTicket && (
                             <button

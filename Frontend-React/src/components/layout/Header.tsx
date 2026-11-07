@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/api/client';
 import { bcvApi } from '@/api/bcv.api';
+import { notificacionesApi, type NotificacionMovil } from '@/api/notificaciones.api';
 import Swal from 'sweetalert2';
 
 interface HeaderProps {
@@ -74,6 +75,58 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     },
     enabled: !!user,
   });
+
+  // Notificaciones en Vivo del Sistema
+  const [openNotif, setOpenNotif] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar panel de notificaciones al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setOpenNotif(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const { data: notificaciones = [] } = useQuery<NotificacionMovil[]>({
+    queryKey: ['mis-notificaciones'],
+    queryFn: () => notificacionesApi.getMisNotificaciones(20),
+    enabled: !!user,
+    refetchInterval: 4000,
+  });
+
+  const unreadCount = notificaciones.filter((n) => !n.leido).length;
+
+  const handleMarcarTodasLeidas = async () => {
+    try {
+      await notificacionesApi.marcarTodasLeidas();
+      queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
+    } catch { /* tolerante */ }
+  };
+
+  const handleIrARecoleccion = async (notif: NotificacionMovil) => {
+    try {
+      if (!notif.leido) {
+        await notificacionesApi.marcarLeida(notif.id);
+        queryClient.invalidateQueries({ queryKey: ['mis-notificaciones'] });
+      }
+    } catch { /* tolerante */ }
+
+    setOpenNotif(false);
+    navigate('/operaciones/rutas');
+  };
+
+  const calcularTiempo = (fechaIso?: string) => {
+    if (!fechaIso) return '';
+    const diff = (Date.now() - new Date(fechaIso).getTime()) / 1000;
+    if (diff < 60) return 'Hace un momento';
+    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`;
+    return new Date(fechaIso).toLocaleDateString('es-VE');
+  };
 
   const handleSyncBcv = async () => {
     if (sincronizandoBcv) return;
@@ -238,6 +291,209 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       </div>
 
       <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* CAMPANA DE NOTIFICACIONES */}
+        <div style={{ position: 'relative' }} ref={notifRef}>
+          <button
+            type="button"
+            id="btnNotificationBell"
+            onClick={() => setOpenNotif(!openNotif)}
+            style={{
+              position: 'relative',
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              background: openNotif ? '#eff6ff' : '#ffffff',
+              border: `1.5px solid ${unreadCount > 0 ? '#3b82f6' : '#e2e8f0'}`,
+              color: unreadCount > 0 ? '#2563eb' : '#64748b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(15, 23, 42, 0.05)',
+              transition: 'all 0.2s ease',
+            }}
+            title="Notificaciones del Sistema"
+          >
+            <i className={`fa-solid fa-bell ${unreadCount > 0 ? 'fa-shake' : ''}`} style={{ fontSize: '15px' }}></i>
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '10px',
+                  fontWeight: 900,
+                  minWidth: '18px',
+                  height: '18px',
+                  borderRadius: '999px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 4px',
+                  border: '2px solid #ffffff',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                }}
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* MENÚ DESPLEGABLE DE NOTIFICACIONES */}
+          {openNotif && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '46px',
+                right: 0,
+                width: '370px',
+                maxWidth: '90vw',
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 12px 32px rgba(15, 23, 42, 0.14)',
+                zIndex: 1050,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Cabecera del Panel */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #f1f5f9',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#f8fafc',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-bell" style={{ color: '#2563eb' }}></i>
+                  <span style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                    Notificaciones
+                  </span>
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        background: '#dbeafe',
+                        color: '#1d4ed8',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        padding: '1px 7px',
+                        borderRadius: '999px',
+                      }}
+                    >
+                      {unreadCount} nuevas
+                    </span>
+                  )}
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarcarTodasLeidas}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Marcar todas leídas
+                  </button>
+                )}
+              </div>
+
+              {/* Lista de Notificaciones */}
+              <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                {notificaciones.length === 0 ? (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8' }}>
+                    <i className="fa-regular fa-bell-slash" style={{ fontSize: '28px', marginBottom: '8px', display: 'block', color: '#cbd5e1' }}></i>
+                    <span style={{ fontSize: '12.5px', fontWeight: 600 }}>No hay notificaciones</span>
+                  </div>
+                ) : (
+                  notificaciones.slice(0, 15).map((n) => {
+                    const esFinca = n.tipo === 'FINCA_AGREGADA';
+                    const esRuta = n.tipo === 'RUTA_ASIGNADA';
+
+                    return (
+                      <div
+                        key={n.id}
+                        style={{
+                          padding: '12px 16px',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: n.leido ? '#ffffff' : '#f0fdf4',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                          <div
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              background: esFinca ? '#dcfce7' : esRuta ? '#eff6ff' : '#faf5ff',
+                              color: esFinca ? '#16a34a' : esRuta ? '#2563eb' : '#9333ea',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '13px',
+                              flexShrink: 0,
+                              marginTop: '2px',
+                            }}
+                          >
+                            <i className={esFinca ? 'fa-solid fa-cow' : esRuta ? 'fa-solid fa-truck' : 'fa-solid fa-building'}></i>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '3px' }}>
+                              <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>{n.titulo}</strong>
+                              <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+                                {calcularTiempo(n.createdAt)}
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '12px', color: '#475569', lineHeight: 1.35 }}>
+                              {n.mensaje}
+                            </p>
+
+                            {/* BOTÓN IR A RECOLECCIÓN (SI ESTOY FUERA DE RECOLECCIÓN) */}
+                            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleIrARecoleccion(n)}
+                                style={{
+                                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                                }}
+                              >
+                                <span>Ir a Recolección</span>
+                                <i className="fa-solid fa-arrow-right" style={{ fontSize: '9.5px' }}></i>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* WIDGET PERFIL USUARIO PROFESIONAL (ESTILO EXECUTIVE SAAS) */}
         <div
           id="userProfileWidget"

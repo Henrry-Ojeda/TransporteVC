@@ -8687,6 +8687,33 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 WHERE Id = @controlRutaId",
                 new { dto.ControlRutaId, usuarioId });
 
+            // Notificar a supervisores y administradores que se agregó una finca a este ticket
+            try
+            {
+                var nombreFinca = await connection.ExecuteScalarAsync<string>("SELECT Nombre FROM TB_FINCAS WHERE Id = @fincaId", new { fincaId = dto.FincaId }) ?? $"Finca #{dto.FincaId}";
+                var choferNombre = await connection.ExecuteScalarAsync<string>("SELECT NombreCompleto FROM TB_USUARIOS WHERE Id = @id", new { id = (int)viaje.UsuarioId }) ?? "Conductor";
+                var ticketCodigo = viaje.CodigoTicket != null ? viaje.CodigoTicket.ToString() : viaje.Id.ToString();
+
+                var usuariosNotif = await connection.QueryAsync<int>(
+                    "SELECT Id FROM TB_USUARIOS WHERE Rol IN ('ADMIN', 'SUPERADMIN', 'SUPERVISOR') AND Activo = 1");
+
+                foreach (var destUserId in usuariosNotif)
+                {
+                    await connection.ExecuteAsync(@"
+                        INSERT INTO TB_NOTIFICACIONES_MOVIL (UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt)
+                        VALUES (@UsuarioId, 'FINCA_AGREGADA', @Titulo, @Mensaje, @FechaOperativa, @ReferenciaId, 0, GETDATE())",
+                        new
+                        {
+                            UsuarioId = destUserId,
+                            Titulo = $"🥛 Finca en Ticket #{ticketCodigo}",
+                            Mensaje = $"{choferNombre} agregó {nombreFinca} ({dto.Litros:N0} Lts) al Ticket #{ticketCodigo}.",
+                            FechaOperativa = fechaEfectiva,
+                            ReferenciaId = dto.ControlRutaId
+                        });
+                }
+            }
+            catch { /* Tolerante */ }
+
             return nuevaRutaId;
         }
 

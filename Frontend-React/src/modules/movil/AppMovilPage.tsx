@@ -876,9 +876,11 @@ export const AppMovilPage: React.FC = () => {
     const now = new Date();
     const horaStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    const fechaAUsar = viajeActivo?.fecha ? viajeActivo.fecha.split('T')[0] : (formCarga.fecha || hoyStr);
+
     const nuevaCarga: CargaOffline = {
       localId: `local_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      fecha: formCarga.fecha || hoyStr,
+      fecha: fechaAUsar,
       hora: horaStr,
       fincaId: Number(formCarga.fincaId),
       fincaNombre: fincaSel ? fincaSel.nombre : `Finca #${formCarga.fincaId}`,
@@ -895,7 +897,7 @@ export const AppMovilPage: React.FC = () => {
     setCargas(nuevasCargas);
     setModalRegistro(false);
     setFormCarga({
-      fecha: hoyStr,
+      fecha: viajeActivo?.fecha ? viajeActivo.fecha.split('T')[0] : hoyStr,
       fincaId: 0,
       litros: '',
       tipoLeche: 'VACA',
@@ -2119,7 +2121,12 @@ export const AppMovilPage: React.FC = () => {
             {/* BOTÓN REGISTRAR CARGA EN FINCA */}
             <button
               type="button"
-              onClick={() => setModalRegistro(true)}
+              onClick={() => {
+                if (viajeActivo?.fecha) {
+                  setFormCarga((prev) => ({ ...prev, fecha: viajeActivo.fecha.split('T')[0] }));
+                }
+                setModalRegistro(true);
+              }}
               style={{
                 width: '100%',
                 height: '60px',
@@ -3056,29 +3063,54 @@ export const AppMovilPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Fecha de Recolección (permite seleccionar fecha anterior o actual) */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
-                  📅 Fecha de Recolección
-                </label>
-                <input
-                  type="date"
-                  value={formCarga.fecha || hoyStr}
-                  onChange={(e) => setFormCarga({ ...formCarga, fecha: e.target.value })}
+              {/* Fecha de Recolección: si hay un ticket activo asignado, se toma automáticamente su fecha y no se muestra el selector manual */}
+              {viajeActivo ? (
+                <div
                   style={{
-                    width: '100%',
-                    height: '44px',
+                    background: '#f0fdf4',
+                    border: '1.5px solid #86efac',
                     borderRadius: '10px',
-                    border: '1.5px solid #cbd5e1',
-                    padding: '0 12px',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    color: '#0f172a',
-                    background: '#f8fafc',
-                    outline: 'none',
+                    padding: '9px 12px',
+                    marginBottom: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   }}
-                />
-              </div>
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-ticket text-emerald-600"></i>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#166534' }}>
+                      Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                    📅 {new Date(viajeActivo.fecha).toLocaleDateString('es-VE')}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
+                    📅 Fecha de Recolección
+                  </label>
+                  <input
+                    type="date"
+                    value={formCarga.fecha || hoyStr}
+                    onChange={(e) => setFormCarga({ ...formCarga, fecha: e.target.value })}
+                    style={{
+                      width: '100%',
+                      height: '44px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      padding: '0 12px',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      background: '#f8fafc',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Litros Entrada Táctil */}
               <div style={{ marginBottom: '16px' }}>
