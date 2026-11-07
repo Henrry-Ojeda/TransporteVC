@@ -107,6 +107,7 @@ namespace Transporte.Core.DTOs
         public string? TipoLeche { get; set; } = "VACA";
         public decimal? PrecioLitroUSDAplicado { get; set; }
         public string? Observacion { get; set; }
+        public string? FotoComprobante { get; set; }
     }
 
     public class RegistrarRutasMasivoDto
@@ -501,6 +502,7 @@ namespace Transporte.Core.DTOs
         public bool? EsDiferido { get; set; }
         public decimal? PrecioLitroUSDAplicado { get; set; }
         public string? Observacion { get; set; }
+        public string? FotoComprobante { get; set; }
     }
 
     public class RegistrarEntregaDto
@@ -1638,6 +1640,7 @@ namespace Transporte.Core.DTOs
         public string? TipoLeche { get; set; }
         public bool EsDiferido { get; set; } = false;
         public string? Observacion { get; set; }
+        public string? FotoComprobante { get; set; }
         public string Motivo { get; set; } = string.Empty;
     }
 
@@ -1646,6 +1649,7 @@ namespace Transporte.Core.DTOs
         public int CompaniaId { get; set; }
         public int Litros { get; set; }
         public string? Observacion { get; set; }
+        public string? FotoComprobante { get; set; }
         public string Motivo { get; set; } = string.Empty;
     }
 

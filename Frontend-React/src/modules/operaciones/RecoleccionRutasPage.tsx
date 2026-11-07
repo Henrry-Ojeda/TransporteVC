@@ -275,6 +275,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     esDiferido: false,
     fecha: '',
     observacion: '',
+    fotoComprobante: '',
   });
 
   // Formulario Enviar Receptoría (1:1 V2_3_11_26)
@@ -898,6 +899,7 @@ export const RecoleccionRutasPage: React.FC = () => {
         esAcida: dto.esAcida,
         esDiferido: Boolean(dto.esDiferido),
         observacion: dto.observacion,
+        fotoComprobante: dto.fotoComprobante || undefined,
       }),
     onSuccess: async (data) => {
       toast.success(data.message || 'Parada actualizada exitosamente');
@@ -2839,6 +2841,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                                               esDiferido: Boolean(f.esDiferido || f.EsDiferido),
                                               fecha: f.fecha || item.fecha || '',
                                               observacion: f.observacion || f.Observacion || '',
+                                              fotoComprobante: f.fotoComprobante || (f as any).FotoComprobante || '',
                                             });
                                             setModalEditarRecoleccion(true);
                                           }}
@@ -5385,6 +5388,57 @@ export const RecoleccionRutasPage: React.FC = () => {
                     className="w-full h-10 px-3 rounded-xl border-[1.5px] border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-xs text-slate-800 transition-all placeholder:text-slate-400"
                     placeholder="Motivo del ajuste de litros..."
                   />
+                </div>
+
+                {/* 4. FOTO DEL RECIBO / COMPROBANTE EN FINCA (OPCIONAL) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <i className="fa-solid fa-camera text-sky-600"></i>
+                    Foto del Recibo / Comprobante en Finca (Opcional)
+                  </label>
+                  <div className="border border-dashed border-sky-300 rounded-xl p-3 bg-sky-50/50 flex flex-col items-center justify-center gap-2">
+                    {formEditar.fotoComprobante ? (
+                      <div className="flex items-center gap-3 w-full">
+                        <img
+                          src={formEditar.fotoComprobante}
+                          alt="Recibo"
+                          className="w-14 h-14 object-cover rounded-lg border border-slate-300 shadow-2xs"
+                        />
+                        <div className="flex-1 text-xs text-slate-600 truncate">
+                          <span className="font-bold text-slate-800 block">Recibo Adjunto</span>
+                          <span className="text-[11px] text-emerald-700">✓ Listo para guardar</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormEditar({ ...formEditar, fotoComprobante: '' })}
+                          className="px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg border border-red-200 cursor-pointer"
+                        >
+                          Quitar Foto
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer flex items-center gap-2 text-xs font-bold text-sky-700 hover:text-sky-800 py-1.5">
+                        <i className="fa-solid fa-cloud-arrow-up text-sm"></i>
+                        <span>Tomar o Adjuntar Foto del Recibo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setFormEditar({ ...formEditar, fotoComprobante: reader.result as string });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               </div>
 

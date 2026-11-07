@@ -623,6 +623,7 @@ namespace Transporte.Infrastructure.Repositories
                 ? dto.ConductorId.Value
                 : conductorActual;
             string? observacionFinal = dto.Observacion ?? (string?)ruta.Observacion;
+            string? fotoComprobanteFinal = dto.FotoComprobante ?? (string?)ruta.FotoComprobante;
 
             bool esAcidaFinal = dto.EsAcida ?? (bool)ruta.EsAcida;
             bool esDiferidoFinal = dto.EsDiferido ?? (bool)(ruta.EsDiferido ?? false);
@@ -652,6 +653,7 @@ namespace Transporte.Infrastructure.Repositories
                     TipoLeche = @tipoLecheFinal,
                     PrecioLitroUSDAplicado = @precioAplicado,
                     Observacion = @observacionFinal,
+                    FotoComprobante = @fotoComprobanteFinal,
                     ModifiedAt = GETDATE(),
                     ModifiedBy = @usuarioId
                 WHERE Id = @rutaId";
@@ -667,6 +669,7 @@ namespace Transporte.Infrastructure.Repositories
                 tipoLecheFinal,
                 precioAplicado,
                 observacionFinal,
+                fotoComprobanteFinal,
                 usuarioId,
                 rutaId
             });
@@ -10097,7 +10100,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
         public async Task<bool> EditarFincaDeViajeAuditadoAsync(long controlRutaId, long rutaId, EditarFincaViajeAuditadoDto dto, int usuarioId, string rol)
         {
-            if (rol != "ADMIN") throw new UnauthorizedAccessException("Solo un Administrador puede modificar fincas desde el Control de Viaje.");
+            if (rol != "ADMIN" && rol != "SUPERADMIN") throw new UnauthorizedAccessException("Solo un Administrador o SuperAdmin puede modificar fincas desde el Control de Viaje.");
             if (string.IsNullOrWhiteSpace(dto.Motivo)) throw new ArgumentException("El motivo o justificación de la modificación es obligatorio.");
 
             using var connection = new SqlConnection(_connectionString);
@@ -10146,10 +10149,11 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     TipoLeche = @tipoLeche,
                     PrecioLitroUSDAplicado = @precioAplicado,
                     Observacion = @Observacion,
+                    FotoComprobante = ISNULL(@FotoComprobante, FotoComprobante),
                     ModifiedAt = GETDATE(),
                     ModifiedBy = @usuarioId
                 WHERE Id = @rutaId",
-                new { dto.FincaId, dto.Litros, dto.EsAcida, dto.EsDiferido, tipoLeche, precioAplicado, dto.Observacion, usuarioId, rutaId });
+                new { dto.FincaId, dto.Litros, dto.EsAcida, dto.EsDiferido, tipoLeche, precioAplicado, dto.Observacion, dto.FotoComprobante, usuarioId, rutaId });
 
             // 2. Registrar en Bitácora de Auditoría
             await connection.ExecuteAsync(@"
