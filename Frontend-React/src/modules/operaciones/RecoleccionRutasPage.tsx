@@ -38,7 +38,7 @@ export const RecoleccionRutasPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const hasBufala = useAuthStore((state) => state.hasTenantModule('MOD_LECHE_BUFALA'));
   const rol = user?.rol?.toUpperCase() || '';
-  const esAdminOSup = ['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE'].includes(rol);
+  const esAdminOSup = ['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE', 'SUPERADMIN', 'SUPER_ADMIN'].includes(rol) || rol.includes('ADMIN');
   const esChofer = rol === 'CHOFER';
 
   const hoyStr = new Date().toISOString().split('T')[0];

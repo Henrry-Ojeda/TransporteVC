@@ -237,8 +237,7 @@ namespace Transporte.Infrastructure.Repositories
             string whereFilter;
             object param;
 
-            bool esAdminOSup = rol.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) 
-                            || rol.Equals("ADMINISTRADOR", StringComparison.OrdinalIgnoreCase) 
+            bool esAdminOSup = rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) 
                             || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase)
                             || rol.Equals("GERENTE", StringComparison.OrdinalIgnoreCase);
 
@@ -284,7 +283,7 @@ namespace Transporte.Infrastructure.Repositories
                     r.CreatedAt AS CreatedAt,
                     CASE 
                         WHEN cr.Id IS NOT NULL AND (cr.Estado IN ('FINALIZADO', 'CERRADO') OR cr.ProcesoActualId = 4) THEN 0
-                        WHEN @rol IN ('ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE') THEN 1
+                        WHEN UPPER(@rol) LIKE '%ADMIN%' OR @rol IN ('SUPERVISOR', 'GERENTE') THEN 1
                         WHEN r.UsuarioId = @usuarioId AND (
                             (cr.Id IS NOT NULL AND cr.ProcesoActualId = 1 AND cr.Estado IN ('PENDIENTE', 'ABIERTO', 'EN RUTA'))
                             OR (cr.Id IS NULL AND CAST(r.Fecha AS DATE) >= CAST(DATEADD(DAY, -7, GETDATE()) AS DATE))
@@ -307,7 +306,7 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var fechaRuta = dto.Fecha.Date;
             int choferEfectivo;
-            if (rol == "ADMIN" || rol == "SUPERVISOR")
+            if (rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase))
             {
                 if (!dto.ConductorId.HasValue || dto.ConductorId.Value <= 0)
                 {
@@ -422,7 +421,7 @@ namespace Transporte.Infrastructure.Repositories
             {
                 var fechaRuta = dto.Fecha.Date;
                 int choferEfectivo;
-                if (rol == "ADMIN" || rol == "SUPERVISOR")
+                if (rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!dto.ConductorId.HasValue || dto.ConductorId.Value <= 0)
                     {
@@ -3991,7 +3990,7 @@ namespace Transporte.Infrastructure.Repositories
             using var connection = new SqlConnection(_connectionString);
             var fechaEntrega = dto.Fecha.Date;
             int choferEfectivo;
-            if (rol == "ADMIN" || rol == "SUPERVISOR")
+            if (rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase))
             {
                 if (!dto.ConductorId.HasValue || dto.ConductorId.Value <= 0)
                 {
@@ -8020,7 +8019,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 WHERE ((CAST(cr.Fecha AS DATE) >= @inicio AND CAST(cr.Fecha AS DATE) <= @fin)
                        OR (cr.ProcesoActualId = 1 AND cr.Estado NOT IN ('FINALIZADO', 'CERRADO')))
                   AND (@cicloId IS NULL OR cr.CicloId = @cicloId)
-                  AND (@rol IN ('ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE') OR cr.UsuarioId = @usuarioId)
+                  AND (UPPER(@rol) LIKE '%ADMIN%' OR @rol IN ('SUPERVISOR', 'GERENTE') OR cr.UsuarioId = @usuarioId)
                 ORDER BY cr.Fecha DESC, cr.Id DESC";
 
             return await connection.QueryAsync<ControlRutaDto>(sql, new { inicio, fin, cicloId, rol, usuarioId });
@@ -8070,7 +8069,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             using var connection = new SqlConnection(_connectionString);
             var fechaControl = dto.Fecha.Date;
             int conductorEfectivo;
-            if (rol == "ADMIN" || rol == "SUPERVISOR")
+            if (rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase))
             {
                 if (!dto.UsuarioId.HasValue || dto.UsuarioId.Value <= 0)
                 {
@@ -8484,7 +8483,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             using var connection = new SqlConnection(_connectionString);
             var fecha = (dto.Fecha ?? DateTime.Today).Date;
             int conductorEfectivo = 0;
-            if (rol == "ADMIN" || rol == "ADMINISTRADOR" || rol == "SUPERVISOR")
+            if (rol.Contains("ADMIN", StringComparison.OrdinalIgnoreCase) || rol.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase))
             {
                 if (dto.ConductorId.HasValue && dto.ConductorId.Value > 0)
                 {
