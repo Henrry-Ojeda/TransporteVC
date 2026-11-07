@@ -35,6 +35,22 @@ export const bcvApi = {
     return res.data;
   },
 
+  editarTasa: async (id: number, dto: { fecha?: string; tasaDolarBs?: number; tasa?: number; fuente?: string; observacion?: string }): Promise<{ success: boolean; message: string }> => {
+    const payload = {
+      fecha: dto.fecha,
+      tasaDolarBs: dto.tasaDolarBs ?? dto.tasa,
+      fuente: dto.fuente,
+      observacion: dto.observacion,
+    };
+    const res = await apiClient.put(`/bcv/${id}`, payload);
+    return res.data;
+  },
+
+  eliminarTasa: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete(`/bcv/${id}`);
+    return res.data;
+  },
+
   sincronizarTasaBcvLive: async (): Promise<{ tasa: number; fecha: string; fuente: string }> => {
     let valorTasa = 0;
     let fuenteNombre = 'DolarAPI (BCV)';

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import { bcvApi, type BcvHistoricoDto } from '@/api/bcv.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 
@@ -8,9 +9,21 @@ export const HistorialBcvPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   const [modalNuevo, setModalNuevo] = useState(false);
+  const [modalEditar, setModalEditar] = useState(false);
+  const [itemEditar, setItemEditar] = useState<BcvHistoricoDto | null>(null);
+
   const [form, setForm] = useState({
     fecha: new Date().toISOString().split('T')[0],
     tasa: 889.25,
+    fuente: 'BANCO CENTRAL DE VENEZUELA (BCV)',
+    observacion: 'Registro oficial',
+  });
+
+  const [formEditar, setFormEditar] = useState({
+    fecha: '',
+    tasa: 0,
+    fuente: '',
+    observacion: '',
   });
 
   const { data: historial = [], isLoading } = useQuery<BcvHistoricoDto[]>({
@@ -24,7 +37,8 @@ export const HistorialBcvPage: React.FC = () => {
   });
 
   const registrarMutation = useMutation({
-    mutationFn: (payload: { fecha: string; tasa: number; tasaDolarBs: number }) => bcvApi.registrarTasa(payload),
+    mutationFn: (payload: { fecha: string; tasa: number; tasaDolarBs: number; fuente?: string; observacion?: string }) =>
+      bcvApi.registrarTasa(payload),
     onSuccess: (data: any) => {
       toast.success(data.message || 'Tasa oficial registrada exitosamente');
       queryClient.invalidateQueries({ queryKey: ['bcv-historial'] });
@@ -37,10 +51,39 @@ export const HistorialBcvPage: React.FC = () => {
     },
   });
 
+  const editarMutation = useMutation({
+    mutationFn: (payload: { id: number; data: { fecha: string; tasaDolarBs: number; fuente?: string; observacion?: string } }) =>
+      bcvApi.editarTasa(payload.id, payload.data),
+    onSuccess: (data: any) => {
+      toast.success(data.message || 'Tasa oficial actualizada exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['bcv-historial'] });
+      queryClient.invalidateQueries({ queryKey: ['bcv-rate'] });
+      queryClient.invalidateQueries({ queryKey: ['bcv-hoy'] });
+      setModalEditar(false);
+      setItemEditar(null);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al actualizar tasa');
+    },
+  });
+
+  const eliminarMutation = useMutation({
+    mutationFn: (id: number) => bcvApi.eliminarTasa(id),
+    onSuccess: (data: any) => {
+      toast.success(data.message || 'Tasa oficial eliminada');
+      queryClient.invalidateQueries({ queryKey: ['bcv-historial'] });
+      queryClient.invalidateQueries({ queryKey: ['bcv-rate'] });
+      queryClient.invalidateQueries({ queryKey: ['bcv-hoy'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al eliminar tasa');
+    },
+  });
+
   const sincronizarMutation = useMutation({
-    mutationFn: () => bcvApi.getTasaHoy(),
-    onSuccess: () => {
-      toast.success('Tasa oficial sincronizada con el BCV');
+    mutationFn: () => bcvApi.sincronizarTasaBcvLive(),
+    onSuccess: (res: any) => {
+      toast.success(`Tasa sincronizada: Bs. ${res.tasa?.toLocaleString('es-VE')}`);
       queryClient.invalidateQueries({ queryKey: ['bcv-historial'] });
       queryClient.invalidateQueries({ queryKey: ['bcv-rate'] });
       queryClient.invalidateQueries({ queryKey: ['bcv-hoy'] });
@@ -90,6 +133,77 @@ export const HistorialBcvPage: React.FC = () => {
           <span>{row.fuente || 'Banco Central de Venezuela (BCV)'}</span>
         </div>
       ),
+    },
+    {
+      header: 'Acciones',
+      className: 'text-right',
+      cell: (row) => {
+        const id = row.id ?? (row as any).Id;
+        const val = Number(row.tasaDolarBs ?? row.tasa ?? (row as any).TasaDolarBs ?? 0);
+        const fechaStr = row.fecha ? String(row.fecha).split('T')[0] : '';
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setItemEditar(row);
+                setFormEditar({
+                  fecha: fechaStr,
+                  tasa: val,
+                  fuente: row.fuente || 'BANCO CENTRAL DE VENEZUELA (BCV)',
+                  observacion: row.observacion || '',
+                });
+                setModalEditar(true);
+              }}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: '#f8fafc',
+                color: '#2563eb',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Editar Tasa BCV"
+            >
+              <i className="fa-solid fa-pen-to-square" style={{ fontSize: '13px' }}></i>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!id) return;
+                const confirmacion = await confirmDeleteOrDeactivate(
+                  'Eliminar Tasa BCV',
+                  `¿Está seguro de eliminar el registro de tasa del ${row.fecha ? new Date(row.fecha).toLocaleDateString('es-VE') : ''} (${val.toFixed(4)} Bs.)?`
+                );
+                if (confirmacion) {
+                  eliminarMutation.mutate(id);
+                }
+              }}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                border: '1px solid #fecaca',
+                background: '#fef2f2',
+                color: '#ef4444',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Eliminar Tasa BCV"
+            >
+              <i className="fa-solid fa-trash-can" style={{ fontSize: '13px' }}></i>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -321,6 +435,129 @@ export const HistorialBcvPage: React.FC = () => {
                   style={{ height: '36px', padding: '0 18px', borderRadius: '8px', background: '#0284c7', border: 'none', fontWeight: 700 }}
                 >
                   {registrarMutation.isPending ? 'Guardando...' : 'Guardar Tasa'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Tasa */}
+      {modalEditar && itemEditar && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div className="content-card" style={{ width: '100%', maxWidth: '440px', padding: '0', overflow: 'hidden', borderRadius: '16px' }}>
+            <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+                <i className="fa-solid fa-pen-to-square" style={{ color: '#2563eb', marginRight: '8px' }}></i>
+                Editar Tasa Oficial BCV
+              </h3>
+              <button type="button" onClick={() => setModalEditar(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>
+                &times;
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const id = itemEditar.id ?? (itemEditar as any).Id;
+                if (!id) return;
+                if (formEditar.tasa <= 0) {
+                  toast.error('La tasa debe ser mayor a 0');
+                  return;
+                }
+                editarMutation.mutate({
+                  id,
+                  data: {
+                    fecha: formEditar.fecha,
+                    tasaDolarBs: formEditar.tasa,
+                    fuente: formEditar.fuente,
+                    observacion: formEditar.observacion,
+                  },
+                });
+              }}
+              style={{ padding: '20px' }}
+            >
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Fecha Oficial *
+                </label>
+                <input
+                  type="date"
+                  value={formEditar.fecha}
+                  onChange={(e) => setFormEditar({ ...formEditar, fecha: e.target.value })}
+                  className="form-input"
+                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Tasa de Cambio Oficial (Bs. / USD) *
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formEditar.tasa || ''}
+                  onChange={(e) => setFormEditar({ ...formEditar, tasa: Number(e.target.value) })}
+                  placeholder="Ej: 36.5000"
+                  className="form-input"
+                  style={{ width: '100%', height: '42px', fontSize: '16px', fontWeight: 800, color: '#059669', borderRadius: '8px' }}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Fuente & Certificación
+                </label>
+                <input
+                  type="text"
+                  value={formEditar.fuente}
+                  onChange={(e) => setFormEditar({ ...formEditar, fuente: e.target.value })}
+                  placeholder="BANCO CENTRAL DE VENEZUELA (BCV)"
+                  className="form-input"
+                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Observación
+                </label>
+                <input
+                  type="text"
+                  value={formEditar.observacion}
+                  onChange={(e) => setFormEditar({ ...formEditar, observacion: e.target.value })}
+                  placeholder="Ej: Corrección manual de tasa oficial"
+                  className="form-input"
+                  style={{ width: '100%', height: '38px', borderRadius: '8px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" onClick={() => setModalEditar(false)} className="btn btn-outline" style={{ height: '36px', padding: '0 14px', borderRadius: '8px' }}>
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={editarMutation.isPending}
+                  className="btn btn-primary"
+                  style={{ height: '36px', padding: '0 18px', borderRadius: '8px', background: '#2563eb', border: 'none', fontWeight: 700 }}
+                >
+                  {editarMutation.isPending ? 'Guardando...' : 'Actualizar Tasa'}
                 </button>
               </div>
             </form>
