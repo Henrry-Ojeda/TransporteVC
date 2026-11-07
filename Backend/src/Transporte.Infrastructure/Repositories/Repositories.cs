@@ -6075,9 +6075,30 @@ namespace Transporte.Infrastructure.Repositories
                 fechaFin = fechaFin.Date 
             })).ToList();
 
+            var sqlDetalleDiario = @"
+                SELECT 
+                    c.UsuarioId,
+                    CONVERT(varchar(10), c.Fecha, 120) AS Fecha,
+                    c.Id AS TicketId,
+                    ISNULL(c.TotalLitrosFinca, 0) AS LitrosRuta,
+                    ISNULL(CASE WHEN c.TipoDestino IN ('COMPANIA_DIRECTA', 'DIRECTO', 'RECEPTORIA_Y_COMPANIA') 
+                                THEN ISNULL(c.LitrosEntregadosCompania, c.TotalLitrosReceptoria) 
+                                ELSE c.TotalLitrosReceptoria END, 0) AS LitrosQuesera,
+                    ISNULL(c.Observacion, '') AS Observacion,
+                    ISNULL(c.TipoDestino, 'RECEPTORIA') AS Destino
+                FROM TB_CONTROL_RUTAS c
+                WHERE c.Fecha >= @fechaInicio AND c.Fecha <= @fechaFin
+                ORDER BY c.Fecha DESC, c.Id DESC";
+
+            var detalleDiario = (await connection.QueryAsync<ReporteRelacionChoferDiarioDto>(sqlDetalleDiario, new { 
+                fechaInicio = fechaInicio.Date, 
+                fechaFin = fechaFin.Date 
+            })).ToList();
+
             foreach (var ch in rows)
             {
                 ch.DetalleFincas = detalleFincas.Where(d => d.UsuarioId == ch.UsuarioId).ToList();
+                ch.DetalleDiario = detalleDiario.Where(d => d.UsuarioId == ch.UsuarioId).ToList();
             }
 
             return rows;
@@ -8574,9 +8595,10 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_USUARIOS uc ON cr.CerradoPor = uc.Id
                 LEFT JOIN TB_RUTAS_LOGISTICA rl ON cr.RutaLogisticaId = rl.Id
                 LEFT JOIN TB_CAMIONES cam ON cam.UsuarioId = cr.UsuarioId AND cam.Activo = 1
-                WHERE (cr.UsuarioId = @choferId OR cr.CreatedBy = @choferId) 
-                  AND (cr.Estado NOT IN ('FINALIZADO', 'CERRADO') OR cr.ProcesoActualId IN (1, 2, 3))
-                ORDER BY cr.Id DESC";
+                WHERE cr.UsuarioId = @choferId 
+                  AND UPPER(ISNULL(cr.Estado, '')) NOT IN ('FINALIZADO', 'CERRADO', 'ENTREGADO', 'CUADRADO')
+                  AND ISNULL(cr.ProcesoActualId, 1) < 4
+                ORDER BY cr.Fecha DESC, cr.Id DESC";
 
             return await connection.QueryFirstOrDefaultAsync<ControlRutaDto>(sql, new { choferId });
         }
@@ -8825,26 +8847,26 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     r.Id AS Id,
                     r.Fecha AS Fecha,
                     r.FincaId AS FincaId,
-                    f.Nombre AS FincaNombre,
-                    f.Propietario AS Propietario,
+                    ISNULL(f.Nombre, 'Finca #' + CAST(r.FincaId AS varchar(10))) AS FincaNombre,
+                    ISNULL(f.Propietario, '-') AS Propietario,
                     ISNULL(f.TipoServicioId, 1) AS TipoServicioId,
                     f.CompaniaId AS CompaniaId,
                     comp.Nombre AS CompaniaNombre,
                     r.UsuarioId AS ConductorId,
-                    u.NombreCompleto AS ConductorNombre,
+                    ISNULL(u.NombreCompleto, 'Conductor') AS ConductorNombre,
                     r.Litros AS Litros,
                     r.EsAcida AS EsAcida,
                     ISNULL(r.TipoLeche, 'VACA') AS TipoLeche,
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
-                    ISNULL(r.PrecioLitroUSDAplicado, CASE WHEN r.EsAcida = 1 THEN f.PrecioLitroAcidaUSD ELSE f.PrecioLitroUSD END) AS PrecioLitroUSD,
+                    ISNULL(r.PrecioLitroUSDAplicado, CASE WHEN r.EsAcida = 1 THEN ISNULL(f.PrecioLitroAcidaUSD, 0) ELSE ISNULL(f.PrecioLitroUSD, 0) END) AS PrecioLitroUSD,
                     r.Observacion AS Observacion,
                     r.FotoComprobante AS FotoComprobante,
                     r.ControlRutaId AS ControlRutaId,
                     r.CreatedAt AS CreatedAt,
                     1 AS PuedeModificar
                 FROM TB_RUTAS_RECOLECCION r
-                INNER JOIN TB_FINCAS f ON r.FincaId = f.Id
-                INNER JOIN TB_USUARIOS u ON r.UsuarioId = u.Id
+                LEFT JOIN TB_FINCAS f ON r.FincaId = f.Id
+                LEFT JOIN TB_USUARIOS u ON r.UsuarioId = u.Id
                 LEFT JOIN TB_COMPANIAS comp ON f.CompaniaId = comp.Id
                 WHERE r.ControlRutaId = @controlRutaId
                 ORDER BY r.Id ASC";

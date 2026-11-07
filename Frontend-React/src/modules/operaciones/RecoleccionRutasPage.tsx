@@ -156,6 +156,8 @@ export const RecoleccionRutasPage: React.FC = () => {
   // Polling ultra-reactivo en vivo cada 2.5s cuando el modal Timelapse está abierto (sin recargar la página)
   useEffect(() => {
     if (!modalTimelapse || !viajeTimelapse?.id) return;
+    const est = String(viajeTimelapse.estado || '').trim().toUpperCase();
+    if (est === 'FINALIZADO' || est === 'CERRADO' || (viajeTimelapse.procesoActualId || 1) >= 4) return;
 
     // Reloj cada segundo para animaciones y cuenta regresiva del titilar
     const timerTick = setInterval(() => {
@@ -1382,12 +1384,16 @@ export const RecoleccionRutasPage: React.FC = () => {
   const timelapseData = useMemo(() => {
     if (!viajeTimelapse) return null;
 
+    const estadoUpper = String(viajeTimelapse.estado || '').trim().toUpperCase();
+    const codigoProcUpper = String(viajeTimelapse.codigoProceso || '').trim().toUpperCase();
     const esFinalizado =
-      (viajeTimelapse.estado || '').toUpperCase() === 'FINALIZADO' ||
-      (viajeTimelapse.estado || '').toUpperCase() === 'CERRADO' ||
-      (viajeTimelapse.estado || '').toUpperCase() === 'ENTREGADO' ||
-      (viajeTimelapse.estado || '').toUpperCase() === 'CUADRADO' ||
-      (viajeTimelapse.procesoActualId || 1) >= 3;
+      estadoUpper === 'FINALIZADO' ||
+      estadoUpper === 'CERRADO' ||
+      estadoUpper === 'ENTREGADO' ||
+      estadoUpper === 'CUADRADO' ||
+      codigoProcUpper === 'FINALIZADO' ||
+      codigoProcUpper === 'CERRADO' ||
+      (viajeTimelapse.procesoActualId || 1) >= 4;
 
     const parsedRutasActivas = (() => {
       const obs = viajeTimelapse.observacion || '';
@@ -1401,7 +1407,7 @@ export const RecoleccionRutasPage: React.FC = () => {
     const camionMatch = camiones.find((c) => c.id === viajeTimelapse.camionId || c.placa === viajeTimelapse.camionPlaca);
     const capacidadMax = camionMatch?.capacidadLitros || viajeTimelapse.capacidadCamionLitros || 10000;
 
-    const paradasDelTicket = Array.isArray(fincasTicketsMap[viajeTimelapse.id])
+    const paradasDelTicket = (Array.isArray(fincasTicketsMap[viajeTimelapse.id]) && fincasTicketsMap[viajeTimelapse.id].length > 0)
       ? fincasTicketsMap[viajeTimelapse.id]
       : recolecciones.filter((r) => r.controlRutaId != null && Number(r.controlRutaId) === Number(viajeTimelapse.id));
 
@@ -1439,7 +1445,8 @@ export const RecoleccionRutasPage: React.FC = () => {
       pendientes = fincas.filter((f) => f.rutaId && parsedRutasActivas.includes(f.rutaId) && !idsVisitadas.has(f.id));
     }
 
-    const totalLitros = paradasConIntervalo.length > 0 ? paradasConIntervalo[paradasConIntervalo.length - 1].acumulado : 0;
+    const totalLitrosCalculado = paradasConIntervalo.length > 0 ? paradasConIntervalo[paradasConIntervalo.length - 1].acumulado : 0;
+    const totalLitros = totalLitrosCalculado > 0 ? totalLitrosCalculado : (viajeTimelapse.totalLitrosFinca || viajeTimelapse.totalLitrosReceptoria || 0);
     const porcentajeLlenado = Math.min(100, Math.round((totalLitros / capacidadMax) * 100));
 
     const nombresRutas = parsedRutasActivas
@@ -3350,8 +3357,8 @@ export const RecoleccionRutasPage: React.FC = () => {
                     );
                   })}
 
-                  {/* 2. PARADAS PENDIENTES DE LA RUTA (EN COLOR GRIS, CON BOTÓN "+ AGREGAR LITROS") */}
-                  {timelapseData.pendientes.map((f, i) => {
+                  {/* 2. PARADAS PENDIENTES DE LA RUTA (EN COLOR GRIS, CON BOTÓN "+ AGREGAR LITROS", SOLO SI EL TICKET SIGUE ABIERTO) */}
+                  {!timelapseData.esFinalizado && timelapseData.pendientes.map((f, i) => {
                     const numParada = timelapseData.paradas.length + i + 1;
                     return (
                       <div key={f.id} style={{ position: 'relative', marginBottom: '18px' }}>

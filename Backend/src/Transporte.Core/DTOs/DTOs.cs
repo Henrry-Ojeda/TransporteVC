@@ -889,6 +889,18 @@ namespace Transporte.Core.DTOs
         public int? TicketControlId { get; set; }
     }
 
+    public class ReporteRelacionChoferDiarioDto
+    {
+        public string Fecha { get; set; } = string.Empty;
+        public long? TicketId { get; set; }
+        public int UsuarioId { get; set; }
+        public int LitrosRuta { get; set; }
+        public int LitrosQuesera { get; set; }
+        public int Diferencia => LitrosQuesera - LitrosRuta;
+        public string? Destino { get; set; }
+        public string? Observacion { get; set; }
+    }
+
     public class ReporteRelacionChoferDto
     {
         public int UsuarioId { get; set; }
@@ -898,6 +910,7 @@ namespace Transporte.Core.DTOs
         public int Diferencias => LitrosRuta - LitrosQuesera;
         public int TotalLitros => LitrosRuta + LitrosQuesera;
         public List<ReporteRelacionChoferDetalleDto> DetalleFincas { get; set; } = new();
+        public List<ReporteRelacionChoferDiarioDto> DetalleDiario { get; set; } = new();
     }
 
     public class ReporteRelacionCompaniaDto

@@ -36,8 +36,11 @@ namespace Transporte.API.Controllers
             [FromQuery] DateTime? fechaFin = null,
             [FromQuery] int? companiaId = null)
         {
-            var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-            if (!string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase))
+            var rol = User.FindFirstValue(ClaimTypes.Role) 
+                ?? User.FindFirst("role")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
+
+            if (!string.IsNullOrEmpty(rol) && !EsAdminOSupervisor(rol) && !string.Equals(rol, "CHOFER", StringComparison.OrdinalIgnoreCase) && !string.Equals(rol, "CONDUCTOR", StringComparison.OrdinalIgnoreCase) && !string.Equals(rol, "RECEPTOR", StringComparison.OrdinalIgnoreCase))
             {
                 return Forbid();
             }

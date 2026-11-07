@@ -386,14 +386,15 @@ export const AppMovilPage: React.FC = () => {
   }, [isOnline]);
 
   // Si estamos en línea y hay conexión, refrescar lista de fincas, perfil, entregas y viaje activo
+  const dispChoferId = dispositivo?.id;
   useEffect(() => {
-    if (dispositivo && isOnline) {
+    if (dispChoferId && isOnline) {
       cargarFincasServidor();
       cargarEntregasChofer();
       cargarPerfilServidor();
       cargarViajeActivo();
     }
-  }, [dispositivo, isOnline]);
+  }, [dispChoferId, isOnline]);
 
   const cargarFincasServidor = async () => {
     try {
@@ -413,12 +414,22 @@ export const AppMovilPage: React.FC = () => {
     try {
       // 1. Obtener viaje activo asignado al chofer (creado por él o asignado por supervisor/admin)
       const v = await operacionesApi.getViajeActivo(dispositivo.id);
-      if (v && v.id) {
+      const est = String(v?.estado || '').trim().toUpperCase();
+      const esCerrado = est === 'FINALIZADO' || est === 'CERRADO' || est === 'ENTREGADO' || est === 'CUADRADO' || (v?.procesoActualId || 1) >= 4;
+
+      if (v && v.id && !esCerrado) {
         setViajeActivo(v);
-        // Si el ticket trae cisterna o placa específica, actualizar localmente
+        // Si el ticket trae cisterna o placa específica, actualizar localmente solo si hay cambios reales
         if (v.camionId || v.camionPlaca) {
           setDispositivo((prev) => {
             if (!prev) return null;
+            if (
+              prev.camionId === v.camionId &&
+              prev.placaCamion === (v.camionPlaca || prev.placaCamion) &&
+              prev.capacidadTanqueLitros === (v.capacidadCamionLitros || prev.capacidadTanqueLitros)
+            ) {
+              return prev; // Mismo objeto para evitar re-render loop
+            }
             const updated = {
               ...prev,
               camionId: v.camionId || prev.camionId,
@@ -840,11 +851,19 @@ export const AppMovilPage: React.FC = () => {
       } else if (tipoReporte === 'CHOFERES') {
         const raw: any = await sistemaApi.getReporteChoferes(repFechaInicio, repFechaFin, choferNumId);
         const lista = Array.isArray(raw) ? raw : (raw?.detalles || raw?.items || []);
-        res = { items: lista, totalLitros: lista.reduce((a: number, b: any) => a + Number(b.litros || b.totalLitros || 0), 0), raw };
+        const total = lista.reduce((a: number, b: any) => a + Number(b.totalLitrosFinca || b.litros || b.totalLitros || 0), 0);
+        res = { items: lista, totalLitros: total, raw };
       } else if (tipoReporte === 'RELACION_CHOFER') {
         const raw: any = await sistemaApi.getReporteRelacionChoferes(repFechaInicio, repFechaFin);
-        const filtered = (Array.isArray(raw) ? raw : []).filter((r: any) => Number(r.usuarioId || r.UsuarioId) === choferNumId);
-        res = { items: filtered, totalLitros: filtered.reduce((a: number, b: any) => a + Number(b.totalLitros || b.litros || 0), 0), raw };
+        const allList = Array.isArray(raw) ? raw : [];
+        const filtered = allList.filter((r: any) => 
+          (choferNumId && Number(r.usuarioId || r.UsuarioId) === choferNumId) ||
+          (dispositivo?.nombreCompleto && (r.chofer || '').toLowerCase().includes(dispositivo.nombreCompleto.toLowerCase())) ||
+          (dispositivo?.username && (r.chofer || '').toLowerCase().includes(dispositivo.username.toLowerCase()))
+        );
+        const lista = filtered.length > 0 ? filtered : allList;
+        const total = lista.reduce((a: number, b: any) => a + Number(b.litrosRuta || b.totalLitros || b.litros || 0), 0);
+        res = { items: lista, totalLitros: total, raw };
       }
       setDatosReporte(res);
       toast.success('Reporte generado exitosamente');
@@ -897,7 +916,10 @@ export const AppMovilPage: React.FC = () => {
   const totalLitrosCargados = useMemo(() => {
     const sumParadasServer = (paradasViajeActivo || []).reduce((acc, p) => acc + Number(p.litros ?? p.Litros ?? 0), 0);
     const sumPendientes = cargas.filter((c) => !c.synced).reduce((acc, c) => acc + (Number(c.litros) || 0), 0);
-    const serverTotal = (viajeActivo?.totalLitrosFinca && viajeActivo.totalLitrosFinca > sumParadasServer) ? viajeActivo.totalLitrosFinca : sumParadasServer;
+    if (!viajeActivo) return sumPendientes;
+    const serverTotal = (viajeActivo?.totalLitrosFinca && viajeActivo.totalLitrosFinca > sumParadasServer && (paradasViajeActivo || []).length > 0) 
+      ? viajeActivo.totalLitrosFinca 
+      : sumParadasServer;
     return serverTotal + sumPendientes;
   }, [viajeActivo, paradasViajeActivo, cargas]);
 
@@ -3138,50 +3160,280 @@ export const AppMovilPage: React.FC = () => {
                       No se encontraron registros para este rango de fechas ({repFechaInicio} al {repFechaFin}).
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {items.slice(0, 50).map((row: any, idx: number) => {
-                        const lts = Number(row.litros || row.totalLitros || row.litrosDespachados || row.Litros || 0);
-                        const titulo = row.nombre || row.fincaNombre || row.finca || row.FincaNombre || row.choferNombre || row.companiaNombre || row.rutaLogisticaNombre || `Registro #${idx + 1}`;
-                        const sub = row.propietario || row.dueño || row.placaCamion || row.observacion || '';
-                        const fechaStr = row.fecha ? String(row.fecha).split('T')[0] : '';
-                        const tipoLeche = (row.tipoLeche || row.TipoLeche || 'VACA').toUpperCase();
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {tipoReporte === 'CHOFERES' ? (
+                        items.map((row: any, idx: number) => {
+                          const difGlobal = Number(row.totalLitros || 0);
+                          const esPos = difGlobal > 0;
+                          const esZero = difGlobal === 0;
+                          const detalleFechas: any[] = row.detalle || [];
 
-                        return (
-                          <div
-                            key={idx}
-                            style={{
-                              background: '#f8fafc',
-                              borderRadius: '10px',
-                              padding: '10px 12px',
-                              border: '1px solid #e2e8f0',
-                              fontSize: '12px',
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontWeight: 700, color: '#1e293b' }}>
-                              <div>
-                                <span>{titulo}</span>
-                                {sub && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>{sub}</div>}
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#f8fafc',
+                                borderRadius: '14px',
+                                padding: '14px',
+                                border: '1px solid #e2e8f0',
+                              }}
+                            >
+                              {/* Encabezado del Chofer */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                                <div>
+                                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                                    <i className="fa-solid fa-truck mr-1.5 text-blue-600"></i>
+                                    {row.nombre || 'Chofer'}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                    Recogido Fincas: <strong>{Number(row.totalLitrosFinca || 0).toLocaleString()} L</strong> • Entregado: <strong>{Number(row.totalLitrosEntregados || 0).toLocaleString()} L</strong>
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '12px',
+                                      fontWeight: 900,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      background: esZero ? '#f1f5f9' : esPos ? '#ecfdf5' : '#fef2f2',
+                                      color: esZero ? '#64748b' : esPos ? '#059669' : '#dc2626',
+                                      border: `1px solid ${esZero ? '#cbd5e1' : esPos ? '#a7f3d0' : '#fecaca'}`,
+                                      display: 'inline-block',
+                                    }}
+                                  >
+                                    {esPos ? `+${difGlobal.toLocaleString()}` : difGlobal.toLocaleString()} L
+                                  </span>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Diferencia Total</div>
+                                </div>
                               </div>
-                              <span style={{ color: '#0284c7', fontWeight: 900, whiteSpace: 'nowrap', marginLeft: '8px' }}>
-                                {lts.toLocaleString()} L
-                              </span>
+
+                              {/* Fechas con diferencias */}
+                              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+                                  📅 Fechas con Diferencias ({detalleFechas.length})
+                                </div>
+                                {detalleFechas.length === 0 ? (
+                                  <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', padding: '6px' }}>
+                                    No hay viajes registrados en este período.
+                                  </div>
+                                ) : (
+                                  detalleFechas.map((det: any, dIdx: number) => {
+                                    const diff = Number(det.litros ?? (Number(det.litrosEntregados || 0) - Number(det.totalLitrosFinca || 0)));
+                                    const esDPos = diff > 0;
+                                    const esDZero = diff === 0;
+
+                                    return (
+                                      <div
+                                        key={dIdx}
+                                        style={{
+                                          background: '#ffffff',
+                                          borderRadius: '8px',
+                                          padding: '8px 10px',
+                                          border: '1px solid #e2e8f0',
+                                          fontSize: '11.5px',
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontWeight: 800, color: '#1e293b' }}>
+                                              {det.fecha ? String(det.fecha).split('T')[0] : 'Fecha'}
+                                            </span>
+                                            {det.ticketId && (
+                                              <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                                #{det.ticketId}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span
+                                            style={{
+                                              fontWeight: 900,
+                                              fontSize: '11.5px',
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              background: esDZero ? '#f1f5f9' : esDPos ? '#ecfdf5' : '#fef2f2',
+                                              color: esDZero ? '#64748b' : esDPos ? '#059669' : '#dc2626',
+                                            }}
+                                          >
+                                            {esDPos ? `+${diff.toLocaleString()}` : diff.toLocaleString()} L
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: '#64748b', marginTop: '3px' }}>
+                                          <span>Fincas: <strong>{Number(det.totalLitrosFinca || 0).toLocaleString()} L</strong> • Entregado: <strong>{Number(det.litrosEntregados || 0).toLocaleString()} L</strong></span>
+                                          <span>{det.destinoNombre || 'Receptoría'}</span>
+                                        </div>
+                                        {det.observacion && (
+                                          <div style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic', marginTop: '2px' }}>
+                                            {det.observacion}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                              <span>{fechaStr ? `Fecha: ${fechaStr}` : ''}</span>
-                              <span style={{
-                                fontSize: '10px',
-                                fontWeight: 800,
-                                padding: '1px 5px',
-                                borderRadius: '4px',
-                                background: tipoLeche === 'BUFALA' ? '#f3e8ff' : '#dbeafe',
-                                color: tipoLeche === 'BUFALA' ? '#7e22ce' : '#1d4ed8'
-                              }}>
-                                {tipoLeche}
-                              </span>
+                          );
+                        })
+                      ) : tipoReporte === 'RELACION_CHOFER' ? (
+                        items.map((row: any, idx: number) => {
+                          const difGlobal = Number(row.diferencias || 0);
+                          const esPos = difGlobal > 0;
+                          const esZero = difGlobal === 0;
+                          const detalleDiario: any[] = row.detalleDiario || [];
+
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#f8fafc',
+                                borderRadius: '14px',
+                                padding: '14px',
+                                border: '1px solid #e2e8f0',
+                              }}
+                            >
+                              {/* Encabezado Relación Chofer */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                                <div>
+                                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                                    <i className="fa-solid fa-file-invoice mr-1.5 text-purple-600"></i>
+                                    {row.chofer || 'Chofer'}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                    Ruta: <strong>{Number(row.litrosRuta || 0).toLocaleString()} L</strong> • Quesera: <strong>{Number(row.litrosQuesera || 0).toLocaleString()} L</strong>
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '12px',
+                                      fontWeight: 900,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      background: esZero ? '#f1f5f9' : esPos ? '#ecfdf5' : '#fef2f2',
+                                      color: esZero ? '#64748b' : esPos ? '#059669' : '#dc2626',
+                                      border: `1px solid ${esZero ? '#cbd5e1' : esPos ? '#a7f3d0' : '#fecaca'}`,
+                                      display: 'inline-block',
+                                    }}
+                                  >
+                                    {esPos ? `+${difGlobal.toLocaleString()}` : difGlobal.toLocaleString()} L
+                                  </span>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Diferencia Total</div>
+                                </div>
+                              </div>
+
+                              {/* Fechas con diferencias */}
+                              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+                                  📅 Desglose Diario por Fechas ({detalleDiario.length})
+                                </div>
+                                {detalleDiario.length === 0 ? (
+                                  <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', padding: '6px' }}>
+                                    No hay registros diarios para este período.
+                                  </div>
+                                ) : (
+                                  detalleDiario.map((dd: any, dIdx: number) => {
+                                    const diff = Number(dd.diferencia ?? (Number(dd.litrosQuesera || 0) - Number(dd.litrosRuta || 0)));
+                                    const esDPos = diff > 0;
+                                    const esDZero = diff === 0;
+
+                                    return (
+                                      <div
+                                        key={dIdx}
+                                        style={{
+                                          background: '#ffffff',
+                                          borderRadius: '8px',
+                                          padding: '8px 10px',
+                                          border: '1px solid #e2e8f0',
+                                          fontSize: '11.5px',
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontWeight: 800, color: '#1e293b' }}>
+                                              {dd.fecha ? String(dd.fecha).split('T')[0] : 'Fecha'}
+                                            </span>
+                                            {dd.ticketId && (
+                                              <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                                #{dd.ticketId}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span
+                                            style={{
+                                              fontWeight: 900,
+                                              fontSize: '11.5px',
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              background: esDZero ? '#f1f5f9' : esDPos ? '#ecfdf5' : '#fef2f2',
+                                              color: esDZero ? '#64748b' : esDPos ? '#059669' : '#dc2626',
+                                            }}
+                                          >
+                                            {esDPos ? `+${diff.toLocaleString()}` : diff.toLocaleString()} L
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: '#64748b', marginTop: '3px' }}>
+                                          <span>Ruta: <strong>{Number(dd.litrosRuta || 0).toLocaleString()} L</strong> • Quesera: <strong>{Number(dd.litrosQuesera || 0).toLocaleString()} L</strong></span>
+                                          <span>{dd.destino || 'Receptoría'}</span>
+                                        </div>
+                                        {dd.observacion && (
+                                          <div style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic', marginTop: '2px' }}>
+                                            {dd.observacion}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      ) : (
+                        items.slice(0, 50).map((row: any, idx: number) => {
+                          const lts = Number(row.litros || row.totalLitros || row.litrosDespachados || row.Litros || 0);
+                          const titulo = row.nombre || row.fincaNombre || row.finca || row.FincaNombre || row.choferNombre || row.companiaNombre || row.rutaLogisticaNombre || `Registro #${idx + 1}`;
+                          const sub = row.propietario || row.dueño || row.placaCamion || row.observacion || '';
+                          const fechaStr = row.fecha ? String(row.fecha).split('T')[0] : '';
+                          const tipoLeche = (row.tipoLeche || row.TipoLeche || 'VACA').toUpperCase();
+
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#f8fafc',
+                                borderRadius: '10px',
+                                padding: '10px 12px',
+                                border: '1px solid #e2e8f0',
+                                fontSize: '12px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontWeight: 700, color: '#1e293b' }}>
+                                <div>
+                                  <span>{titulo}</span>
+                                  {sub && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>{sub}</div>}
+                                </div>
+                                <span style={{ color: '#0284c7', fontWeight: 900, whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                                  {lts.toLocaleString()} L
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                                <span>{fechaStr ? `Fecha: ${fechaStr}` : ''}</span>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  background: tipoLeche === 'BUFALA' ? '#f3e8ff' : '#dbeafe',
+                                  color: tipoLeche === 'BUFALA' ? '#7e22ce' : '#1d4ed8'
+                                }}>
+                                  {tipoLeche}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   )}
                 </div>
