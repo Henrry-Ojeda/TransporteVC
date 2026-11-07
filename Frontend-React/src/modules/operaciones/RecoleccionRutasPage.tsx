@@ -776,9 +776,9 @@ export const RecoleccionRutasPage: React.FC = () => {
     const camionMatch = camiones.find((c) => c.id === viajeTimelapse.camionId || c.placa === viajeTimelapse.camionPlaca);
     const capacidadMax = camionMatch?.capacidadLitros || viajeTimelapse.capacidadCamionLitros || 10000;
 
-    const paradasDelTicket = (fincasTicketsMap[viajeTimelapse.id] && fincasTicketsMap[viajeTimelapse.id].length > 0)
+    const paradasDelTicket = Array.isArray(fincasTicketsMap[viajeTimelapse.id])
       ? fincasTicketsMap[viajeTimelapse.id]
-      : recolecciones.filter((r) => r.controlRutaId === viajeTimelapse.id || r.ticketCodigo === viajeTimelapse.codigoTicket || r.ticketCodigo === String(viajeTimelapse.id));
+      : recolecciones.filter((r) => r.controlRutaId != null && Number(r.controlRutaId) === Number(viajeTimelapse.id));
 
     const visitadas = [...paradasDelTicket]
       .sort((a, b) => {
@@ -1344,9 +1344,9 @@ export const RecoleccionRutasPage: React.FC = () => {
                 const tieneRutaLogistica = Boolean((item.rutaLogisticaId && item.rutaLogisticaId > 0) || item.rutaLogisticaNombre || item.rutaNombre);
 
                 const fincasTicket = esRuta
-                  ? ((fincasTicketsMap[item.id] && fincasTicketsMap[item.id].length > 0)
+                  ? (Array.isArray(fincasTicketsMap[item.id])
                       ? fincasTicketsMap[item.id]
-                      : recolecciones.filter((r) => r.controlRutaId === item.id || r.ticketCodigo === item.codigoTicket || r.ticketCodigo === String(item.id)))
+                      : recolecciones.filter((r) => r.controlRutaId != null && Number(r.controlRutaId) === Number(item.id)))
                   : [];
 
                 const sumFincasLts = fincasTicket.reduce((acc, f: any) => acc + Number(f.litros ?? f.Litros ?? 0), 0);
