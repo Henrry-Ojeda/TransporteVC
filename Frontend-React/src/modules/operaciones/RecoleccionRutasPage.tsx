@@ -452,6 +452,25 @@ export const RecoleccionRutasPage: React.FC = () => {
     },
   });
 
+  const eliminarTicketMutation = useMutation({
+    mutationFn: (ticketId: number) => operacionesApi.eliminarControl(ticketId),
+    onSuccess: (data: any) => {
+      toast.success(data?.message || 'Ticket eliminado exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al eliminar el ticket');
+    },
+  });
+
+  const handleEliminarTicket = (viaje: ControlRutaDto) => {
+    const num = viaje.codigoTicket || viaje.id;
+    if (window.confirm(`¿Está seguro de que desea eliminar el Ticket #${num}? Esta acción cancelará el viaje y no se puede deshacer.`)) {
+      eliminarTicketMutation.mutate(viaje.id);
+    }
+  };
+
   const enviarReceptoriaMutation = useMutation({
     mutationFn: (ticketId: number) => operacionesApi.enviarAReceptoria(ticketId, formReceptoria.observacion),
     onSuccess: (data) => {
@@ -1437,26 +1456,50 @@ export const RecoleccionRutasPage: React.FC = () => {
                     <div className="ticket-table-row">
                       {/* COLUMNA 1: TICKET & CONDUCTOR (SIN FECHA Y SIN BADGE ABIERTO) */}
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
-                            <i className="fa-solid fa-ticket" style={{ color: item._origenColor, marginRight: '4px' }}></i>
-                            Ticket #{item.codigoTicket || item.id}
-                          </span>
-                          <span
-                            className="badge"
-                            style={{
-                              background: item._origenBg,
-                              color: item._origenColor,
-                              border: `1px solid ${item._origenBorder}`,
-                              fontWeight: 800,
-                              fontSize: '10.5px',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                            }}
-                          >
-                            <i className={`fa-solid ${item._origenIcon}`} style={{ marginRight: '4px' }}></i>
-                            {item._origenBadge}
-                          </span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
+                              <i className="fa-solid fa-ticket" style={{ color: item._origenColor, marginRight: '4px' }}></i>
+                              Ticket #{item.codigoTicket || item.id}
+                            </span>
+                            <span
+                              className="badge"
+                              style={{
+                                background: item._origenBg,
+                                color: item._origenColor,
+                                border: `1px solid ${item._origenBorder}`,
+                                fontWeight: 800,
+                                fontSize: '10.5px',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                              }}
+                            >
+                              <i className={`fa-solid ${item._origenIcon}`} style={{ marginRight: '4px' }}></i>
+                              {item._origenBadge}
+                            </span>
+                          </div>
+                          {puedeEditarTicket && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEliminarTicket(item);
+                              }}
+                              className="btn btn-xs"
+                              style={{
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                                borderRadius: '6px',
+                                padding: '2px 7px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                              }}
+                              title="Eliminar este ticket"
+                            >
+                              <i className="fa-solid fa-trash-can"></i>
+                            </button>
+                          )}
                         </div>
 
                         <div>
@@ -1558,8 +1601,8 @@ export const RecoleccionRutasPage: React.FC = () => {
 
                       {/* COLUMNA 3: LITROS & TIMELAPSE CON BOTÓN "+ FINCAS" */}
                       <div>
-                        {/* Métricas de Litros */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        {/* Métricas de Litros: si aún no hay entrega a receptoría/empresa, solo muestra Litros en Camión sin el cuadro amarillo */}
+                        <div style={{ display: 'grid', gridTemplateColumns: ltsEntregados > 0 ? '1fr 1fr' : '1fr', gap: '8px', marginBottom: '8px' }}>
                           <div style={{ background: '#eff6ff', padding: '6px 8px', borderRadius: '7px', border: '1px solid #bfdbfe' }}>
                             <span style={{ fontSize: '10.5px', color: '#1e40af', fontWeight: 700, display: 'block' }}>
                               {esRuta ? 'Litros en Camión:' : 'Litros Despachados:'}
@@ -1574,24 +1617,26 @@ export const RecoleccionRutasPage: React.FC = () => {
                             )}
                           </div>
 
-                          <div
-                            style={{
-                              background: ltsEntregados > 0 ? '#f0fdf4' : '#fffbeb',
-                              padding: '6px 8px',
-                              borderRadius: '7px',
-                              border: `1px solid ${ltsEntregados > 0 ? '#bbf7d0' : '#fef3c7'}`,
-                            }}
-                          >
-                            <span style={{ fontSize: '10.5px', color: ltsEntregados > 0 ? '#15803d' : '#b45309', fontWeight: 700, display: 'block' }}>
-                              {esRuta ? 'Litros Recibidos:' : 'Litros en Planta:'}
-                            </span>
-                            <strong style={{ fontSize: '15px', color: ltsEntregados > 0 ? '#16a34a' : '#d97706', fontWeight: 800 }}>
-                              {ltsEntregados > 0 ? `${ltsEntregados.toLocaleString('es-VE')} L` : 'En Tránsito'}
-                            </strong>
-                            <small style={{ fontSize: '10.5px', color: ltsEntregados > 0 ? '#15803d' : '#b45309', display: 'block' }}>
-                              {ltsEntregados > 0 ? 'En Receptoría' : 'Pendiente pesaje'}
-                            </small>
-                          </div>
+                          {ltsEntregados > 0 && (
+                            <div
+                              style={{
+                                background: '#f0fdf4',
+                                padding: '6px 8px',
+                                borderRadius: '7px',
+                                border: '1px solid #bbf7d0',
+                              }}
+                            >
+                              <span style={{ fontSize: '10.5px', color: '#15803d', fontWeight: 700, display: 'block' }}>
+                                {esRuta ? 'Litros Recibidos:' : 'Litros en Planta:'}
+                              </span>
+                              <strong style={{ fontSize: '15px', color: '#16a34a', fontWeight: 800 }}>
+                                {ltsEntregados.toLocaleString('es-VE')} L
+                              </strong>
+                              <small style={{ fontSize: '10.5px', color: '#15803d', display: 'block' }}>
+                                {item.nombreCompania ? `En ${item.nombreCompania}` : 'En Receptoría'}
+                              </small>
+                            </div>
+                          )}
                         </div>
 
                         {/* Merma si hubo entrega */}
@@ -1656,7 +1701,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                                 }}
                                 title={tieneRutaLogistica ? 'Añadir finca faltante a esta ruta' : 'Añadir parada a este ticket'}
                               >
-                                <i className="fa-solid fa-plus"></i> + Fincas
+                                <i className="fa-solid fa-plus"></i> Fincas
                               </button>
                             )}
 
@@ -1688,7 +1733,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                           Acciones
                         </div>
                         {esRuta && !esFinalizado ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                             <button
                               type="button"
                               onClick={() => {
@@ -1776,46 +1821,12 @@ export const RecoleccionRutasPage: React.FC = () => {
                             >
                               <i className="fa-solid fa-right-left"></i> Traspaso
                             </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setViajeActivo(item);
-                                setFormCerrar({ odometroFinalKm: '', observaciones: '' });
-                                setModalCerrarViaje(true);
-                              }}
-                              className="btn btn-sm"
-                              style={{
-                                background: '#fef2f2',
-                                color: '#b91c1c',
-                                border: '1px solid #fecaca',
-                                fontWeight: 700,
-                                fontSize: '11px',
-                                padding: '6px 2px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                              }}
-                              title="Finalizar y cerrar este ticket"
-                            >
-                              <i className="fa-solid fa-lock"></i> Finalizar
-                            </button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
-                            <span className="badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 800, fontSize: '11px', padding: '4px 10px', borderRadius: '6px' }}>
-                              <i className="fa-solid fa-circle-check" style={{ marginRight: '4px' }}></i> FINALIZADO
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span className="badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 800, fontSize: '11px', padding: '5px 12px', borderRadius: '6px' }}>
+                              <i className="fa-solid fa-circle-check" style={{ marginRight: '5px' }}></i> FINALIZADO
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => abrirTimelapse(item)}
-                              className="btn btn-xs btn-outline"
-                              style={{ fontSize: '10.5px', borderColor: '#cbd5e1', color: '#475569', marginTop: '4px' }}
-                            >
-                              <i className="fa-solid fa-magnifying-glass"></i> Auditar Detalle
-                            </button>
                           </div>
                         )}
                       </div>
@@ -1829,32 +1840,6 @@ export const RecoleccionRutasPage: React.FC = () => {
                             <i className="fa-solid fa-list-check" style={{ color: '#2563eb' }}></i>
                             Paradas / Fincas Registradas ({fincasTicket.length})
                           </span>
-                          {puedeEditarTicket && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setViajeActivo(item);
-                                setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
-                                setModalRegistroFinca(true);
-                              }}
-                              className="btn btn-xs"
-                              style={{
-                                background: '#10b981',
-                                color: '#ffffff',
-                                border: 'none',
-                                fontWeight: 800,
-                                fontSize: '11px',
-                                padding: '3px 8px',
-                                borderRadius: '5px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <i className="fa-solid fa-plus"></i> + Finca
-                            </button>
-                          )}
                         </div>
 
                         <div style={{ maxHeight: '230px', overflowY: 'auto', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '6px' }}>
