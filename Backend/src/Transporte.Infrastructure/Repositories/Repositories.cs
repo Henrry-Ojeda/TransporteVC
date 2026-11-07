@@ -10629,7 +10629,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
             int despachados = control.LitrosDespachados;
             int recibidos = dto.Desgloses != null && dto.Desgloses.Count > 0 
                 ? dto.Desgloses.Sum(d => d.LitrosRecibidos) 
-                : dto.LitrosRecibidosCompania;
+                : (dto.LitrosRecibidosCompania > 0 ? dto.LitrosRecibidosCompania : (dto.LitrosConfirmados ?? dto.LitrosRecibidosCompania));
             int diferencia = despachados - recibidos; // Falla
             decimal porcentaje = despachados > 0 ? Math.Round((decimal)diferencia / despachados * 100m, 2) : 0.00m;
 
@@ -10839,44 +10839,51 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                                 modificadoPor
                             });
                     }
-
-                    // 2. Si este despacho proviene de un viaje de ruta (TB_CONTROL_RUTAS), sincronizar y finalizar automáticamente el viaje padre
-                    if (control.ControlRutaId != null)
-                    {
-                        long cRutaId = (long)control.ControlRutaId;
-                        var despachosRuta = await connection.QueryAsync<dynamic>(
-                            "SELECT Id, LitrosRecibidosCompania, Estado FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @cRutaId",
-                            new { cRutaId });
-
-                        bool todosFinalizados = despachosRuta.All(d => (string)d.Estado == "FINALIZADO");
-                        int totalRecibidoRuta = despachosRuta.Sum(d => (int)(d.LitrosRecibidosCompania ?? 0));
-
-                        var viajePadre = await connection.QueryFirstOrDefaultAsync<dynamic>(
-                            "SELECT TotalLitrosFinca FROM TB_CONTROL_RUTAS WHERE Id = @cRutaId", new { cRutaId });
-                        int totalFincas = (int)(viajePadre?.TotalLitrosFinca ?? 0);
-                        int mermaRuta = totalFincas - totalRecibidoRuta;
-                        string estadoRuta = todosFinalizados ? (mermaRuta == 0 ? "CUADRADO" : "FINALIZADO") : "RECEPCIONADO";
-                        int procesoRuta = todosFinalizados ? 4 : 3;
-
-                        await connection.ExecuteAsync(@"
-                            UPDATE TB_CONTROL_RUTAS
-                            SET CompaniaDestinoId = @targetComp,
-                                LitrosEntregadosCompania = @totalRecibidoRuta,
-                                TotalLitrosReceptoria = @totalRecibidoRuta,
-                                DiferenciaLitros = @mermaRuta,
-                                MermaTotalLitros = @mermaRuta,
-                                ProcesoActualId = @procesoRuta,
-                                Estado = @estadoRuta,
-                                FechaEntregaCompania = GETDATE(),
-                                ModifiedAt = GETDATE(),
-                                ModifiedBy = @modificadoPor
-                            WHERE Id = @cRutaId",
-                            new { targetComp, totalRecibidoRuta, mermaRuta, procesoRuta, estadoRuta, modificadoPor, cRutaId });
-                    }
                 }
                 catch
                 {
                     // Evitar que un error auxiliar en liquidaciones bloquee el cierre del despacho
+                }
+            }
+
+            // 2. Si este despacho proviene de un viaje de ruta (TB_CONTROL_RUTAS), sincronizar y finalizar automáticamente el viaje padre
+            if (rows > 0 && control.ControlRutaId != null)
+            {
+                try
+                {
+                    long cRutaId = (long)control.ControlRutaId;
+                    var despachosRuta = (await connection.QueryAsync<dynamic>(
+                        "SELECT Id, LitrosRecibidosCompania, Estado FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @cRutaId",
+                        new { cRutaId })).ToList();
+
+                    bool todosFinalizados = despachosRuta.All(d => (string)d.Estado == "FINALIZADO");
+                    int totalRecibidoRuta = despachosRuta.Sum(d => (int)(d.LitrosRecibidosCompania ?? 0));
+
+                    var viajePadre = await connection.QueryFirstOrDefaultAsync<dynamic>(
+                        "SELECT TotalLitrosFinca FROM TB_CONTROL_RUTAS WHERE Id = @cRutaId", new { cRutaId });
+                    int totalFincas = (int)(viajePadre?.TotalLitrosFinca ?? 0);
+                    int mermaRuta = totalFincas - totalRecibidoRuta;
+                    string estadoRuta = todosFinalizados ? (mermaRuta == 0 ? "CUADRADO" : "FINALIZADO") : "RECEPCIONADO";
+                    int procesoRuta = todosFinalizados ? 4 : 3;
+
+                    await connection.ExecuteAsync(@"
+                        UPDATE TB_CONTROL_RUTAS
+                        SET CompaniaDestinoId = @targetComp,
+                            LitrosEntregadosCompania = @totalRecibidoRuta,
+                            TotalLitrosReceptoria = @totalRecibidoRuta,
+                            DiferenciaLitros = @mermaRuta,
+                            MermaTotalLitros = @mermaRuta,
+                            ProcesoActualId = @procesoRuta,
+                            Estado = @estadoRuta,
+                            FechaEntregaCompania = GETDATE(),
+                            ModifiedAt = GETDATE(),
+                            ModifiedBy = @modificadoPor
+                        WHERE Id = @cRutaId",
+                        new { targetComp, totalRecibidoRuta, mermaRuta, procesoRuta, estadoRuta, modificadoPor, cRutaId });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ValidarYFinalizarEntregaAsync] Error actualizando viaje padre: {ex.Message}");
                 }
             }
 

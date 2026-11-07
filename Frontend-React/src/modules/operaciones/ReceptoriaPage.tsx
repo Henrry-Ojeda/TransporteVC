@@ -250,12 +250,20 @@ export const ReceptoriaPage: React.FC = () => {
 
   const validarMutation = useMutation({
     mutationFn: ({ id, litros, obs }: { id: number; litros: number; obs: string }) =>
-      operacionesApi.validarEntregaCompania(id, { litrosConfirmados: litros, observaciones: obs }),
+      operacionesApi.validarEntregaCompania(id, {
+        litrosConfirmados: litros,
+        litrosRecibidosCompania: litros,
+        observaciones: obs,
+        observacion: obs,
+      }),
     onSuccess: (data) => {
       toast.success(data.message || 'Entrega validada y conciliada');
       queryClient.invalidateQueries({ queryKey: ['despachos-companias'] });
       queryClient.invalidateQueries({ queryKey: ['receptoria-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['viajes-activos-receptoria'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
       setModalConfirmar(false);
     },
     onError: (err: any) => {
@@ -503,11 +511,23 @@ export const ReceptoriaPage: React.FC = () => {
     );
   }, [viajesActivos]);
 
-  // Bandeja 2: Salidas a queseras
+  // Bandeja 2: Salidas a queseras (En espera de verificación en planta)
   const salidasTransito = useMemo(() => {
-    return despachosCompanias.filter(
-      (d) => d.estado === 'EN VIA' || d.estado === 'EN_TRANSITO' || !d.litrosRecibidosCompania
-    );
+    return despachosCompanias.filter((d) => {
+      const estadoNorm = (d.estado || '').toUpperCase().trim();
+      if (estadoNorm === 'FINALIZADO' || estadoNorm === 'CERRADO' || estadoNorm === 'DESPACHO') {
+        return false;
+      }
+      return (
+        estadoNorm === 'EN VIA' ||
+        estadoNorm === 'EN_VIA' ||
+        estadoNorm === 'EN_TRANSITO' ||
+        estadoNorm === 'POR VERIFICACIÓN' ||
+        estadoNorm === 'POR VERIFICACION' ||
+        estadoNorm === 'PENDIENTE' ||
+        (!d.litrosRecibidosCompania && estadoNorm !== 'FINALIZADO' && estadoNorm !== 'CERRADO')
+      );
+    });
   }, [despachosCompanias]);
 
   return (

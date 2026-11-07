@@ -1570,8 +1570,10 @@ namespace Transporte.Core.DTOs
     public class ValidarEntregaCompaniaDto
     {
         public int LitrosRecibidosCompania { get; set; }
+        public int? LitrosConfirmados { get; set; }
         public string? TipoLeche { get; set; }
         public string? Observacion { get; set; }
+        public string? Observaciones { get; set; }
         public List<DesgloseEntregaCompaniaDto>? Desgloses { get; set; }
     }
 

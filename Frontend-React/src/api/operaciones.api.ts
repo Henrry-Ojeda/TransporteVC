@@ -269,8 +269,16 @@ export const operacionesApi = {
     return res.data;
   },
 
-  validarEntregaCompania: async (id: number, dto: { litrosConfirmados: number; observaciones?: string }): Promise<{ success: boolean; message: string }> => {
-    const res = await apiClient.post(`/controlcompanias/${id}/validar-entrega`, dto);
+  validarEntregaCompania: async (id: number, dto: { litrosConfirmados?: number; litrosRecibidosCompania?: number; observaciones?: string; observacion?: string; tipoLeche?: string }): Promise<{ success: boolean; message: string }> => {
+    const lts = Number(dto.litrosRecibidosCompania ?? dto.litrosConfirmados ?? 0);
+    const obs = dto.observaciones ?? dto.observacion ?? '';
+    const res = await apiClient.post(`/controlcompanias/${id}/validar-entrega`, {
+      litrosRecibidosCompania: lts,
+      litrosConfirmados: lts,
+      observacion: obs,
+      observaciones: obs,
+      tipoLeche: dto.tipoLeche,
+    });
     return res.data;
   },
 
