@@ -1303,7 +1303,45 @@ export const RecoleccionRutasPage: React.FC = () => {
             </div>
           </div>
 
-          {/* GRID DE TARJETAS DE TICKETS / CAMIONES EN RUTA */}
+          {/* ESTILOS PARA VISTA TABULAR DE TARJETAS DE TICKETS */}
+          <style>{`
+            .ticket-table-card {
+              background: #ffffff;
+              border: 1.5px solid #e2e8f0;
+              border-radius: 12px;
+              box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+              transition: all 0.2s ease;
+              overflow: hidden;
+            }
+            .ticket-table-card:hover {
+              box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+              border-color: #cbd5e1;
+            }
+            .ticket-table-row {
+              display: grid;
+              grid-template-columns: minmax(230px, 1.15fr) minmax(230px, 1.15fr) minmax(280px, 1.35fr) minmax(220px, 1fr);
+              gap: 16px;
+              padding: 14px 18px;
+              align-items: center;
+            }
+            @media (max-width: 1200px) {
+              .ticket-table-header {
+                display: none !important;
+              }
+              .ticket-table-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+              }
+            }
+            @media (max-width: 640px) {
+              .ticket-table-row {
+                grid-template-columns: 1fr;
+                gap: 14px;
+              }
+            }
+          `}</style>
+
+          {/* GRID / TABLA DE TICKETS / CAMIONES EN RUTA */}
           {ticketsCombinados.length === 0 ? (
             <div className="content-card" style={{ padding: '48px 20px', textAlign: 'center', color: '#94a3b8' }}>
               <i className="fa-solid fa-truck-moving" style={{ fontSize: '38px', color: '#0284c7', marginBottom: '12px', display: 'block' }}></i>
@@ -1329,7 +1367,31 @@ export const RecoleccionRutasPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* ENCABEZADO TIPO TABLA PARA PANTALLAS GRANDES */}
+              <div
+                className="ticket-table-header"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(230px, 1.15fr) minmax(230px, 1.15fr) minmax(280px, 1.35fr) minmax(220px, 1fr)',
+                  gap: '16px',
+                  padding: '8px 18px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                }}
+              >
+                <div><i className="fa-solid fa-ticket" style={{ marginRight: '6px', color: '#0284c7' }}></i> Ticket & Conductor</div>
+                <div><i className="fa-solid fa-gas-pump" style={{ marginRight: '6px', color: '#0284c7' }}></i> Modo & Ocupación Cisterna</div>
+                <div><i className="fa-solid fa-droplet" style={{ marginRight: '6px', color: '#0284c7' }}></i> Litros & Recorrido / Paradas</div>
+                <div style={{ textAlign: 'center' }}><i className="fa-solid fa-sliders" style={{ marginRight: '6px', color: '#0284c7' }}></i> Acciones Operativas</div>
+              </div>
+
               {ticketsCombinados.map((item: any) => {
                 const esRuta = item._tipoTicket === 'RUTA';
                 const esFinalizado =
@@ -1366,36 +1428,19 @@ export const RecoleccionRutasPage: React.FC = () => {
                 return (
                   <div
                     key={`${item._tipoTicket}_${item.id}`}
-                    className="card-ticket-viaje"
+                    className="ticket-table-card"
                     style={{
-                      background: '#ffffff',
-                      border: '1.5px solid #e2e8f0',
-                      borderTop: `4px solid ${item._origenColor}`,
-                      borderRadius: '12px',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-                      overflow: 'hidden',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
+                      borderLeft: `5px solid ${item._origenColor}`,
                     }}
                   >
-                    {/* CABECERA DE TARJETA */}
-                    <div>
-                      <div
-                        style={{
-                          background: '#f8fafc',
-                          borderBottom: '1px solid #e2e8f0',
-                          padding: '12px 16px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          flexWrap: 'wrap',
-                          gap: '8px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {/* FILA PRINCIPAL: FORMATO COLUMNAS TIPO TABLA */}
+                    <div className="ticket-table-row">
+                      {/* COLUMNA 1: TICKET & CONDUCTOR (SIN FECHA Y SIN BADGE ABIERTO) */}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
                           <span style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
-                            <i className="fa-solid fa-ticket" style={{ color: item._origenColor }}></i> Ticket #{item.codigoTicket || item.id}
+                            <i className="fa-solid fa-ticket" style={{ color: item._origenColor, marginRight: '4px' }}></i>
+                            Ticket #{item.codigoTicket || item.id}
                           </span>
                           <span
                             className="badge"
@@ -1409,157 +1454,121 @@ export const RecoleccionRutasPage: React.FC = () => {
                               borderRadius: '6px',
                             }}
                           >
-                            <i className={`fa-solid ${item._origenIcon}`}></i> {item._origenBadge}
-                          </span>
-                          {/* FECHA OPERATIVA ASIGNADA AL TICKET */}
-                          <span
-                            className="badge"
-                            style={{
-                              background: (item.fecha || '').split('T')[0] === fechaFiltro ? '#eff6ff' : '#fffbeb',
-                              color: (item.fecha || '').split('T')[0] === fechaFiltro ? '#1d4ed8' : '#b45309',
-                              border: `1px solid ${(item.fecha || '').split('T')[0] === fechaFiltro ? '#bfdbfe' : '#fde68a'}`,
-                              fontWeight: 800,
-                              fontSize: '11px',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                            title="Fecha asignada a este ticket"
-                          >
-                            <i className="fa-regular fa-calendar"></i>
-                            {item.fecha ? item.fecha.split('T')[0] : 'Sin fecha'}
-                            {(item.fecha || '').split('T')[0] !== fechaFiltro && (
-                              <span style={{ fontSize: '9.5px', color: '#d97706', fontWeight: 800, marginLeft: '2px' }}>• Abierto Anterior</span>
-                            )}
+                            <i className={`fa-solid ${item._origenIcon}`} style={{ marginRight: '4px' }}></i>
+                            {item._origenBadge}
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {esAbierto && (
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} title="Unidad transmitiendo en vivo"></span>
-                          )}
-                          <span
-                            className="badge"
-                            style={{
-                              background: esFinalizado ? '#ecfdf5' : '#eff6ff',
-                              color: esFinalizado ? '#047857' : '#1d4ed8',
-                              border: `1px solid ${esFinalizado ? '#a7f3d0' : '#bfdbfe'}`,
-                              fontWeight: 800,
-                              fontSize: '11px',
-                            }}
-                          >
-                            {esFinalizado ? 'FINALIZADO' : (item.nombreProceso || item.estado || '1: EN RUTA')}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* CUERPO DE TARJETA */}
-                      <div style={{ padding: '16px' }}>
-                        <div style={{ marginBottom: '10px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
-                            {esRuta ? 'Conductor Responsable:' : 'Conductor Asignado:'}
-                          </span>
+                        <div>
                           <span style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <i className="fa-solid fa-user-tie" style={{ color: item._origenColor }}></i>
                             {item._conductor}
                           </span>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <i className="fa-solid fa-truck" style={{ color: '#64748b' }}></i>
                             <span>{placaTexto}</span>
                             <span style={{ color: '#94a3b8' }}>•</span>
                             <span style={{ fontWeight: 700, color: '#334155' }}>Capacidad: {capacidadCisterna.toLocaleString()} L</span>
                           </div>
                           {!esRuta && item.nombreCompania && (
-                            <div style={{ fontSize: '12px', color: '#7e22ce', marginTop: '4px', fontWeight: 700 }}>
+                            <div style={{ fontSize: '12px', color: '#7e22ce', marginTop: '2px', fontWeight: 700 }}>
                               <i className="fa-solid fa-building-wheat" style={{ marginRight: '4px' }}></i>
                               Destino: {item.nombreCompania}
                             </div>
                           )}
                         </div>
+                      </div>
 
-                        {/* BADGE DE CIRCUITO ASIGNADO / MODO LIBRE */}
-                        {esRuta && (
-                          <div style={{ marginBottom: '12px' }}>
-                            {tieneRutaLogistica ? (
-                              <span
-                                className="badge"
-                                style={{
-                                  background: '#faf5ff',
-                                  color: '#7e22ce',
-                                  border: '1px solid #e9d5ff',
-                                  fontWeight: 700,
-                                  fontSize: '11px',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '5px',
-                                  padding: '3px 9px',
-                                  borderRadius: '6px',
-                                }}
-                              >
-                                <i className="fa-solid fa-route"></i>
-                                Ruta Planificada: {item.rutaLogisticaNombre || item.rutaNombre || `Ruta #${item.rutaLogisticaId}`}
-                              </span>
-                            ) : (
-                              <span
-                                className="badge"
-                                style={{
-                                  background: '#f8fafc',
-                                  color: '#475569',
-                                  border: '1px solid #cbd5e1',
-                                  fontWeight: 700,
-                                  fontSize: '11px',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '5px',
-                                  padding: '3px 9px',
-                                  borderRadius: '6px',
-                                }}
-                              >
-                                <i className="fa-solid fa-compass"></i>
-                                Modo Libre (Sin Ruta Logística / Paradas Flexibles)
-                              </span>
-                            )}
+                      {/* COLUMNA 2: MODO LIBRE / RUTA & OCUPACIÓN CISTERNA */}
+                      <div>
+                        {esRuta ? (
+                          <>
+                            <div style={{ marginBottom: '8px' }}>
+                              {tieneRutaLogistica ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    background: '#faf5ff',
+                                    color: '#7e22ce',
+                                    border: '1px solid #e9d5ff',
+                                    fontWeight: 700,
+                                    fontSize: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                  }}
+                                >
+                                  <i className="fa-solid fa-route"></i>
+                                  Ruta: {item.rutaLogisticaNombre || item.rutaNombre || `#${item.rutaLogisticaId}`}
+                                </span>
+                              ) : (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    background: '#f8fafc',
+                                    color: '#475569',
+                                    border: '1px solid #cbd5e1',
+                                    fontWeight: 700,
+                                    fontSize: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                  }}
+                                >
+                                  <i className="fa-solid fa-compass"></i>
+                                  Modo Libre (Paradas Flexibles)
+                                </span>
+                              )}
+                            </div>
+
+                            {/* MEDIDOR Y PROGRESS BAR DE CAPACIDAD DE CISTERNA */}
+                            <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
+                                  Ocupación Cisterna:
+                                </span>
+                                <strong style={{ fontSize: '12px', fontWeight: 800, color: porcentajeCisterna >= 95 ? '#dc2626' : '#0284c7' }}>
+                                  {ltsRecolectados.toLocaleString()} / {capacidadCisterna.toLocaleString()} L ({porcentajeCisterna}%)
+                                </strong>
+                              </div>
+                              <div style={{ width: '100%', height: '7px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div
+                                  style={{
+                                    width: `${porcentajeCisterna}%`,
+                                    height: '100%',
+                                    background: porcentajeCisterna >= 100 ? '#ef4444' : porcentajeCisterna >= 80 ? '#f59e0b' : '#0284c7',
+                                    borderRadius: '4px',
+                                    transition: 'width 0.4s ease',
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ background: '#faf5ff', padding: '10px', borderRadius: '8px', border: '1px solid #e9d5ff' }}>
+                            <span style={{ fontSize: '11px', color: '#7e22ce', fontWeight: 700, display: 'block' }}>Despacho Externo</span>
+                            <strong style={{ fontSize: '13px', color: '#581c87' }}>{item.nombreCompania || 'Planta Externa'}</strong>
                           </div>
                         )}
+                      </div>
 
-                        {/* MEDIDOR Y PROGRESS BAR DE CAPACIDAD DE CISTERNA */}
-                        {esRuta && (
-                          <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
-                                Ocupación Cisterna:
-                              </span>
-                              <strong style={{ fontSize: '13px', fontWeight: 800, color: porcentajeCisterna >= 95 ? '#dc2626' : '#0284c7' }}>
-                                {ltsRecolectados.toLocaleString()} / {capacidadCisterna.toLocaleString()} L ({porcentajeCisterna}%)
-                              </strong>
-                            </div>
-                            <div style={{ width: '100%', height: '7px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div
-                                style={{
-                                  width: `${porcentajeCisterna}%`,
-                                  height: '100%',
-                                  background: porcentajeCisterna >= 100 ? '#ef4444' : porcentajeCisterna >= 80 ? '#f59e0b' : '#0284c7',
-                                  borderRadius: '4px',
-                                  transition: 'width 0.4s ease',
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* MÉTRICAS DE LITROS Y ENTREGAS */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                          <div style={{ background: '#eff6ff', padding: '9px 11px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                            <span style={{ fontSize: '11px', color: '#1e40af', fontWeight: 700, display: 'block' }}>
+                      {/* COLUMNA 3: LITROS & TIMELAPSE CON BOTÓN "+ FINCAS" */}
+                      <div>
+                        {/* Métricas de Litros */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ background: '#eff6ff', padding: '6px 8px', borderRadius: '7px', border: '1px solid #bfdbfe' }}>
+                            <span style={{ fontSize: '10.5px', color: '#1e40af', fontWeight: 700, display: 'block' }}>
                               {esRuta ? 'Litros en Camión:' : 'Litros Despachados:'}
                             </span>
-                            <strong style={{ fontSize: '16.5px', color: '#1d4ed8', fontWeight: 800 }}>
+                            <strong style={{ fontSize: '15px', color: '#1d4ed8', fontWeight: 800 }}>
                               {ltsRecolectados.toLocaleString('es-VE')} L
                             </strong>
                             {esRuta && (
-                              <small style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>
+                              <small style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>
                                 {fincasTicket.length} paradas registradas
                               </small>
                             )}
@@ -1568,394 +1577,390 @@ export const RecoleccionRutasPage: React.FC = () => {
                           <div
                             style={{
                               background: ltsEntregados > 0 ? '#f0fdf4' : '#fffbeb',
-                              padding: '9px 11px',
-                              borderRadius: '8px',
+                              padding: '6px 8px',
+                              borderRadius: '7px',
                               border: `1px solid ${ltsEntregados > 0 ? '#bbf7d0' : '#fef3c7'}`,
                             }}
                           >
-                            <span style={{ fontSize: '11px', color: ltsEntregados > 0 ? '#15803d' : '#b45309', fontWeight: 700, display: 'block' }}>
+                            <span style={{ fontSize: '10.5px', color: ltsEntregados > 0 ? '#15803d' : '#b45309', fontWeight: 700, display: 'block' }}>
                               {esRuta ? 'Litros Recibidos:' : 'Litros en Planta:'}
                             </span>
-                            <strong style={{ fontSize: '16.5px', color: ltsEntregados > 0 ? '#16a34a' : '#d97706', fontWeight: 800 }}>
+                            <strong style={{ fontSize: '15px', color: ltsEntregados > 0 ? '#16a34a' : '#d97706', fontWeight: 800 }}>
                               {ltsEntregados > 0 ? `${ltsEntregados.toLocaleString('es-VE')} L` : 'En Tránsito'}
                             </strong>
-                            <small style={{ fontSize: '11px', color: ltsEntregados > 0 ? '#15803d' : '#b45309', display: 'block' }}>
+                            <small style={{ fontSize: '10.5px', color: ltsEntregados > 0 ? '#15803d' : '#b45309', display: 'block' }}>
                               {ltsEntregados > 0 ? 'En Receptoría' : 'Pendiente pesaje'}
                             </small>
                           </div>
                         </div>
 
-                        {/* CAJA DE MERMA SI YA HUBO ENTREGA */}
-                        {ltsEntregados > 0 && (
-                          <div style={{ background: mermaLitros > 0 ? '#fef2f2' : '#f0fdf4', border: `1px solid ${mermaLitros > 0 ? '#fecaca' : '#bbf7d0'}`, borderRadius: '8px', padding: '7px 11px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: mermaLitros > 0 ? '#991b1b' : '#166534', textTransform: 'uppercase' }}>
-                              {mermaLitros > 0 ? '⚠️ Merma Registrada:' : '✅ Entrega Exacta:'}
-                            </span>
-                            <strong style={{ fontSize: '14px', fontWeight: 800, color: mermaLitros > 0 ? '#dc2626' : '#16a34a' }}>
-                              {mermaLitros > 0 ? `-${mermaLitros.toLocaleString()} Lts` : '0 Lts'}
-                            </strong>
+                        {/* Merma si hubo entrega */}
+                        {ltsEntregados > 0 && mermaLitros > 0 && (
+                          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '3px 8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase' }}>⚠️ Merma:</span>
+                            <strong style={{ fontSize: '12px', fontWeight: 800, color: '#dc2626' }}>-{mermaLitros.toLocaleString()} Lts</strong>
                           </div>
                         )}
 
-                        {/* BOTÓN TIMELAPSE (CARACTERÍSTICA PRINCIPAL) */}
+                        {/* TIMELAPSE INTEGRADO CON BOTÓN "+ FINCAS" Y TOGGLE PARADAS */}
                         {esRuta && (
-                          <div style={{ marginBottom: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <button
                               type="button"
                               onClick={() => abrirTimelapse(item)}
                               className="btn btn-sm"
                               style={{
-                                width: '100%',
+                                flex: 1,
                                 background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
                                 color: '#1d4ed8',
                                 border: '1px solid #bfdbfe',
                                 fontWeight: 800,
-                                fontSize: '12px',
-                                padding: '8px 12px',
-                                borderRadius: '8px',
+                                fontSize: '11px',
+                                padding: '6px 8px',
+                                borderRadius: '6px',
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
-                                gap: '8px',
+                                gap: '6px',
                                 cursor: 'pointer',
                               }}
+                              title="Ver Timelapse & Recorrido de Paradas"
                             >
                               <i className="fa-solid fa-timeline" style={{ color: '#2563eb' }}></i>
-                              Ver Timelapse & Recorrido de Paradas ({fincasTicket.length})
+                              <span>Timelapse ({fincasTicket.length})</span>
                             </button>
-                          </div>
-                        )}
 
-                        {/* ============================================================= */}
-                        {/* ACORDEÓN DE PARADAS: GESTIÓN DE FINCAS DENTRO DEL TICKET       */}
-                        {/* ============================================================= */}
-                        {esRuta && (
-                          <div style={{ marginBottom: '10px' }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                background: '#f8fafc',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: estaExpandido ? '8px 8px 0 0' : '8px',
-                                padding: '8px 12px',
-                              }}
-                            >
+                            {puedeEditarTicket && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViajeActivo(item);
+                                  setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
+                                  setModalRegistroFinca(true);
+                                }}
+                                className="btn btn-sm"
+                                style={{
+                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontWeight: 800,
+                                  fontSize: '11px',
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={tieneRutaLogistica ? 'Añadir finca faltante a esta ruta' : 'Añadir parada a este ticket'}
+                              >
+                                <i className="fa-solid fa-plus"></i> + Fincas
+                              </button>
+                            )}
+
+                            {fincasTicket.length > 0 && (
                               <button
                                 type="button"
                                 onClick={() => toggleAcordeonFincas(item.id)}
+                                className="btn btn-sm"
                                 style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: 0,
+                                  background: estaExpandido ? '#e2e8f0' : '#f8fafc',
                                   color: '#334155',
-                                  fontWeight: 700,
-                                  fontSize: '12px',
+                                  border: '1px solid #cbd5e1',
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
                                   cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  flex: 1,
-                                  textAlign: 'left',
                                 }}
+                                title={estaExpandido ? 'Ocultar listado de paradas' : 'Ver listado detallado de paradas'}
                               >
-                                <i className="fa-solid fa-list-check" style={{ color: '#2563eb' }}></i>
-                                Paradas / Fincas ({fincasTicket.length})
-                                <i className={`fa-solid fa-chevron-${estaExpandido ? 'up' : 'down'}`} style={{ color: '#94a3b8', fontSize: '11px', marginLeft: 'auto' }}></i>
+                                <i className={`fa-solid fa-chevron-${estaExpandido ? 'up' : 'down'}`} style={{ fontSize: '10px' }}></i>
                               </button>
-
-                              {/* BOTÓN + AGREGAR FINCA (DISPONIBLE TANTO EN RUTA COMO EN MODO LIBRE SI ESTÁ ABIERTO) */}
-                              {puedeEditarTicket && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setViajeActivo(item);
-                                    setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
-                                    setModalRegistroFinca(true);
-                                  }}
-                                  className="btn btn-xs"
-                                  style={{
-                                    background: '#10b981',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    fontWeight: 800,
-                                    fontSize: '11px',
-                                    padding: '3px 8px',
-                                    borderRadius: '5px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    cursor: 'pointer',
-                                    marginLeft: '8px',
-                                  }}
-                                  title={tieneRutaLogistica ? 'Añadir finca faltante a esta ruta' : 'Añadir parada a este ticket abierto'}
-                                >
-                                  <i className="fa-solid fa-plus"></i> {tieneRutaLogistica ? '+ Finca Faltante' : '+ Finca'}
-                                </button>
-                              )}
-                            </div>
-
-                            {/* CONTENIDO EXPANDIBLE DE PARADAS */}
-                            {estaExpandido && (
-                              <div style={{ maxHeight: '230px', overflowY: 'auto', background: '#ffffff', border: '1px solid #cbd5e1', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '6px' }}>
-                                {fincasTicket.length === 0 ? (
-                                  <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '14px' }}>
-                                    No hay paradas registradas aún.
-                                    {puedeEditarTicket && (
-                                      <div style={{ marginTop: '6px' }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setViajeActivo(item);
-                                            setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
-                                            setModalRegistroFinca(true);
-                                          }}
-                                          className="btn btn-xs btn-primary"
-                                        >
-                                          <i className="fa-solid fa-plus"></i> {tieneRutaLogistica ? 'Añadir Finca Faltante' : 'Añadir primera finca'}
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  fincasTicket.map((f: any, idx: number) => {
-                                    const fId = f.id || f.Id || f.rutaId;
-                                    const fLitros = Number(f.litros ?? f.Litros ?? 0);
-                                    const fNombre = f.fincaNombre || f.FincaNombre || f.finca || `Finca #${f.fincaId || f.FincaId}`;
-                                    const fProp = f.propietarioNombre || f.propietario || f.Propietario || 'Productor';
-                                    const fTipo = (f.tipoLeche || f.TipoLeche || 'VACA').toUpperCase();
-                                    const esBufala = fTipo.includes('BUFAL');
-                                    const esAcida = Boolean(f.esAcida || f.EsAcida);
-
-                                    return (
-                                      <div
-                                        key={fId || idx}
-                                        style={{
-                                          display: 'flex',
-                                          justifyContent: 'space-between',
-                                          alignItems: 'center',
-                                          padding: '7px 8px',
-                                          borderBottom: idx < fincasTicket.length - 1 ? '1px solid #f1f5f9' : 'none',
-                                          fontSize: '12px',
-                                          borderRadius: '4px',
-                                          background: idx % 2 === 0 ? '#fcfcfd' : '#ffffff',
-                                        }}
-                                      >
-                                        <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
-                                          <strong style={{ color: '#0f172a', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                            #{idx + 1} • {fNombre}
-                                          </strong>
-                                          <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                            {fProp} • {esBufala ? '🐃 Búfala' : '🥛 Vaca'}
-                                            {esAcida ? ' • ⚠️ Ácida' : ''}
-                                          </span>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          <span style={{ fontWeight: 800, color: '#2563eb', fontSize: '13px' }}>
-                                            {fLitros.toLocaleString()} L
-                                          </span>
-
-                                          {/* BOTONES DE EDICIÓN Y ELIMINACIÓN DENTRO DEL TICKET ABIERTO */}
-                                          {puedeEditarTicket && (
-                                            <div style={{ display: 'flex', gap: '4px' }}>
-                                              {/* Editar Litros (disponible para ruta logística y modo libre) */}
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setViajeActivo(item);
-                                                  setFormEditar({
-                                                    id: fId,
-                                                    fincaId: f.fincaId || f.FincaId,
-                                                    litros: fLitros,
-                                                    tipoLeche: fTipo,
-                                                    esAcida: esAcida,
-                                                    esDiferido: Boolean(f.esDiferido || f.EsDiferido),
-                                                    fecha: f.fecha || item.fecha || '',
-                                                    observacion: f.observacion || f.Observacion || '',
-                                                  });
-                                                  setModalEditarRecoleccion(true);
-                                                }}
-                                                className="btn btn-xs btn-outline"
-                                                style={{ padding: '3px 6px', borderColor: '#bfdbfe', color: '#1d4ed8' }}
-                                                title="Editar litros de esta finca"
-                                              >
-                                                <i className="fa-solid fa-pen-to-square"></i>
-                                              </button>
-
-                                              {/* Quitar Parada (modo libre o admin/supervisor en ruta) */}
-                                              {(esAdminOSup || !tieneRutaLogistica) && (
-                                                <button
-                                                  type="button"
-                                                  onClick={async () => {
-                                                    if (
-                                                      await confirmDialog({
-                                                        title: '¿Quitar Finca del Viaje?',
-                                                        text: `¿Seguro que deseas remover la parada de "${fNombre}" (${fLitros.toLocaleString()} Lts) del ticket #${item.codigoTicket || item.id}?`,
-                                                        icon: 'warning',
-                                                        confirmButtonText: 'Sí, remover',
-                                                        danger: true,
-                                                      })
-                                                    ) {
-                                                      setViajeActivo(item);
-                                                      eliminarRecoleccionMutation.mutate(fId);
-                                                    }
-                                                  }}
-                                                  className="btn btn-xs btn-outline"
-                                                  style={{ padding: '3px 6px', borderColor: '#fecaca', color: '#dc2626' }}
-                                                  title="Remover finca de este viaje"
-                                                >
-                                                  <i className="fa-solid fa-trash-can"></i>
-                                                </button>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
                             )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* COLUMNA 4: BOTONES COMO ACCIONES */}
+                      <div>
+                        <div style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', textAlign: 'center' }}>
+                          Acciones
+                        </div>
+                        {esRuta && !esFinalizado ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViajeActivo(item);
+                                setFormReceptoria({ observacion: '' });
+                                setModalEnviarReceptoria(true);
+                              }}
+                              className="btn btn-sm"
+                              style={{
+                                background: '#f0fdf4',
+                                color: '#15803d',
+                                border: '1px solid #bbf7d0',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                padding: '6px 2px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                              }}
+                              title="Descargar en receptoría"
+                            >
+                              <i className="fa-solid fa-scale-balanced"></i> Receptoría
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViajeActivo(item);
+                                setFormCompania({
+                                  companiaId: 0,
+                                  litros: ltsRecolectados - ltsEntregados > 0 ? ltsRecolectados - ltsEntregados : ltsRecolectados,
+                                  tipoLeche: 'VACA',
+                                  observacion: '',
+                                });
+                                setModalEnviarCompania(true);
+                              }}
+                              className="btn btn-sm"
+                              style={{
+                                background: '#faf5ff',
+                                color: '#7e22ce',
+                                border: '1px solid #e9d5ff',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                padding: '6px 2px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                              }}
+                              title="Despachar a quesera / compañía"
+                            >
+                              <i className="fa-solid fa-building"></i> Compañías
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViajeActivo(item);
+                                setFormTraspaso({
+                                  ticketDestinoId: 0,
+                                  choferDestinoId: 0,
+                                  litrosTraspaso: ltsRecolectados - ltsEntregados > 0 ? ltsRecolectados - ltsEntregados : 0,
+                                  observacion: '',
+                                });
+                                setModalTraspaso(true);
+                              }}
+                              className="btn btn-sm"
+                              style={{
+                                background: '#f0fdfa',
+                                color: '#0f766e',
+                                border: '1px solid #99f6e4',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                padding: '6px 2px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                              }}
+                              title="Traspasar leche a otro chofer"
+                            >
+                              <i className="fa-solid fa-right-left"></i> Traspaso
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViajeActivo(item);
+                                setFormCerrar({ odometroFinalKm: '', observaciones: '' });
+                                setModalCerrarViaje(true);
+                              }}
+                              className="btn btn-sm"
+                              style={{
+                                background: '#fef2f2',
+                                color: '#b91c1c',
+                                border: '1px solid #fecaca',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                padding: '6px 2px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                              }}
+                              title="Finalizar y cerrar este ticket"
+                            >
+                              <i className="fa-solid fa-lock"></i> Finalizar
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
+                            <span className="badge" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 800, fontSize: '11px', padding: '4px 10px', borderRadius: '6px' }}>
+                              <i className="fa-solid fa-circle-check" style={{ marginRight: '4px' }}></i> FINALIZADO
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => abrirTimelapse(item)}
+                              className="btn btn-xs btn-outline"
+                              style={{ fontSize: '10.5px', borderColor: '#cbd5e1', color: '#475569', marginTop: '4px' }}
+                            >
+                              <i className="fa-solid fa-magnifying-glass"></i> Auditar Detalle
+                            </button>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* ============================================================= */}
-                    {/* BOTONERA INFERIOR DE ACCIONES OPERATIVAS DEL VIAJE           */}
-                    {/* ============================================================= */}
-                    <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px 16px', background: '#ffffff' }}>
-                      {esRuta && !esFinalizado ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViajeActivo(item);
-                              setFormReceptoria({ observacion: '' });
-                              setModalEnviarReceptoria(true);
-                            }}
-                            className="btn btn-sm"
-                            style={{
-                              background: '#f0fdf4',
-                              color: '#15803d',
-                              border: '1px solid #bbf7d0',
-                              fontWeight: 700,
-                              fontSize: '11px',
-                              padding: '6px 2px',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                            }}
-                            title="Descargar en receptoría"
-                          >
-                            <i className="fa-solid fa-scale-balanced"></i> Receptoría
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViajeActivo(item);
-                              setFormCompania({
-                                companiaId: 0,
-                                litros: ltsRecolectados - ltsEntregados > 0 ? ltsRecolectados - ltsEntregados : ltsRecolectados,
-                                tipoLeche: 'VACA',
-                                observacion: '',
-                              });
-                              setModalEnviarCompania(true);
-                            }}
-                            className="btn btn-sm"
-                            style={{
-                              background: '#faf5ff',
-                              color: '#7e22ce',
-                              border: '1px solid #e9d5ff',
-                              fontWeight: 700,
-                              fontSize: '11px',
-                              padding: '6px 2px',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                            }}
-                            title="Despachar a quesera / compañía"
-                          >
-                            <i className="fa-solid fa-building"></i> Compañías
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViajeActivo(item);
-                              setFormTraspaso({
-                                ticketDestinoId: 0,
-                                choferDestinoId: 0,
-                                litrosTraspaso: ltsRecolectados - ltsEntregados > 0 ? ltsRecolectados - ltsEntregados : 0,
-                                observacion: '',
-                              });
-                              setModalTraspaso(true);
-                            }}
-                            className="btn btn-sm"
-                            style={{
-                              background: '#f0fdfa',
-                              color: '#0f766e',
-                              border: '1px solid #99f6e4',
-                              fontWeight: 700,
-                              fontSize: '11px',
-                              padding: '6px 2px',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                            }}
-                            title="Traspasar leche a otro chofer"
-                          >
-                            <i className="fa-solid fa-right-left"></i> Traspaso
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViajeActivo(item);
-                              setFormCerrar({ odometroFinalKm: '', observaciones: '' });
-                              setModalCerrarViaje(true);
-                            }}
-                            className="btn btn-sm"
-                            style={{
-                              background: '#fef2f2',
-                              color: '#b91c1c',
-                              border: '1px solid #fecaca',
-                              fontWeight: 700,
-                              fontSize: '11px',
-                              padding: '6px 2px',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                            }}
-                            title="Finalizar y cerrar este ticket"
-                          >
-                            <i className="fa-solid fa-lock"></i> Finalizar
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
-                          <span style={{ fontWeight: 700 }}>
-                            <i className="fa-solid fa-circle-check" style={{ color: '#10b981', marginRight: '6px' }}></i>
-                            Viaje {esFinalizado ? 'Cerrado / Auditado' : 'Procesado'}
+                    {/* ACORDEÓN / DESPLEGABLE DE PARADAS EXPANDIDAS */}
+                    {esRuta && estaExpandido && (
+                      <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '12px 18px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="fa-solid fa-list-check" style={{ color: '#2563eb' }}></i>
+                            Paradas / Fincas Registradas ({fincasTicket.length})
                           </span>
-                          <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>
-                            {new Date(item.fecha).toLocaleDateString('es-VE')}
-                          </span>
+                          {puedeEditarTicket && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViajeActivo(item);
+                                setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
+                                setModalRegistroFinca(true);
+                              }}
+                              className="btn btn-xs"
+                              style={{
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '11px',
+                                padding: '3px 8px',
+                                borderRadius: '5px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <i className="fa-solid fa-plus"></i> + Finca
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </div>
+
+                        <div style={{ maxHeight: '230px', overflowY: 'auto', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '6px' }}>
+                          {fincasTicket.length === 0 ? (
+                            <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '14px' }}>
+                              No hay paradas registradas aún en este ticket.
+                            </div>
+                          ) : (
+                            fincasTicket.map((f: any, idx: number) => {
+                              const fId = f.id || f.Id || f.rutaId;
+                              const fLitros = Number(f.litros ?? f.Litros ?? 0);
+                              const fNombre = f.fincaNombre || f.FincaNombre || f.finca || `Finca #${f.fincaId || f.FincaId}`;
+                              const fProp = f.propietarioNombre || f.propietario || f.Propietario || 'Productor';
+                              const fTipo = (f.tipoLeche || f.TipoLeche || 'VACA').toUpperCase();
+                              const esBufala = fTipo.includes('BUFAL');
+                              const esAcida = Boolean(f.esAcida || f.EsAcida);
+
+                              return (
+                                <div
+                                  key={fId || idx}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '7px 8px',
+                                    borderBottom: idx < fincasTicket.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                    fontSize: '12px',
+                                    borderRadius: '4px',
+                                    background: idx % 2 === 0 ? '#fcfcfd' : '#ffffff',
+                                  }}
+                                >
+                                  <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
+                                    <strong style={{ color: '#0f172a', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                      #{idx + 1} • {fNombre}
+                                    </strong>
+                                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                      {fProp} • {esBufala ? '🐃 Búfala' : '🥛 Vaca'}
+                                      {esAcida ? ' • ⚠️ Ácida' : ''}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontWeight: 800, color: '#2563eb', fontSize: '13px' }}>
+                                      {fLitros.toLocaleString()} L
+                                    </span>
+
+                                    {/* BOTONES DE EDICIÓN Y ELIMINACIÓN */}
+                                    {puedeEditarTicket && (
+                                      <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setViajeActivo(item);
+                                            setFormEditar({
+                                              id: fId,
+                                              fincaId: f.fincaId || f.FincaId,
+                                              litros: fLitros,
+                                              tipoLeche: fTipo,
+                                              esAcida: esAcida,
+                                              esDiferido: Boolean(f.esDiferido || f.EsDiferido),
+                                              fecha: f.fecha || item.fecha || '',
+                                              observacion: f.observacion || f.Observacion || '',
+                                            });
+                                            setModalEditarRecoleccion(true);
+                                          }}
+                                          className="btn btn-xs btn-outline"
+                                          style={{ padding: '3px 6px', borderColor: '#bfdbfe', color: '#1d4ed8' }}
+                                          title="Editar litros de esta finca"
+                                        >
+                                          <i className="fa-solid fa-pen-to-square"></i>
+                                        </button>
+
+                                        {(esAdminOSup || !tieneRutaLogistica) && (
+                                          <button
+                                            type="button"
+                                            onClick={async () => {
+                                              if (
+                                                await confirmDialog({
+                                                  title: '¿Quitar Finca del Viaje?',
+                                                  text: `¿Seguro que deseas remover la parada de "${fNombre}" (${fLitros.toLocaleString()} Lts) del ticket #${item.codigoTicket || item.id}?`,
+                                                  icon: 'warning',
+                                                  confirmButtonText: 'Sí, remover',
+                                                  danger: true,
+                                                })
+                                              ) {
+                                                setViajeActivo(item);
+                                                eliminarRecoleccionMutation.mutate(fId);
+                                              }
+                                            }}
+                                            className="btn btn-xs btn-outline"
+                                            style={{ padding: '3px 6px', borderColor: '#fecaca', color: '#dc2626' }}
+                                            title="Remover finca de este viaje"
+                                          >
+                                            <i className="fa-solid fa-trash-can"></i>
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

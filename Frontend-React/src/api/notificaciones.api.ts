@@ -30,3 +30,4 @@ export const notificacionesApi = {
     return res.data;
   },
 };
+
