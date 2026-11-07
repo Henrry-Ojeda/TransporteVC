@@ -48,6 +48,7 @@ export interface ControlRutaFincaDto {
   fincaNombre?: string;
   propietarioNombre?: string;
   litrosLeche: number;
+  litros?: number;
   temperatura?: number;
   tipoLeche?: string;
   esAcida?: boolean;
@@ -56,6 +57,7 @@ export interface ControlRutaFincaDto {
   horaRecoleccion?: string;
   precioLitroUSD?: number;
   observacion?: string;
+  createdAt?: string;
 }
 
 export interface ControlRutaEntregaDto {

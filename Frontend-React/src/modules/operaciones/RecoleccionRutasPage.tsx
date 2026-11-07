@@ -68,10 +68,10 @@ export const RecoleccionRutasPage: React.FC = () => {
   const [fincasTicketsMap, setFincasTicketsMap] = useState<Record<number, any[]>>({});
   const [loadingFincasMap, setLoadingFincasMap] = useState<Record<number, boolean>>({});
 
-  const cargarFincasTicket = async (ticketId: number) => {
+  const cargarFincasTicket = async (ticketId: number, silencioso = false) => {
     if (!ticketId) return [];
     try {
-      setLoadingFincasMap((prev) => ({ ...prev, [ticketId]: true }));
+      if (!silencioso) setLoadingFincasMap((prev) => ({ ...prev, [ticketId]: true }));
       const paradas = await operacionesApi.getFincasViaje(ticketId);
       setFincasTicketsMap((prev) => ({ ...prev, [ticketId]: paradas || [] }));
       return paradas || [];
@@ -79,13 +79,102 @@ export const RecoleccionRutasPage: React.FC = () => {
       console.error(`Error cargando paradas para ticket #${ticketId}:`, err);
       return [];
     } finally {
-      setLoadingFincasMap((prev) => ({ ...prev, [ticketId]: false }));
+      if (!silencioso) setLoadingFincasMap((prev) => ({ ...prev, [ticketId]: false }));
     }
   };
 
   // Modal Timelapse & Recorrido en Ruta
   const [modalTimelapse, setModalTimelapse] = useState(false);
   const [viajeTimelapse, setViajeTimelapse] = useState<ControlRutaDto | null>(null);
+
+  // Estado para rastrear momento de detección de paradas móviles y reloj en vivo
+  const [paradasDetectadasEnSesion, setParadasDetectadasEnSesion] = useState<Record<number, number>>({});
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  // Helper para verificar si proviene de la App Móvil (estricto)
+  const esOrigenMovil = (item: any): boolean => {
+    if (!item) return false;
+    const obs = String(item.observacion || item.Observacion || '').toUpperCase();
+    return obs.includes('[ORIGEN_MOVIL]') || obs.includes('APP MÓVIL') || obs.includes('APP MOVIL');
+  };
+
+  // Helper para verificar si una parada debe estar titilando (máximo 1 minuto / 60 segundos)
+  const estaTitilando = (p: any): boolean => {
+    if (!esOrigenMovil(p)) return false; // NUNCA titila si fue registrada desde la web
+    const refTime = paradasDetectadasEnSesion[p.id];
+    if (!refTime) return false;
+    const diff = nowTick - refTime;
+    return diff >= 0 && diff < 60000;
+  };
+
+  // Polling ultra-reactivo en vivo cada 2.5s cuando el modal Timelapse está abierto (sin recargar la página)
+  useEffect(() => {
+    if (!modalTimelapse || !viajeTimelapse?.id) return;
+
+    // Reloj cada segundo para animaciones y cuenta regresiva del minuto de titilar
+    const timerTick = setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+
+    // Sondeo de servidor cada 2.5 segundos sin recargar página
+    const timerPoll = setInterval(async () => {
+      try {
+        await cargarFincasTicket(viajeTimelapse.id, true);
+        refetchViajes();
+      } catch (err) {
+        console.error('Error sondeo en vivo timelapse:', err);
+      }
+    }, 2500);
+
+    return () => {
+      clearInterval(timerTick);
+      clearInterval(timerPoll);
+    };
+  }, [modalTimelapse, viajeTimelapse?.id]);
+
+  // Rastrear nuevas paradas que ingresan y calcular si les corresponde titilar (máx 1 min)
+  useEffect(() => {
+    if (!modalTimelapse || !viajeTimelapse?.id) return;
+    const paradas = fincasTicketsMap[viajeTimelapse.id] || [];
+    if (paradas.length === 0) return;
+
+    const ahora = Date.now();
+    let huboNuevos = false;
+    const nuevoMap = { ...paradasDetectadasEnSesion };
+
+    for (const p of paradas) {
+      if (!p.id) continue;
+      if (nuevoMap[p.id] === undefined) {
+        if (esOrigenMovil(p)) {
+          // Si tiene createdAt en el backend, calcular el desfase con la hora actual
+          const serverCreated = p.createdAt || (p as any).CreatedAt;
+          const createdAtMs = serverCreated ? new Date(serverCreated).getTime() : ahora;
+          const antiguedadMs = ahora - createdAtMs;
+
+          // Si fue creado hace menos de 60 segundos en el servidor o se detecta en vivo
+          if (antiguedadMs >= 0 && antiguedadMs < 60000) {
+            nuevoMap[p.id] = createdAtMs;
+            huboNuevos = true;
+          } else if (!serverCreated) {
+            nuevoMap[p.id] = ahora;
+            huboNuevos = true;
+          } else {
+            // Ya tiene más de 1 minuto de antigüedad; no debe titilar
+            nuevoMap[p.id] = 0;
+            huboNuevos = true;
+          }
+        } else {
+          // Parada registrada desde la web o sin marca móvil; nunca titila
+          nuevoMap[p.id] = 0;
+          huboNuevos = true;
+        }
+      }
+    }
+
+    if (huboNuevos) {
+      setParadasDetectadasEnSesion(nuevoMap);
+    }
+  }, [modalTimelapse, viajeTimelapse?.id, fincasTicketsMap]);
 
   // Modales Operativos
   const [modalIniciarViaje, setModalIniciarViaje] = useState(false);
@@ -680,12 +769,14 @@ export const RecoleccionRutasPage: React.FC = () => {
       .sort((a, b) => {
         const timeA = new Date(a.createdAt || (a as any).CreatedAt || a.fecha).getTime();
         const timeB = new Date(b.createdAt || (b as any).CreatedAt || b.fecha).getTime();
-        return timeA - timeB;
+        if (timeA !== timeB) return timeA - timeB;
+        return (a.id || 0) - (b.id || 0);
       });
 
     let acumulado = 0;
     const paradasConIntervalo = visitadas.map((item, idx) => {
-      acumulado += Number(item.litros || (item as any).Litros || 0);
+      const litrosItem = Number(item.litros || (item as any).Litros || (item as any).litrosLeche || 0);
+      acumulado += litrosItem;
       const fechaActual = new Date(item.createdAt || (item as any).CreatedAt || item.fecha);
       let minutosDesdeAnterior: number | null = null;
       if (idx > 0) {
@@ -695,6 +786,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       }
       return {
         ...item,
+        litros: litrosItem,
         acumulado,
         minutosDesdeAnterior,
         porcentajeCarga: Math.min(100, Math.round((acumulado / capacidadMax) * 100)),
@@ -2008,10 +2100,54 @@ export const RecoleccionRutasPage: React.FC = () => {
                   Timelapse de Paradas — {timelapseData.rutaNombre}
                 </h3>
               </div>
-              <button type="button" onClick={() => setModalTimelapse(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer' }}>
-                <i className="fa-solid fa-xmark"></i>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid #10b981',
+                    color: '#34d399',
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  title="Sondeo activo: las paradas registradas en la app móvil aparecen automáticamente sin recargar la página"
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                  EN VIVO (Sin Recargar)
+                </span>
+                <button type="button" onClick={() => setModalTimelapse(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer' }}>
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
             </div>
+
+            <style>{`
+              @keyframes pulseColorMovil {
+                0% {
+                  background-color: #ecfdf5;
+                  border-color: #10b981;
+                  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6), 0 4px 14px rgba(16, 185, 129, 0.2);
+                }
+                50% {
+                  background-color: #fef3c7;
+                  border-color: #f59e0b;
+                  box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.35), 0 6px 18px rgba(245, 158, 11, 0.3);
+                }
+                100% {
+                  background-color: #ecfdf5;
+                  border-color: #10b981;
+                  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6), 0 4px 14px rgba(16, 185, 129, 0.2);
+                }
+              }
+              @keyframes badgePulse {
+                0%, 100% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.05); opacity: 0.88; }
+              }
+            `}</style>
 
             {/* BARRA DE PROGRESO DE CARGA */}
             <div style={{ background: '#f8fafc', padding: '14px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
@@ -2047,6 +2183,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                       ? new Date(timeStamp).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                       : p.horaRecoleccion || 'Registrado';
                     const esBufala = (p.tipoLeche || '').toUpperCase().includes('BUFAL');
+                    const esMovil = esOrigenMovil(p);
+                    const titilando = estaTitilando(p);
+                    const tiempoRef = paradasDetectadasEnSesion[p.id] || (timeStamp ? new Date(timeStamp).getTime() : 0);
+                    const segRestantes = Math.max(0, Math.ceil((60000 - (nowTick - tiempoRef)) / 1000));
 
                     return (
                       <div key={p.id} style={{ position: 'relative', marginBottom: '20px' }}>
@@ -2058,28 +2198,112 @@ export const RecoleccionRutasPage: React.FC = () => {
                             width: '24px',
                             height: '24px',
                             borderRadius: '50%',
-                            background: '#10b981',
+                            background: titilando ? '#f59e0b' : '#10b981',
                             color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '11px',
                             fontWeight: 800,
-                            boxShadow: '0 0 0 4px #d1fae5',
+                            boxShadow: titilando ? '0 0 0 5px rgba(245, 158, 11, 0.45)' : '0 0 0 4px #d1fae5',
+                            transition: 'all 0.3s ease',
                           }}
                         >
                           {idx + 1}
                         </div>
 
-                        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                        <div
+                          style={{
+                            background: titilando ? undefined : '#ffffff',
+                            border: titilando ? '2.5px solid #10b981' : '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            padding: '12px 16px',
+                            boxShadow: titilando ? undefined : '0 1px 3px rgba(0,0,0,0.04)',
+                            animation: titilando ? 'pulseColorMovil 1.3s infinite ease-in-out' : undefined,
+                            transition: 'all 0.4s ease',
+                          }}
+                        >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
                             <div>
-                              <strong style={{ fontSize: '14.5px', color: '#0f172a' }}>
-                                #{idx + 1} • {p.fincaNombre || `Finca #${p.fincaId}`}
-                              </strong>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <strong style={{ fontSize: '14.5px', color: '#0f172a' }}>
+                                  #{idx + 1} • {p.fincaNombre || `Finca #${p.fincaId}`}
+                                </strong>
+
+                                {/* BADGE DE ORIGEN & NOTIFICACIÓN TITILANTE */}
+                                {titilando ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: '#059669',
+                                      color: '#ffffff',
+                                      fontSize: '11px',
+                                      fontWeight: 800,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      animation: 'badgePulse 0.9s infinite ease-in-out',
+                                      boxShadow: '0 2px 6px rgba(5, 150, 105, 0.35)',
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-mobile-screen-button"></i> 📲 NUEVO DESDE APP MÓVIL ({segRestantes}s)
+                                  </span>
+                                ) : esMovil ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: '#ecfdf5',
+                                      color: '#059669',
+                                      fontSize: '10.5px',
+                                      fontWeight: 700,
+                                      padding: '2px 7px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #a7f3d0',
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-mobile-screen"></i> App Móvil
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: '#f1f5f9',
+                                      color: '#475569',
+                                      fontSize: '10.5px',
+                                      fontWeight: 600,
+                                      padding: '2px 7px',
+                                      borderRadius: '6px',
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-desktop"></i> Web
+                                  </span>
+                                )}
+
+                                {esBufala && (
+                                  <span style={{ fontSize: '10.5px', color: '#ea580c', background: '#fff7ed', border: '1px solid #fed7aa', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                    🐃 Búfala
+                                  </span>
+                                )}
+                                {p.esAcida && (
+                                  <span style={{ fontSize: '10.5px', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                    ⚠️ Ácida
+                                  </span>
+                                )}
+                              </div>
+
                               <span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginTop: '2px' }}>
                                 Productor: {p.propietarioNombre || p.propietario || 'No especificado'}
                               </span>
+                              {p.observacion && (
+                                <span style={{ fontSize: '11px', color: '#475569', display: 'block', marginTop: '3px', fontStyle: 'italic' }}>
+                                  Nota: {p.observacion}
+                                </span>
+                              )}
                             </div>
 
                             <div style={{ textAlign: 'right' }}>

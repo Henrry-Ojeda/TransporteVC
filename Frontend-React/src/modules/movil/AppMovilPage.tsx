@@ -92,6 +92,9 @@ export const AppMovilPage: React.FC = () => {
   const [entregas, setEntregas] = useState<DespachoCompaniaDto[]>([]);
   const [cargandoEntregas, setCargandoEntregas] = useState(false);
 
+  // Fecha de hoy por defecto
+  const hoyStr = new Date().toISOString().split('T')[0];
+
   // Estado para la pantalla de Vinculación
   const [codigoInput, setCodigoInput] = useState('');
   const [vinculando, setVinculando] = useState(false);
@@ -99,6 +102,7 @@ export const AppMovilPage: React.FC = () => {
   // Estado para el modal de Registro de Carga
   const [modalRegistro, setModalRegistro] = useState(false);
   const [formCarga, setFormCarga] = useState({
+    fecha: hoyStr,
     fincaId: 0,
     litros: '',
     tipoLeche: 'VACA',
@@ -121,7 +125,6 @@ export const AppMovilPage: React.FC = () => {
 
   // Estado de Reportes Móvil
   const [tipoReporte, setTipoReporte] = useState<string>('DIARIOS');
-  const hoyStr = new Date().toISOString().split('T')[0];
   const [repFechaInicio, setRepFechaInicio] = useState<string>(hoyStr);
   const [repFechaFin, setRepFechaFin] = useState<string>(hoyStr);
   const [cargandoReporte, setCargandoReporte] = useState(false);
@@ -163,6 +166,17 @@ export const AppMovilPage: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('movil_cargas_local', JSON.stringify(cargas));
   }, [cargas]);
+
+  // Auto-sincronización automática cuando se recupera o detecta conexión a internet
+  useEffect(() => {
+    if (isOnline && dispositivo) {
+      const pendientes = cargas.filter((c) => !c.synced);
+      if (pendientes.length > 0 && !sincronizando) {
+        toast.info(`📶 Señal disponible: enviando automáticamente ${pendientes.length} carga(s) a la central...`);
+        sincronizarCargas(cargas);
+      }
+    }
+  }, [isOnline]);
 
   // Si estamos en línea y hay conexión, refrescar lista de fincas y perfil
   useEffect(() => {
@@ -464,7 +478,7 @@ export const AppMovilPage: React.FC = () => {
 
     const nuevaCarga: CargaOffline = {
       localId: `local_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      fecha: hoyStr,
+      fecha: formCarga.fecha || hoyStr,
       hora: horaStr,
       fincaId: Number(formCarga.fincaId),
       fincaNombre: fincaSel ? fincaSel.nombre : `Finca #${formCarga.fincaId}`,
@@ -481,6 +495,7 @@ export const AppMovilPage: React.FC = () => {
     setCargas(nuevasCargas);
     setModalRegistro(false);
     setFormCarga({
+      fecha: hoyStr,
       fincaId: 0,
       litros: '',
       tipoLeche: 'VACA',
@@ -500,7 +515,7 @@ export const AppMovilPage: React.FC = () => {
 
   // Sincronizar cargas con servidor
   const sincronizarCargas = async (cargasParaSync = cargas) => {
-    if (!isOnline) {
+    if (!isOnline && !navigator.onLine) {
       toast.warning('No hay conexión a internet disponible para sincronizar.');
       return;
     }
@@ -514,23 +529,52 @@ export const AppMovilPage: React.FC = () => {
     let sincronizadasCount = 0;
 
     try {
-      const viajes = await operacionesApi.getControles(hoyStr);
-      const viajeExistente = viajes.find(
+      const fechaCarga = pendientes[0]?.fecha || hoyStr;
+      let viajes = await operacionesApi.getControles(fechaCarga);
+      let viajeExistente = viajes.find(
         (v: any) =>
           (v.camionId === dispositivo?.camionId || v.choferId === dispositivo?.id) &&
           v.estado !== 'Cerrado' && v.estado !== 'Cancelado'
       );
+
+      // Si no se encontró en la fecha de la carga y difiere de hoy, buscar en hoy
+      if (!viajeExistente && fechaCarga !== hoyStr) {
+        try {
+          const viajesHoy = await operacionesApi.getControles(hoyStr);
+          viajeExistente = viajesHoy.find(
+            (v: any) =>
+              (v.camionId === dispositivo?.camionId || v.choferId === dispositivo?.id) &&
+              v.estado !== 'Cerrado' && v.estado !== 'Cancelado'
+          );
+        } catch {
+          // ignore
+        }
+      }
+
+      // Si aún no se encontró, buscar en todos los viajes abiertos del chofer
+      if (!viajeExistente) {
+        try {
+          const todosLosViajes = await operacionesApi.getControles();
+          viajeExistente = todosLosViajes.find(
+            (v: any) =>
+              (v.camionId === dispositivo?.camionId || v.choferId === dispositivo?.id) &&
+              v.estado !== 'Cerrado' && v.estado !== 'Cancelado'
+          );
+        } catch {
+          // ignore
+        }
+      }
 
       let idViaje: number;
       if (viajeExistente && viajeExistente.id) {
         idViaje = viajeExistente.id;
       } else {
         const viajeIniciado = await operacionesApi.iniciarViaje({
-          fecha: hoyStr,
+          fecha: fechaCarga,
           camionId: dispositivo?.camionId,
           choferId: dispositivo?.id,
           conductorId: dispositivo?.id,
-          observacion: 'Viaje iniciado automáticamente desde App Móvil',
+          observacion: 'Viaje iniciado automáticamente desde App Móvil [ORIGEN_MOVIL]',
         });
         idViaje = viajeIniciado.id;
       }
@@ -538,14 +582,17 @@ export const AppMovilPage: React.FC = () => {
       const actualizadas = [...cargasParaSync];
       for (const carga of pendientes) {
         try {
+          // Sello obligatorio [ORIGEN_MOVIL] para trazabilidad en vivo
+          const obsConOrigen = `${carga.observacion ? carga.observacion + ' ' : ''}[ORIGEN_MOVIL]`.trim();
+
           await operacionesApi.agregarFincaViaje(idViaje, {
             fincaId: carga.fincaId,
             litros: carga.litros,
             esAcida: carga.esAcida,
             esDiferido: carga.esDiferido,
-            fecha: carga.fecha,
+            fecha: carga.fecha || hoyStr,
             tipoLeche: carga.tipoLeche,
-            observacion: carga.observacion ? `${carga.observacion} (App Móvil)` : 'Registrado desde App Móvil',
+            observacion: obsConOrigen,
             temperatura: carga.temperatura,
           });
 
@@ -2097,6 +2144,30 @@ export const AppMovilPage: React.FC = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Fecha de Recolección (permite seleccionar fecha anterior o actual) */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
+                  📅 Fecha de Recolección
+                </label>
+                <input
+                  type="date"
+                  value={formCarga.fecha || hoyStr}
+                  onChange={(e) => setFormCarga({ ...formCarga, fecha: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    padding: '0 12px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    background: '#f8fafc',
+                    outline: 'none',
+                  }}
+                />
               </div>
 
               {/* Litros Entrada Táctil */}
