@@ -709,6 +709,12 @@ export const RecoleccionRutasPage: React.FC = () => {
   // Lista filtrada para Detalle por Fincas (Filtros por Chofer y Finca)
   const recoleccionesFiltradas = useMemo(() => {
     return recolecciones.filter((r: any) => {
+      // 0. Filtro estricto por Fecha Operativa seleccionada (nunca mezclar fechas diferentes)
+      if (fechaFiltro) {
+        const fechaItem = r.fecha ? String(r.fecha).split('T')[0] : '';
+        if (fechaItem && fechaItem !== fechaFiltro) return false;
+      }
+
       // Si el usuario es CHOFER, solo ve sus propias paradas
       if (esChofer && user) {
         const itemChoferId = Number(r.conductorId ?? r.ConductorId ?? r.usuarioId ?? r.UsuarioId ?? 0);
@@ -1227,7 +1233,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   flexShrink: 0,
                 }}
               >
-                {filtroDetalleChoferId || filtroDetalleFincaId ? `${recoleccionesFiltradas.length}/${recolecciones.length}` : recolecciones.length}
+                {filtroDetalleChoferId || filtroDetalleFincaId ? `${recoleccionesFiltradas.length}/${recoleccionesFiltradas.length}` : recoleccionesFiltradas.length}
               </span>
             </button>
           </div>
@@ -2114,7 +2120,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span className="badge" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '11.5px', padding: '5px 12px', fontWeight: 700, borderRadius: '8px' }}>
                     <i className="fa-solid fa-filter" style={{ marginRight: '5px' }}></i>
-                    Mostrando {recoleccionesFiltradas.length} de {recolecciones.length} paradas
+                    Mostrando {recoleccionesFiltradas.length} paradas filtradas
                   </span>
                 </div>
               )}

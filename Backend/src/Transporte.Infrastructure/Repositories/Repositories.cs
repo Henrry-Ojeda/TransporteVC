@@ -254,7 +254,7 @@ namespace Transporte.Infrastructure.Repositories
             else
             {
                 var fechaConsulta = (fecha ?? DateTime.Today).Date;
-                whereFilter = "(r.Fecha = @fechaConsulta OR (r.ControlRutaId IN (SELECT Id FROM TB_CONTROL_RUTAS WHERE ProcesoActualId = 1 AND Estado NOT IN ('FINALIZADO', 'CERRADO'))))";
+                whereFilter = "CAST(r.Fecha AS DATE) = @fechaConsulta";
                 param = new { fechaConsulta, usuarioId, rol };
             }
 
