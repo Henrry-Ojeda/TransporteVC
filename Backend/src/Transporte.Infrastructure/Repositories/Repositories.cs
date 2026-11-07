@@ -5355,14 +5355,24 @@ namespace Transporte.Infrastructure.Repositories
                 .Where(x => x.FincaId != null)
                 .GroupBy(x => Convert.ToInt32(x.FincaId))
                 .ToDictionary(g => g.Key, g => {
-                    var ultimo = g.OrderByDescending(x => (DateTime?)x.FechaPago).First();
+                    var items = g.ToList();
+                    var ultimo = items.OrderByDescending(x => (DateTime?)x.FechaPago).FirstOrDefault();
+                    decimal totalBruto = 0m;
+                    decimal totalAdelantos = 0m;
+                    decimal totalNeto = 0m;
+                    foreach (var it in items)
+                    {
+                        if (it.TotalBrutoBs != null) totalBruto += Convert.ToDecimal(it.TotalBrutoBs);
+                        if (it.TotalAdelantosBs != null) totalAdelantos += Convert.ToDecimal(it.TotalAdelantosBs);
+                        if (it.TotalNetoBs != null) totalNeto += Convert.ToDecimal(it.TotalNetoBs);
+                    }
                     return new { 
-                        PagoId = Convert.ToInt32(ultimo.PagoId), 
-                        FechaPago = (DateTime?)ultimo.FechaPago,
-                        TasaBcv = ultimo.TasaBcv != null ? (decimal?)Convert.ToDecimal(ultimo.TasaBcv) : null,
-                        TotalBrutoBs = g.Sum(x => x.TotalBrutoBs != null ? Convert.ToDecimal(x.TotalBrutoBs) : 0m),
-                        TotalAdelantosBs = g.Sum(x => x.TotalAdelantosBs != null ? Convert.ToDecimal(x.TotalAdelantosBs) : 0m),
-                        TotalNetoBs = g.Sum(x => x.TotalNetoBs != null ? Convert.ToDecimal(x.TotalNetoBs) : 0m)
+                        PagoId = ultimo != null && ultimo.PagoId != null ? Convert.ToInt32(ultimo.PagoId) : 0, 
+                        FechaPago = ultimo != null ? (DateTime?)ultimo.FechaPago : null,
+                        TasaBcv = ultimo != null && ultimo.TasaBcv != null ? (decimal?)Convert.ToDecimal(ultimo.TasaBcv) : null,
+                        TotalBrutoBs = totalBruto,
+                        TotalAdelantosBs = totalAdelantos,
+                        TotalNetoBs = totalNeto
                     };
                 });
 
@@ -5401,10 +5411,22 @@ namespace Transporte.Infrastructure.Repositories
                 .GroupBy(x => Convert.ToInt32(x.FincaId))
                 .ToDictionary(
                     g => g.Key, 
-                    g => new { 
-                        TotalAdelantosBs = g.Sum(x => x.TotalAdelantosBs != null ? Convert.ToDecimal(x.TotalAdelantosBs) : 0m), 
-                        TotalAdelantosUSD = g.Sum(x => x.TotalAdelantosUSD != null ? Convert.ToDecimal(x.TotalAdelantosUSD) : 0m), 
-                        CuotasDetalle = g.FirstOrDefault()?.CuotasDetalle != null ? Convert.ToString(g.FirstOrDefault()?.CuotasDetalle) : null 
+                    g => {
+                        var items = g.ToList();
+                        decimal totalBs = 0m;
+                        decimal totalUsd = 0m;
+                        string? cuotasDet = null;
+                        foreach (var it in items)
+                        {
+                            if (it.TotalAdelantosBs != null) totalBs += Convert.ToDecimal(it.TotalAdelantosBs);
+                            if (it.TotalAdelantosUSD != null) totalUsd += Convert.ToDecimal(it.TotalAdelantosUSD);
+                            if (cuotasDet == null && it.CuotasDetalle != null) cuotasDet = Convert.ToString(it.CuotasDetalle);
+                        }
+                        return new { 
+                            TotalAdelantosBs = totalBs, 
+                            TotalAdelantosUSD = totalUsd, 
+                            CuotasDetalle = cuotasDet 
+                        };
                     });
 
             foreach (var finca in fincas)
@@ -5452,8 +5474,8 @@ namespace Transporte.Infrastructure.Repositories
                             Nombre = $"{nombre} (Vaca)",
                             Propietario = prop,
                             CedulaRIF = rif,
-                            TipoServicioId = finca.TipoServicioId != null ? (int)finca.TipoServicioId : 1,
-                            TipoServicioNombre = finca.TipoServicioNombre != null ? (string)finca.TipoServicioNombre : "RUTA",
+                            TipoServicioId = finca.TipoServicioId != null ? Convert.ToInt32(finca.TipoServicioId) : 1,
+                            TipoServicioNombre = finca.TipoServicioNombre != null ? Convert.ToString(finca.TipoServicioNombre)! : "RUTA",
                             PrecioLitroUSD = precio,
                             PrecioLitroAcidaUSD = precioAcida,
                             TasaBcv = tasaAplicada,
@@ -5482,8 +5504,8 @@ namespace Transporte.Infrastructure.Repositories
                             Nombre = $"{nombre} (Búfala)",
                             Propietario = prop,
                             CedulaRIF = rif,
-                            TipoServicioId = finca.TipoServicioId != null ? (int)finca.TipoServicioId : 1,
-                            TipoServicioNombre = finca.TipoServicioNombre != null ? (string)finca.TipoServicioNombre : "RUTA",
+                            TipoServicioId = finca.TipoServicioId != null ? Convert.ToInt32(finca.TipoServicioId) : 1,
+                            TipoServicioNombre = finca.TipoServicioNombre != null ? Convert.ToString(finca.TipoServicioNombre)! : "RUTA",
                             PrecioLitroUSD = precioBufala > 0 ? precioBufala : precio,
                             PrecioLitroAcidaUSD = precioAcida,
                             TasaBcv = tasaAplicada,
@@ -5514,8 +5536,8 @@ namespace Transporte.Infrastructure.Repositories
                         Nombre = nombre,
                         Propietario = prop,
                         CedulaRIF = rif,
-                        TipoServicioId = finca.TipoServicioId != null ? (int)finca.TipoServicioId : 1,
-                        TipoServicioNombre = finca.TipoServicioNombre != null ? (string)finca.TipoServicioNombre : "RUTA",
+                        TipoServicioId = finca.TipoServicioId != null ? Convert.ToInt32(finca.TipoServicioId) : 1,
+                        TipoServicioNombre = finca.TipoServicioNombre != null ? Convert.ToString(finca.TipoServicioNombre)! : "RUTA",
                         PrecioLitroUSD = precio,
                         PrecioLitroAcidaUSD = precioAcida,
                         TasaBcv = tasaAplicada,
