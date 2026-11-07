@@ -232,7 +232,7 @@ export const RecoleccionRutasPage: React.FC = () => {
 
   // Formulario Iniciar Viaje (con Selección Múltiple de Rutas y Validación de Capacidad)
   const [formIniciar, setFormIniciar] = useState({
-    fecha: hoyStr,
+    fecha: fechaFiltro || hoyStr,
     camionId: 0,
     choferId: user?.id && rol === 'CHOFER' ? user.id : 0,
     rutaLogisticaId: 0,
@@ -241,6 +241,15 @@ export const RecoleccionRutasPage: React.FC = () => {
     odometroInicialKm: '' as any,
     observaciones: '',
   });
+
+  const abrirModalIniciarViaje = () => {
+    setFormIniciar((prev) => ({
+      ...prev,
+      fecha: fechaFiltro || hoyStr,
+      choferId: user?.id && rol === 'CHOFER' ? user.id : prev.choferId,
+    }));
+    setModalIniciarViaje(true);
+  };
 
   // Formulario Modal Registrar Recolección en Finca (para tickets abiertos)
   const [formFinca, setFormFinca] = useState({
@@ -477,7 +486,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalIniciarViaje(false);
       setFormIniciar({
-        fecha: hoyStr,
+        fecha: fechaFiltro || hoyStr,
         camionId: 0,
         choferId: user?.id && rol === 'CHOFER' ? user.id : 0,
         rutaLogisticaId: 0,
@@ -566,6 +575,10 @@ export const RecoleccionRutasPage: React.FC = () => {
       if (viajeActivo?.id) {
         await cargarFincasTicket(viajeActivo.id);
         queryClient.invalidateQueries({ queryKey: ['fincas-ticket', viajeActivo.id] });
+      }
+      if (viajeTimelapse?.id && viajeTimelapse.id !== viajeActivo?.id) {
+        await cargarFincasTicket(viajeTimelapse.id);
+        queryClient.invalidateQueries({ queryKey: ['fincas-ticket', viajeTimelapse.id] });
       }
       queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
@@ -902,9 +915,19 @@ export const RecoleccionRutasPage: React.FC = () => {
     },
   });
 
-  const handleEliminarTicket = (viaje: ControlRutaDto) => {
+  const handleEliminarTicket = async (viaje: ControlRutaDto) => {
     const num = viaje.codigoTicket || viaje.id;
-    if (window.confirm(`¿Está seguro de que desea eliminar el Ticket #${num}? Esta acción cancelará el viaje y no se puede deshacer.`)) {
+    const { isConfirmed } = await Swal.fire({
+      title: `¿Eliminar Ticket #${num}?`,
+      text: 'Esta acción cancelará el viaje por completo y no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Eliminar Ticket',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#64748b',
+    });
+    if (isConfirmed) {
       eliminarTicketMutation.mutate(viaje.id);
     }
   };
@@ -1295,7 +1318,15 @@ export const RecoleccionRutasPage: React.FC = () => {
   const timelapseData = useMemo(() => {
     if (!viajeTimelapse) return null;
 
-    const tieneRuta = Boolean(viajeTimelapse.rutaLogisticaId && viajeTimelapse.rutaLogisticaId > 0);
+    const parsedRutasActivas = (() => {
+      const obs = viajeTimelapse.observacion || '';
+      const match = obs.match(/\[RUTAS:([^\]]+)\]/);
+      if (match) {
+        return match[1].split(',').map((id: string) => Number(id.trim())).filter((x: number) => x > 0);
+      }
+      return viajeTimelapse.rutaLogisticaId ? [Number(viajeTimelapse.rutaLogisticaId)] : [];
+    })();
+    const tieneRuta = parsedRutasActivas.length > 0;
     const camionMatch = camiones.find((c) => c.id === viajeTimelapse.camionId || c.placa === viajeTimelapse.camionPlaca);
     const capacidadMax = camionMatch?.capacidadLitros || viajeTimelapse.capacidadCamionLitros || 10000;
 
@@ -1334,15 +1365,19 @@ export const RecoleccionRutasPage: React.FC = () => {
     let pendientes: FincaDto[] = [];
     if (tieneRuta) {
       const idsVisitadas = new Set(visitadas.map((v) => v.fincaId || (v as any).FincaId));
-      pendientes = fincas.filter((f) => f.rutaId === viajeTimelapse.rutaLogisticaId && !idsVisitadas.has(f.id));
+      pendientes = fincas.filter((f) => f.rutaId && parsedRutasActivas.includes(f.rutaId) && !idsVisitadas.has(f.id));
     }
 
     const totalLitros = paradasConIntervalo.length > 0 ? paradasConIntervalo[paradasConIntervalo.length - 1].acumulado : 0;
     const porcentajeLlenado = Math.min(100, Math.round((totalLitros / capacidadMax) * 100));
 
+    const nombresRutas = parsedRutasActivas
+      .map((id: number) => rutasLogistica.find((r) => r.id === id)?.nombre || `Ruta #${id}`)
+      .join(', ');
+
     return {
       tieneRuta,
-      rutaNombre: viajeTimelapse.rutaLogisticaNombre || (tieneRuta ? `Ruta #${viajeTimelapse.rutaLogisticaId}` : 'Modo Libre (Sin Ruta)'),
+      rutaNombre: nombresRutas || viajeTimelapse.rutaLogisticaNombre || (tieneRuta ? `Ruta #${viajeTimelapse.rutaLogisticaId}` : 'Modo Libre (Sin Ruta)'),
       chofer: viajeTimelapse.choferNombre || viajeTimelapse.nombreConductor || 'Sin Asignar',
       camion: camionMatch ? `${camionMatch.placa} (${camionMatch.capacidadLitros.toLocaleString()} Lts)` : viajeTimelapse.camionPlaca || 'Cisterna',
       capacidadMax,
@@ -1671,7 +1706,7 @@ export const RecoleccionRutasPage: React.FC = () => {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => setModalIniciarViaje(true)}
+            onClick={abrirModalIniciarViaje}
             style={{
               fontWeight: 800,
               fontSize: '13px',
@@ -2081,7 +2116,7 @@ export const RecoleccionRutasPage: React.FC = () => {
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setModalIniciarViaje(true)}
+                onClick={abrirModalIniciarViaje}
                 style={{
                   fontWeight: 700,
                   background: 'linear-gradient(135deg, #10b981, #059669)',
@@ -3040,16 +3075,17 @@ export const RecoleccionRutasPage: React.FC = () => {
             </div>
 
             {/* CUERPO CON LÍNEA DE TIEMPO */}
-            <div style={{ padding: '24px', overflowY: 'auto', flex: 1, maxHeight: '55vh' }}>
-              {timelapseData.paradas.length === 0 ? (
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1, maxHeight: '60vh' }}>
+              {timelapseData.paradas.length === 0 && timelapseData.pendientes.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                   <i className="fa-solid fa-clock" style={{ fontSize: '36px', opacity: 0.5, marginBottom: '10px', display: 'block' }}></i>
-                  El camión aún no ha registrado la primera parada en fincas.
+                  El camión aún no ha registrado paradas y no tiene rutas asignadas.
                 </div>
               ) : (
                 <div style={{ position: 'relative', paddingLeft: '32px' }}>
                   <div style={{ position: 'absolute', left: '11px', top: '12px', bottom: '12px', width: '3px', background: '#e2e8f0', borderRadius: '2px' }}></div>
 
+                  {/* 1. PARADAS YA RECOLECTADAS (EN VERDE, RESPETANDO ORDEN CRONOLÓGICO / LLENADO DE LITROS) */}
                   {timelapseData.paradas.map((p, idx) => {
                     const timeStamp = p.createdAt || (p as any).CreatedAt;
                     const horaStr = timeStamp
@@ -3088,10 +3124,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                         <div
                           style={{
                             background: titilando ? undefined : '#ffffff',
-                            border: titilando ? '2.5px solid #10b981' : '1px solid #e2e8f0',
+                            border: titilando ? '2.5px solid #10b981' : '1px solid #a7f3d0',
                             borderRadius: '12px',
                             padding: '12px 16px',
-                            boxShadow: titilando ? undefined : '0 1px 3px rgba(0,0,0,0.04)',
+                            boxShadow: titilando ? undefined : '0 2px 6px rgba(16, 185, 129, 0.08)',
                             animation: titilando ? 'pulseColorMovil 1.3s infinite ease-in-out' : undefined,
                             transition: 'all 0.4s ease',
                           }}
@@ -3102,6 +3138,10 @@ export const RecoleccionRutasPage: React.FC = () => {
                                 <strong style={{ fontSize: '14.5px', color: '#0f172a' }}>
                                   #{idx + 1} • {p.fincaNombre || `Finca #${p.fincaId}`}
                                 </strong>
+
+                                <span style={{ fontSize: '10.5px', color: '#047857', background: '#d1fae5', border: '1px solid #6ee7b7', padding: '1px 7px', borderRadius: '4px', fontWeight: 800 }}>
+                                  <i className="fa-solid fa-circle-check"></i> Recolectado
+                                </span>
 
                                 {/* BADGE DE ORIGEN & NOTIFICACIÓN TITILANTE */}
                                 {titilando ? (
@@ -3201,7 +3241,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                             </div>
 
                             <div style={{ textAlign: 'right' }}>
-                              <span style={{ fontSize: '16px', fontWeight: 800, color: '#2563eb' }}>
+                              <span style={{ fontSize: '16px', fontWeight: 800, color: '#059669' }}>
                                 +{p.litros.toLocaleString()} Lts
                               </span>
                               <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '2px' }}>
@@ -3224,28 +3264,118 @@ export const RecoleccionRutasPage: React.FC = () => {
                       </div>
                     );
                   })}
-                </div>
-              )}
 
-              {/* PARADAS PENDIENTES SI TIENE RUTA LOGÍSTICA */}
-              {timelapseData.tieneRuta && timelapseData.pendientes.length > 0 && (
-                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '2px dashed #e2e8f0' }}>
-                  <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#b45309', margin: '0 0 12px 0', textTransform: 'uppercase' }}>
-                    <i className="fa-solid fa-hourglass-half" style={{ marginRight: '6px' }}></i>
-                    Paradas Faltantes de la Ruta ({timelapseData.pendientes.length})
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
-                    {timelapseData.pendientes.map((f, i) => (
-                      <div key={f.id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '10px', fontSize: '12px' }}>
-                        <strong style={{ color: '#92400e', display: 'block' }}>
-                          #{timelapseData.paradas.length + i + 1} • {f.nombre}
-                        </strong>
-                        <span style={{ fontSize: '11px', color: '#b45309' }}>
-                          {f.propietarioNombre || 'Productor'} • ~{getPromedioFinca(f.id, f)} Lts/d
-                        </span>
+                  {/* 2. PARADAS PENDIENTES DE LA RUTA (EN COLOR GRIS, CON BOTÓN "+ AGREGAR LITROS") */}
+                  {timelapseData.pendientes.map((f, i) => {
+                    const numParada = timelapseData.paradas.length + i + 1;
+                    return (
+                      <div key={f.id} style={{ position: 'relative', marginBottom: '18px' }}>
+                        {/* CÍRCULO EN GRIS */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: '-32px',
+                            top: '4px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: '#94a3b8',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            boxShadow: '0 0 0 4px #f1f5f9',
+                          }}
+                        >
+                          {numParada}
+                        </div>
+
+                        {/* TARJETA EN GRIS */}
+                        <div
+                          style={{
+                            background: '#f8fafc',
+                            border: '1.5px dashed #cbd5e1',
+                            borderRadius: '12px',
+                            padding: '12px 16px',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <strong style={{ fontSize: '14.5px', color: '#475569' }}>
+                                  #{numParada} • {f.nombre}
+                                </strong>
+
+                                <span style={{ fontSize: '10.5px', color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                  ⏳ Pendiente
+                                </span>
+
+                                {f.tipoLeche && f.tipoLeche.toUpperCase().includes('BUFAL') && (
+                                  <span style={{ fontSize: '10.5px', color: '#ea580c', background: '#fff7ed', border: '1px solid #fed7aa', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                    🐃 Búfala
+                                  </span>
+                                )}
+
+                                {/* BOTÓN AGREGAR LITROS DIRECTO EN LA FINCA */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (viajeTimelapse) {
+                                      setViajeActivo(viajeTimelapse);
+                                    }
+                                    setFormFinca({
+                                      fincaId: f.id,
+                                      litros: '',
+                                      tipoLeche: (f.tipoLeche as any) || 'VACA',
+                                      esAcida: false,
+                                      esDiferido: false,
+                                      fecha: viajeTimelapse?.fecha ? viajeTimelapse.fecha.split('T')[0] : (fechaFiltro || hoyStr),
+                                      observacion: '',
+                                      fotoComprobante: '',
+                                    });
+                                    setModalRegistroFinca(true);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '7px',
+                                    padding: '4px 12px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 6px rgba(16,185,129,0.3)',
+                                  }}
+                                >
+                                  <i className="fa-solid fa-plus-circle"></i> Agregar Litros
+                                </button>
+                              </div>
+
+                              <span style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
+                                Productor: {f.propietario || f.propietarioNombre || 'No especificado'}
+                                {f.promedioLitrosDiarios ? ` • Promedio diario: ~${f.promedioLitrosDiarios} Lts` : ''}
+                              </span>
+                            </div>
+
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ fontSize: '15px', fontWeight: 700, color: '#94a3b8' }}>
+                                0 Lts
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
+                                Sin recolectar
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -3514,8 +3644,24 @@ export const RecoleccionRutasPage: React.FC = () => {
       {/* MODAL 3: REGISTRAR PARADA EN FINCA (DENTRO DEL TICKET ABIERTO)            */}
       {/* ========================================================================= */}
       {modalRegistroFinca && viajeActivo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-xl bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto" style={{ maxHeight: '92vh' }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            padding: '24px 16px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="w-full max-w-xl bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto"
+            style={{ maxHeight: '92vh', position: 'relative' }}
+          >
             {/* CABECERA CON GRADIENTE OSCURO PREMIUM */}
             <div
               className="p-5 flex items-center justify-between border-b border-white/10 shrink-0"
@@ -4199,7 +4345,7 @@ export const RecoleccionRutasPage: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 1250,
+            zIndex: 2000,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4921,8 +5067,24 @@ export const RecoleccionRutasPage: React.FC = () => {
       {/* MODAL 4: EDITAR PARADA EN FINCA (DENTRO DEL TICKET ABIERTO)               */}
       {/* ========================================================================= */}
       {modalEditarRecoleccion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto" style={{ maxHeight: '92vh' }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            padding: '24px 16px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-2xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col my-auto"
+            style={{ maxHeight: '92vh', position: 'relative' }}
+          >
             {/* CABECERA */}
             <div
               className="p-5 flex items-center justify-between border-b border-white/10 shrink-0"

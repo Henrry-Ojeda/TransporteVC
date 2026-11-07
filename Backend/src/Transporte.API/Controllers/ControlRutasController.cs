@@ -470,15 +470,30 @@ namespace Transporte.API.Controllers
         /// Revierte el proceso de un viaje/ticket a un estado anterior (ej. En Ruta) registrando el motivo en auditoría.
         /// </summary>
         [HttpPost("{id:long}/revertir-proceso")]
-        public async Task<IActionResult> RevertirProceso([FromRoute] long id, [FromBody] RevertirProcesoViajeDto dto)
+        [HttpGet("{id:long}/revertir-proceso")]
+        public async Task<IActionResult> RevertirProceso([FromRoute] long id, [FromBody] RevertirProcesoViajeDto? dto = null)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "CHOFER";
+            int userId = 1;
+            var uidClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirst("id")?.Value;
+            if (int.TryParse(uidClaim, out var parsedId)) userId = parsedId;
+            var rol = (User.FindFirstValue(ClaimTypes.Role) ?? "CHOFER").ToUpper();
+
+            dto ??= new RevertirProcesoViajeDto
+            {
+                NuevoProcesoId = 1,
+                Motivo = "Reversión directa a ruta"
+            };
 
             try
             {
                 var ok = await _controlRutasRepository.RevertirProcesoViajeAsync(id, dto, userId, rol);
                 if (!ok) return NotFound(new { message = "Viaje no encontrado." });
+
+                if (Request.Headers.Accept.ToString().Contains("text/html"))
+                {
+                    return Redirect("/rutas");
+                }
+
                 return Ok(new { message = "Proceso del viaje revertido exitosamente con registro en bitácora." });
             }
             catch (InvalidOperationException ex)

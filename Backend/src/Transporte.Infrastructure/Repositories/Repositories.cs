@@ -9269,10 +9269,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
         public async Task<bool> RevertirProcesoViajeAsync(long controlRutaId, RevertirProcesoViajeDto dto, int usuarioId, string rol)
         {
-            if (string.IsNullOrWhiteSpace(dto.Motivo))
-            {
-                throw new InvalidOperationException("El motivo o justificación de la reversión de proceso es obligatorio.");
-            }
+            var motivo = string.IsNullOrWhiteSpace(dto?.Motivo) ? "Reversión de proceso a ruta" : dto.Motivo;
 
             using var connection = new SqlConnection(_connectionString);
             var viaje = await connection.QueryFirstOrDefaultAsync<dynamic>(
@@ -9320,8 +9317,11 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                         ModifiedBy = @usuarioId
                     WHERE Id = @controlRutaId;
 
+                    DELETE FROM TB_ENTREGAS_COMPANIA 
+                    WHERE ControlRutaId = @controlRutaId 
+                       OR ControlCompaniaId IN (SELECT Id FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @controlRutaId);
+
                     DELETE FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @controlRutaId;
-                    DELETE FROM TB_ENTREGAS_COMPANIA WHERE ControlRutaId = @controlRutaId;
                 ", new { controlRutaId, usuarioId });
             }
             else if (targetProcesoId == 2)
@@ -9341,6 +9341,10 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                         ModifiedAt = GETDATE(),
                         ModifiedBy = @usuarioId
                     WHERE Id = @controlRutaId;
+
+                    DELETE FROM TB_ENTREGAS_COMPANIA 
+                    WHERE ControlRutaId = @controlRutaId 
+                       OR ControlCompaniaId IN (SELECT Id FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @controlRutaId);
 
                     DELETE FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @controlRutaId;
                 ", new { controlRutaId, usuarioId });
