@@ -47,7 +47,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
-      if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+      // Solo hacer dropup si abajo no cabe y arriba hay suficiente espacio (mínimo 280px) para no chocar con la cabecera
+      if (spaceBelow < 260 && spaceAbove >= 280 && spaceAbove > spaceBelow) {
         setDropUp(true);
       } else {
         setDropUp(false);

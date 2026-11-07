@@ -52,9 +52,10 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
   const [planificacionEditar, setPlanificacionEditar] = useState<PlanificacionRutaChoferDto | null>(null);
 
   // Formulario de asignación
+  const [formFecha, setFormFecha] = useState<string>(fechaOperativa);
   const [formCamionId, setFormCamionId] = useState<number | undefined>(undefined);
   const [formChoferId, setFormChoferId] = useState<number | undefined>(undefined);
-  const [formRutaId, setFormRutaId] = useState<number | undefined>(undefined);
+  const [formRutasIds, setFormRutasIds] = useState<number[]>([]);
   const [formFincasSeleccionadas, setFormFincasSeleccionadas] = useState<number[]>([]);
   const [formObservacion, setFormObservacion] = useState<string>('');
   const [busquedaFincaChecklist, setBusquedaFincaChecklist] = useState<string>('');
@@ -171,27 +172,30 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
     return map;
   }, [planificaciones, planificacionEditar]);
 
+  const getFincaId = (f: any): number => Number(f?.fincaId ?? f?.FincaId ?? f?.id ?? f?.Id ?? 0);
+  const getRutaId = (f: any): number => Number(f?.rutaId ?? f?.RutaId ?? 0);
+
   // Fincas filtradas para el modal
   const fincasParaModal = useMemo(() => {
     let list = fincasPromedios;
-    if (filtroSoloRuta && formRutaId) {
-      list = list.filter((f) => f.rutaId === formRutaId);
+    if (filtroSoloRuta && formRutasIds.length > 0) {
+      list = list.filter((f) => formRutasIds.includes(getRutaId(f)));
     }
     if (busquedaFincaChecklist.trim()) {
       const q = busquedaFincaChecklist.toLowerCase();
       list = list.filter(
         (f) =>
-          f.fincaNombre.toLowerCase().includes(q) ||
+          (f.fincaNombre && f.fincaNombre.toLowerCase().includes(q)) ||
           (f.propietario && f.propietario.toLowerCase().includes(q))
       );
     }
     return list;
-  }, [fincasPromedios, filtroSoloRuta, formRutaId, busquedaFincaChecklist]);
+  }, [fincasPromedios, filtroSoloRuta, formRutasIds, busquedaFincaChecklist]);
 
   // Litros estimados en vivo de las fincas seleccionadas en el modal
   const litrosEstimadosSeleccionados = useMemo(() => {
     const mapaPromedios = new Map<number, number>();
-    fincasPromedios.forEach((f) => mapaPromedios.set(f.fincaId, f.promedioLitros || 0));
+    fincasPromedios.forEach((f) => mapaPromedios.set(getFincaId(f), f.promedioLitros || 0));
     return formFincasSeleccionadas.reduce((acc, fId) => acc + (mapaPromedios.get(fId) || 0), 0);
   }, [formFincasSeleccionadas, fincasPromedios]);
 
@@ -210,12 +214,27 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
     }));
   }, [rutas]);
 
+  // Alternar selección de una ruta logística
+  const toggleRuta = (rutaId: number) => {
+    setFormRutasIds((prev) => {
+      const exists = prev.includes(rutaId);
+      const updated = exists ? prev.filter((id) => id !== rutaId) : [...prev, rutaId];
+      if (!exists) {
+        // Al agregar la ruta, preseleccionar sus fincas
+        const fincasDeEstaRuta = fincasPromedios.filter((f) => getRutaId(f) === rutaId).map(getFincaId);
+        setFormFincasSeleccionadas((prevF) => Array.from(new Set([...prevF, ...fincasDeEstaRuta])));
+      }
+      return updated;
+    });
+  };
+
   // Abrir modal para crear
   const abrirModalCrear = () => {
     setPlanificacionEditar(null);
+    setFormFecha(fechaOperativa);
     setFormCamionId(undefined);
     setFormChoferId(undefined);
-    setFormRutaId(undefined);
+    setFormRutasIds([]);
     setFormFincasSeleccionadas([]);
     setFormObservacion('');
     setBusquedaFincaChecklist('');
@@ -226,9 +245,19 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
   // Abrir modal para editar
   const abrirModalEditar = (item: PlanificacionRutaChoferDto) => {
     setPlanificacionEditar(item);
+    setFormFecha(item.fecha ? String(item.fecha).split('T')[0] : fechaOperativa);
     setFormCamionId(item.camionId);
     setFormChoferId(item.conductorId);
-    setFormRutaId(item.rutaLogisticaId || undefined);
+    
+    // Parsear rutasIds múltiples o fallback a rutaLogisticaId
+    const rIds = (item.rutasIds || '')
+      .split(',')
+      .map(Number)
+      .filter((n) => n > 0);
+    if (rIds.length === 0 && item.rutaLogisticaId) {
+      rIds.push(item.rutaLogisticaId);
+    }
+    setFormRutasIds(rIds);
     setFormFincasSeleccionadas([...(item.listaFincasIds || [])]);
     setFormObservacion(item.observacion || '');
     setBusquedaFincaChecklist('');
@@ -254,10 +283,11 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
 
     const dto: GuardarPlanificacionRutaChoferDto = {
       id: planificacionEditar?.id,
-      fecha: fechaOperativa,
+      fecha: formFecha || fechaOperativa,
       camionId: formCamionId,
       conductorId: formChoferId,
-      rutaLogisticaId: formRutaId,
+      rutaLogisticaId: formRutasIds.length > 0 ? formRutasIds[0] : undefined,
+      rutasIds: formRutasIds.length > 0 ? formRutasIds.join(',') : undefined,
       fincasIds: formFincasSeleccionadas,
       litrosEstimados: Math.round(litrosEstimadosSeleccionados),
       observacion: formObservacion.trim() || undefined,
@@ -268,19 +298,24 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
 
   // Alternar finca en el checklist
   const toggleFinca = (fincaId: number) => {
+    if (!fincaId) return;
     setFormFincasSeleccionadas((prev) =>
       prev.includes(fincaId) ? prev.filter((id) => id !== fincaId) : [...prev, fincaId]
     );
   };
 
   // Seleccionar todas las fincas de la ruta activa
-  const seleccionarTodasDeRuta = () => {
-    const idsVisibles = fincasParaModal.map((f) => f.fincaId);
+  const seleccionarTodasDeRuta = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const idsVisibles = fincasParaModal.map(getFincaId).filter((id) => id > 0);
     setFormFincasSeleccionadas((prev) => Array.from(new Set([...prev, ...idsVisibles])));
   };
 
   // Deseleccionar todas las fincas
-  const deseleccionarTodas = () => {
+  const deseleccionarTodas = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setFormFincasSeleccionadas([]);
   };
 
@@ -289,16 +324,6 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
     setFormCamionId(val);
     if (cam?.usuarioId && !formChoferId) {
       setFormChoferId(cam.usuarioId);
-    }
-  };
-
-  // Al cambiar ruta, sugerir fincas de esa ruta si la lista está vacía
-  const handleRutaChange = (val: string | number) => {
-    const num = Number(val) || undefined;
-    setFormRutaId(num);
-    if (num && formFincasSeleccionadas.length === 0) {
-      const fincasDeEstaRuta = fincasPromedios.filter((f) => f.rutaId === num).map((f) => f.fincaId);
-      setFormFincasSeleccionadas(fincasDeEstaRuta);
     }
   };
 
@@ -350,16 +375,28 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
       header: 'Ruta Base',
       accessorKey: 'rutaLogisticaNombre',
       sortable: true,
-      cell: (row) => (
-        row.rutaLogisticaNombre ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-            <RouteIcon className="w-3 h-3" />
-            {row.rutaLogisticaNombre}
-          </span>
+      cell: (row) => {
+        let nombresRutas: string[] = [];
+        if (row.rutasIds) {
+          const ids = row.rutasIds.split(',').map(Number);
+          nombresRutas = ids.map((id: number) => rutas.find((r) => r.id === id)?.nombre).filter(Boolean) as string[];
+        }
+        if (nombresRutas.length === 0 && row.rutaLogisticaNombre) {
+          nombresRutas = [row.rutaLogisticaNombre];
+        }
+        return nombresRutas.length > 0 ? (
+          <div className="flex flex-wrap gap-1 max-w-[220px]">
+            {nombresRutas.map((nom, idx) => (
+              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <RouteIcon className="w-3 h-3 text-indigo-500" />
+                {nom}
+              </span>
+            ))}
+          </div>
         ) : (
-          <span className="text-xs text-slate-400 font-medium">Ruta Flexible / Multiruta</span>
-        )
-      ),
+          <span className="text-xs text-slate-400 font-medium">Multiruta / Libre</span>
+        );
+      },
     },
     {
       header: 'Fincas Asignadas',
@@ -683,9 +720,21 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                       <span className="text-slate-500 flex items-center gap-1.5">
                         <RouteIcon className="w-3.5 h-3.5 text-slate-400" /> Circuito Logístico:
                       </span>
-                      <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-                        {plan.rutaLogisticaNombre || 'Flexible / Multiruta'}
-                      </span>
+                      {(() => {
+                        let nombresRutas: string[] = [];
+                        if (plan.rutasIds) {
+                          const ids = plan.rutasIds.split(',').map(Number);
+                          nombresRutas = ids.map((id: number) => rutas.find((r) => r.id === id)?.nombre).filter(Boolean) as string[];
+                        }
+                        if (nombresRutas.length === 0 && plan.rutaLogisticaNombre) {
+                          nombresRutas = [plan.rutaLogisticaNombre];
+                        }
+                        return (
+                          <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 text-right">
+                            {nombresRutas.length > 0 ? nombresRutas.join(' + ') : 'Flexible / Multiruta'}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -770,34 +819,76 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
 
       {/* MODAL PARA CREAR / EDITAR PLANIFICACIÓN */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '70px 16px 24px 16px',
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '920px',
+              maxHeight: 'calc(100vh - 90px)',
+              margin: 'auto',
+              background: '#ffffff',
+              borderRadius: '20px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
             {/* Cabecera del Modal */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-slate-50/80">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
                   <Truck className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
                     {planificacionEditar ? 'Editar Planificación de Camión' : 'Planificar Camión y Chofer'}
                   </h3>
-                  <p className="text-xs text-slate-500">Fecha Operativa: <b>{fechaOperativa}</b></p>
+                  <p className="text-xs text-slate-500">Distribución de circuitos y fincas de recolección</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalAbierto(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Formulario */}
-            <form onSubmit={handleGuardar} className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* SELECTORES DE CAMIÓN, CHOFER Y RUTA */}
+            <form onSubmit={handleGuardar} className="flex-1 overflow-y-auto p-5 md:p-6 space-y-4">
+              {/* FILA 1: FECHA, CAMIÓN Y CHOFER */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Fecha Operativa Editable */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" /> Fecha Operativa *
+                  </label>
+                  <input
+                    type="date"
+                    value={formFecha}
+                    onChange={(e) => setFormFecha(e.target.value)}
+                    className="w-full h-10 px-3 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none"
+                    required
+                  />
+                </div>
+
                 {/* Camión Select */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -826,19 +917,42 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                     required
                   />
                 </div>
+              </div>
 
-                {/* Ruta Base Select */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Ruta Base / Circuito
+              {/* FILA 2: RUTAS LOGÍSTICAS MÚLTIPLES */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <RouteIcon className="w-3.5 h-3.5 text-indigo-600" /> Circuitos / Rutas Logísticas Asignadas (Puede seleccionar varias)
                   </label>
-                  <SearchableSelect
-                    options={opcionesRutas}
-                    value={formRutaId}
-                    onChange={handleRutaChange}
-                    placeholder="-- Todas / Flexible --"
-                    allowClear
-                  />
+                  {formRutasIds.length > 0 && (
+                    <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                      {formRutasIds.length} {formRutasIds.length === 1 ? 'ruta seleccionada' : 'rutas seleccionadas'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl max-h-24 overflow-y-auto">
+                  {rutas.map((r) => {
+                    const isSel = formRutasIds.includes(r.id);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => toggleRuta(r.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSel
+                            ? 'bg-indigo-600 text-white shadow-xs border border-indigo-600'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        <i className={`fa-solid ${isSel ? 'fa-check' : 'fa-plus'} text-[10px]`}></i>
+                        <span>{r.nombre}</span>
+                      </button>
+                    );
+                  })}
+                  {rutas.length === 0 && (
+                    <span className="text-xs text-slate-400 py-1">No hay rutas registradas</span>
+                  )}
                 </div>
               </div>
 
@@ -923,21 +1037,21 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                     Fincas a Recolectar (Promedio Histórico 15 Días)
                   </label>
                   <div className="flex items-center gap-2">
-                    {formRutaId && (
+                    {formRutasIds.length > 0 && (
                       <button
                         type="button"
                         onClick={() => setFiltroSoloRuta(!filtroSoloRuta)}
-                        className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-colors ${
+                        className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
                           filtroSoloRuta ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
                         }`}
                       >
-                        {filtroSoloRuta ? '✓ Filtrando por Ruta' : 'Ver Todas las Rutas'}
+                        {filtroSoloRuta ? `✓ Filtrando por ${formRutasIds.length} ${formRutasIds.length === 1 ? 'Ruta' : 'Rutas'}` : 'Ver Todas las Rutas'}
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={seleccionarTodasDeRuta}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                     >
                       Seleccionar Visibles
                     </button>
@@ -945,7 +1059,7 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={deseleccionarTodas}
-                      className="text-xs font-bold text-slate-500 hover:text-slate-800 hover:underline"
+                      className="text-xs font-bold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
                     >
                       Deseleccionar
                     </button>
@@ -974,13 +1088,17 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                     </div>
                   ) : (
                     fincasParaModal.map((finca) => {
-                      const isChecked = formFincasSeleccionadas.includes(finca.fincaId);
-                      const asignadaA = fincasAsignadasEnFecha.get(finca.fincaId);
+                      const fId = getFincaId(finca);
+                      const isChecked = formFincasSeleccionadas.includes(fId);
+                      const asignadaA = fincasAsignadasEnFecha.get(fId);
+                      const nombreFinca = finca.fincaNombre || (finca as any).FincaNombre || (finca as any).nombre || `Finca #${fId}`;
+                      const nombrePropietario = finca.propietario || (finca as any).Propietario || (finca as any).productor || 'Sin propietario';
+                      const promLitros = Number(finca.promedioLitros || (finca as any).PromedioLitros || 0);
 
                       return (
                         <div
-                          key={finca.fincaId}
-                          onClick={() => toggleFinca(finca.fincaId)}
+                          key={fId}
+                          onClick={() => toggleFinca(fId)}
                           className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-colors ${
                             isChecked ? 'bg-blue-50/70 hover:bg-blue-50' : 'hover:bg-slate-50'
                           }`}
@@ -994,7 +1112,7 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                             />
                             <div>
                               <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                <span>{finca.fincaNombre}</span>
+                                <span>{nombreFinca}</span>
                                 {asignadaA && (
                                   <span
                                     className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300"
@@ -1005,14 +1123,14 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                                 )}
                               </div>
                               <div className="text-[11px] text-slate-400">
-                                {finca.propietario || 'Sin propietario'}
+                                {nombrePropietario}
                               </div>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
-                              ~{finca.promedioLitros.toLocaleString()} Lts/d
+                              ~{Math.round(promLitros).toLocaleString()} Lts/d
                             </span>
                           </div>
                         </div>

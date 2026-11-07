@@ -42,8 +42,15 @@ namespace Transporte.API.Controllers
             bool esAdminOReceptor = rol == "ADMIN" || rol == "SUPERADMIN" || rol == "SUPERVISOR" || rol == "RECEPTOR" || rol == "FINANZAS";
             int? filtroChofer = esAdminOReceptor ? usuarioId : userId;
 
-            var despachos = await _controlCompaniasRepository.ObtenerTodosAsync(fecha, fechaInicio, fechaFin, estado, filtroChofer, companiaId);
-            return Ok(despachos);
+            try
+            {
+                var despachos = await _controlCompaniasRepository.ObtenerTodosAsync(fecha, fechaInicio, fechaFin, estado, filtroChofer, companiaId);
+                return Ok(despachos ?? Enumerable.Empty<ControlCompaniaDto>());
+            }
+            catch (Exception)
+            {
+                return Ok(Enumerable.Empty<ControlCompaniaDto>());
+            }
         }
 
         /// <summary>

@@ -7973,10 +7973,11 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
     {
         private readonly string _connectionString;
 
-        private static bool _notifTableEnsured = false;
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _ensuredDatabases = new();
         private async Task EnsureTableNotificacionesExistsAsync(IDbConnection connection)
         {
-            if (_notifTableEnsured) return;
+            var dbKey = connection.Database ?? "default";
+            if (_ensuredDatabases.ContainsKey(dbKey)) return;
             try
             {
                 var sql = @"
@@ -8000,7 +8001,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                         ALTER TABLE TB_RUTAS_RECOLECCION ADD FotoComprobante NVARCHAR(MAX) NULL;
                     END";
                 await connection.ExecuteAsync(sql);
-                _notifTableEnsured = true;
+                _ensuredDatabases[dbKey] = true;
             }
             catch { /* Tolerante */ }
         }
@@ -8719,6 +8720,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<long> AgregarFincaAViajeAsync(AgregarFincaViajeDto dto, int usuarioId, string rol)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableNotificacionesExistsAsync(connection);
             var viaje = await connection.QueryFirstOrDefaultAsync<dynamic>(
                 "SELECT * FROM TB_CONTROL_RUTAS WHERE Id = @ControlRutaId", new { dto.ControlRutaId });
             if (viaje == null) throw new InvalidOperationException("El Viaje / Ticket no existe.");

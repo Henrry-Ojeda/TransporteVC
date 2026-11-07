@@ -89,7 +89,11 @@ export const HistorialBcvPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['bcv-hoy'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al sincronizar con DolarAPI');
+      let msg = err.response?.data?.message || err.message || '';
+      if (typeof err.response?.data === 'string' && err.response.data.includes('<html')) {
+        msg = 'Servicio temporalmente no disponible (502). Intente nuevamente.';
+      }
+      toast.error(msg || 'Error al sincronizar con DolarAPI');
     },
   });
 

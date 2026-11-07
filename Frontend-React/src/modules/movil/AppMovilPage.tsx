@@ -825,16 +825,26 @@ export const AppMovilPage: React.FC = () => {
       const choferNumId = dispositivo?.id;
 
       if (tipoReporte === 'DIARIOS') {
-        res = await sistemaApi.getReporteDiarios(repFechaInicio, repFechaFin, choferNumId);
+        const raw: any = await sistemaApi.getReporteDiarios(repFechaInicio, repFechaFin, choferNumId);
+        const lista = raw?.diarioRutas || raw?.diarioTransporteRutas || (Array.isArray(raw) ? raw : []);
+        const total = raw?.totalDiarioRutas ?? raw?.totalLitros ?? lista.reduce((a: number, b: any) => a + Number(b.litros || b.totalLitros || 0), 0);
+        res = { items: lista, totalLitros: total, raw };
       } else if (tipoReporte === 'RECEPTORIAS') {
-        res = await sistemaApi.getReporteReceptorias(repFechaInicio, repFechaFin);
+        const raw: any = await sistemaApi.getReporteReceptorias(repFechaInicio, repFechaFin);
+        const lista = Array.isArray(raw) ? raw : (raw?.items || raw?.detalles || []);
+        res = { items: lista, totalLitros: lista.reduce((a: number, b: any) => a + Number(b.litros || b.litrosRecibidos || 0), 0), raw };
       } else if (tipoReporte === 'FINCAS') {
-        res = await sistemaApi.getReporteFincas(repFechaInicio, repFechaFin);
+        const raw: any = await sistemaApi.getReporteFincas(repFechaInicio, repFechaFin);
+        const lista = Array.isArray(raw) ? raw : (raw?.fincas || raw?.items || []);
+        res = { items: lista, totalLitros: lista.reduce((a: number, b: any) => a + Number(b.totalLitros || b.litros || 0), 0), raw };
       } else if (tipoReporte === 'CHOFERES') {
-        res = await sistemaApi.getReporteChoferes(repFechaInicio, repFechaFin, choferNumId);
+        const raw: any = await sistemaApi.getReporteChoferes(repFechaInicio, repFechaFin, choferNumId);
+        const lista = Array.isArray(raw) ? raw : (raw?.detalles || raw?.items || []);
+        res = { items: lista, totalLitros: lista.reduce((a: number, b: any) => a + Number(b.litros || b.totalLitros || 0), 0), raw };
       } else if (tipoReporte === 'RELACION_CHOFER') {
-        const raw = await sistemaApi.getReporteRelacionChoferes(repFechaInicio, repFechaFin);
-        res = (raw || []).filter((r: any) => Number(r.usuarioId || r.UsuarioId) === choferNumId);
+        const raw: any = await sistemaApi.getReporteRelacionChoferes(repFechaInicio, repFechaFin);
+        const filtered = (Array.isArray(raw) ? raw : []).filter((r: any) => Number(r.usuarioId || r.UsuarioId) === choferNumId);
+        res = { items: filtered, totalLitros: filtered.reduce((a: number, b: any) => a + Number(b.totalLitros || b.litros || 0), 0), raw };
       }
       setDatosReporte(res);
       toast.success('Reporte generado exitosamente');
@@ -938,6 +948,55 @@ export const AppMovilPage: React.FC = () => {
 
     return result;
   }, [fincas, busquedaFinca, rutasActivasIds]);
+
+  // Fincas de la Ruta Asignada al Viaje Activo (con estado: recolectada / pendiente)
+  const fincasDeMiRuta = useMemo(() => {
+    if (!viajeActivo) return [];
+
+    let fincasRuta: FincaDto[] = [];
+    if (rutasActivasIds.length > 0) {
+      fincasRuta = fincas.filter((f) => f.rutaId && rutasActivasIds.includes(f.rutaId));
+    }
+
+    if (fincasRuta.length === 0) {
+      const idsParadas = todasLasParadas.map((p) => Number(p.fincaId || p.FincaId || 0)).filter((id) => id > 0);
+      fincasRuta = fincas.filter((f) => idsParadas.includes(f.id));
+    }
+
+    return fincasRuta.map((f) => {
+      const parada = todasLasParadas.find((p) =>
+        Number(p.fincaId || p.FincaId) === f.id ||
+        (p.fincaNombre && f.nombre && p.fincaNombre.trim().toLowerCase() === f.nombre.trim().toLowerCase())
+      );
+      return {
+        ...f,
+        recolectada: Boolean(parada),
+        parada,
+        litrosRecolectados: parada ? Number(parada.litros || 0) : 0,
+      };
+    }).sort((a, b) => {
+      if (a.recolectada && !b.recolectada) return -1;
+      if (!a.recolectada && b.recolectada) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
+  }, [viajeActivo, rutasActivasIds, fincas, todasLasParadas]);
+
+  // Abrir modal de carga preseleccionando una finca específica
+  const abrirCargaParaFinca = (fincaItem: any) => {
+    if (viajeActivo?.fecha) {
+      setFormCarga((prev) => ({
+        ...prev,
+        fecha: viajeActivo.fecha.split('T')[0],
+        fincaId: fincaItem.id,
+      }));
+    } else {
+      setFormCarga((prev) => ({
+        ...prev,
+        fincaId: fincaItem.id,
+      }));
+    }
+    setModalRegistro(true);
+  };
 
   // Guardar nueva carga en local
   const handleGuardarCarga = (e: React.FormEvent) => {
@@ -2297,6 +2356,153 @@ export const AppMovilPage: React.FC = () => {
               );
             })()}
 
+            {/* Recorrido de Fincas de la Ruta Asignada */}
+            {fincasDeMiRuta.length > 0 && (
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '14px 16px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '18px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-route" style={{ color: '#2563eb' }}></i>
+                    <span>Fincas de Mi Ruta ({fincasDeMiRuta.length})</span>
+                  </div>
+                  {(() => {
+                    const recCount = fincasDeMiRuta.filter((f) => f.recolectada).length;
+                    const pct = Math.round((recCount / fincasDeMiRuta.length) * 100);
+                    return (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: pct === 100 ? '#dcfce7' : '#eff6ff',
+                          color: pct === 100 ? '#15803d' : '#1d4ed8',
+                        }}
+                      >
+                        {recCount}/{fincasDeMiRuta.length} ({pct}%)
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* Barra de progreso de recolección */}
+                {(() => {
+                  const recCount = fincasDeMiRuta.filter((f) => f.recolectada).length;
+                  const pct = Math.round((recCount / fincasDeMiRuta.length) * 100);
+                  return (
+                    <div style={{ width: '100%', height: '6px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden', marginBottom: '12px' }}>
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: pct === 100 ? '#10b981' : 'linear-gradient(90deg, #3b82f6, #10b981)',
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                    </div>
+                  );
+                })()}
+
+                {/* Lista de Fincas (Verdes las ya recogidas, Grises las pendientes con botón Cargar) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {fincasDeMiRuta.map((f) => (
+                    <div
+                      key={f.id}
+                      style={{
+                        borderRadius: '12px',
+                        padding: '10px 12px',
+                        border: f.recolectada ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+                        background: f.recolectada ? '#f0fdf4' : '#f8fafc',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: f.recolectada ? '#166534' : '#1e293b' }}>
+                            {f.recolectada ? '✓ ' : ''}{f.nombre}
+                          </span>
+                          {f.recolectada ? (
+                            <span
+                              style={{
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              Recolectada
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#64748b',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              ⏳ Pendiente
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                          {f.propietarioNombre || f.propietario || f.codigo || 'Finca ganadera'}
+                          {f.recolectada && f.parada?.hora ? ` • Recogida ${f.parada.hora}` : ''}
+                        </div>
+                      </div>
+
+                      <div>
+                        {f.recolectada ? (
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 900, color: '#15803d' }}>
+                              +{f.litrosRecolectados.toLocaleString()} L
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => abrirCargaParaFinca(f)}
+                            style={{
+                              background: '#10b981',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '6px 12px',
+                              fontSize: '11.5px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                            }}
+                          >
+                            <i className="fa-solid fa-plus text-[10px]"></i>
+                            <span>Cargar</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Historial de Cargas de Hoy */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <h3 style={{ fontSize: '14.5px', fontWeight: 800, color: '#1e293b', margin: 0 }}>
@@ -2642,61 +2848,87 @@ export const AppMovilPage: React.FC = () => {
             </div>
 
             {/* Vista de Datos del Reporte */}
-            {datosReporte && (
-              <div
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '16px',
-                  padding: '16px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-                }}
-              >
-                <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', marginBottom: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
-                  Resultados del Reporte ({Array.isArray(datosReporte) ? datosReporte.length : 1} registros)
-                </div>
+            {datosReporte && (() => {
+              const items: any[] = datosReporte?.items || (Array.isArray(datosReporte) ? datosReporte : []);
+              const totalLitrosCalculados = Number(
+                datosReporte?.totalLitros ?? 
+                items.reduce((acc, r) => acc + Number(r.litros || r.totalLitros || r.litrosDespachados || 0), 0)
+              );
 
-                {Array.isArray(datosReporte) && datosReporte.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>
-                    No se encontraron registros para este rango de fechas.
+              return (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>
+                      Resultados ({items.length} {items.length === 1 ? 'registro' : 'registros'})
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: '6px' }}>
+                      {totalLitrosCalculados.toLocaleString()} Lts Totales
+                    </div>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {Array.isArray(datosReporte) ? (
-                      datosReporte.slice(0, 30).map((row: any, idx: number) => (
-                        <div
-                          key={idx}
-                          style={{
-                            background: '#f8fafc',
-                            borderRadius: '10px',
-                            padding: '10px 12px',
-                            border: '1px solid #e2e8f0',
-                            fontSize: '12px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#1e293b' }}>
-                            <span>{row.nombre || row.fincaNombre || row.choferNombre || row.companiaNombre || `Registro #${idx + 1}`}</span>
-                            <span style={{ color: '#2563eb' }}>
-                              {(row.totalLitros || row.litros || row.litrosDespachados || 0).toLocaleString()} L
-                            </span>
-                          </div>
-                          {row.fecha && (
-                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                              Fecha: {String(row.fecha).split('T')[0]}
+
+                  {items.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94a3b8', fontSize: '12px' }}>
+                      <i className="fa-solid fa-folder-open text-2xl mb-1.5 block text-slate-300"></i>
+                      No se encontraron registros para este rango de fechas ({repFechaInicio} al {repFechaFin}).
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {items.slice(0, 50).map((row: any, idx: number) => {
+                        const lts = Number(row.litros || row.totalLitros || row.litrosDespachados || row.Litros || 0);
+                        const titulo = row.nombre || row.fincaNombre || row.finca || row.FincaNombre || row.choferNombre || row.companiaNombre || row.rutaLogisticaNombre || `Registro #${idx + 1}`;
+                        const sub = row.propietario || row.dueño || row.placaCamion || row.observacion || '';
+                        const fechaStr = row.fecha ? String(row.fecha).split('T')[0] : '';
+                        const tipoLeche = (row.tipoLeche || row.TipoLeche || 'VACA').toUpperCase();
+
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              background: '#f8fafc',
+                              borderRadius: '10px',
+                              padding: '10px 12px',
+                              border: '1px solid #e2e8f0',
+                              fontSize: '12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontWeight: 700, color: '#1e293b' }}>
+                              <div>
+                                <span>{titulo}</span>
+                                {sub && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>{sub}</div>}
+                              </div>
+                              <span style={{ color: '#0284c7', fontWeight: 900, whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                                {lts.toLocaleString()} L
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ fontSize: '12px', color: '#334155' }}>
-                        <div style={{ fontWeight: 700, marginBottom: '4px' }}>Resumen General:</div>
-                        <div>Total Litros Recolectados: <strong>{(datosReporte.totalLitros || 0).toLocaleString()} L</strong></div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                              <span>{fechaStr ? `Fecha: ${fechaStr}` : ''}</span>
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                background: tipoLeche === 'BUFALA' ? '#f3e8ff' : '#dbeafe',
+                                color: tipoLeche === 'BUFALA' ? '#7e22ce' : '#1d4ed8'
+                              }}>
+                                {tipoLeche}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -2939,7 +3171,7 @@ export const AppMovilPage: React.FC = () => {
                 }}
               >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
-                Cerrar Sesión (Mantener Empresa)
+                Cerrar Sesión
               </button>
 
               <button

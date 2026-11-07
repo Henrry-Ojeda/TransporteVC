@@ -298,10 +298,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         confirmButtonText: 'Entendido',
       });
     } catch (err: any) {
+      let mensajeError = err?.response?.data?.message || err?.message || '';
+      if (typeof err?.response?.data === 'string' && err.response.data.includes('<html')) {
+        mensajeError = 'El servidor no pudo procesar la sincronización en este momento (Servidor ocupado o respuesta 502). Intente nuevamente en unos instantes.';
+      } else if (typeof mensajeError === 'string' && (mensajeError.includes('<html') || mensajeError.includes('<!DOCTYPE') || mensajeError.includes('502 Bad Gateway'))) {
+        mensajeError = 'Servicio de sincronización no disponible temporalmente. Intente nuevamente en unos minutos.';
+      } else if (!mensajeError) {
+        mensajeError = 'No se pudo conectar a los servicios de tasa BCV en vivo.';
+      }
+
       Swal.fire({
         icon: 'error',
         title: 'Error de sincronización',
-        text: err?.message || 'No se pudo conectar a los servicios de tasa BCV en vivo.',
+        text: mensajeError,
         confirmButtonColor: '#ef4444',
       });
     } finally {
