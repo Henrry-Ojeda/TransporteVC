@@ -49,7 +49,7 @@ const REPORTES_CHOFER = [
   { value: 'RELACION_CHOFER', label: '7. RELACIÓN CHOFER (Liquidación de Viajes)', icon: 'fa-truck-arrow-right' },
 ];
 
-export const APP_VERSION = 'v2.4.2';
+export const APP_VERSION = 'v2.4.3';
 
 export const AppMovilPage: React.FC = () => {
   // Navegación de Pestañas Móviles
