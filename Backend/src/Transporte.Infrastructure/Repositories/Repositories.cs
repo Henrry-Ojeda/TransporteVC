@@ -8573,6 +8573,44 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 observacion = observacionFinal, usuarioId
             });
 
+            // Notificación automática al chofer de asignación de ruta
+            if (nuevoId > 0 && conductorEfectivo > 0)
+            {
+                try
+                {
+                    var nombresRutas = new List<string>();
+                    if (dto.RutasLogisticasIds != null && dto.RutasLogisticasIds.Any())
+                    {
+                        var rNombres = await connection.QueryAsync<string>(
+                            "SELECT Nombre FROM TB_RUTAS_LOGISTICA WHERE Id IN @ids",
+                            new { ids = dto.RutasLogisticasIds });
+                        nombresRutas.AddRange(rNombres);
+                    }
+                    else if (primaryRutaId.HasValue && primaryRutaId.Value > 0)
+                    {
+                        var rNom = await connection.QueryFirstOrDefaultAsync<string>(
+                            "SELECT Nombre FROM TB_RUTAS_LOGISTICA WHERE Id = @id",
+                            new { id = primaryRutaId.Value });
+                        if (!string.IsNullOrWhiteSpace(rNom)) nombresRutas.Add(rNom);
+                    }
+
+                    var rutasStr = nombresRutas.Any() ? string.Join(", ", nombresRutas) : "Ruta General";
+
+                    await connection.ExecuteAsync(@"
+                        INSERT INTO TB_NOTIFICACIONES_MOVIL (UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt)
+                        VALUES (@UsuarioId, 'RUTA_ASIGNADA', @Titulo, @Mensaje, @FechaOperativa, @ReferenciaId, 0, GETDATE())",
+                        new
+                        {
+                            UsuarioId = conductorEfectivo,
+                            Titulo = "🚛 ¡Nueva Ruta Asignada!",
+                            Mensaje = $"Se te ha asignado la recolección para el {fecha:dd/MM/yyyy}. Rutas: {rutasStr}. Ticket #{nuevoId}.",
+                            FechaOperativa = fecha,
+                            ReferenciaId = nuevoId
+                        });
+                }
+                catch { /* Tolerante */ }
+            }
+
             // Registrar en historial inicial
             await connection.ExecuteAsync(@"
                 INSERT INTO TB_HISTORIAL_PROCESOS_TICKET (ControlRutaId, ProcesoId, FechaCambio, CambiadoPor, Observacion)
@@ -10423,6 +10461,30 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 creadoPor
             });
 
+            // Notificación automática al chofer de salida a compañía
+            if (id > 0 && dto.UsuarioId > 0)
+            {
+                try
+                {
+                    var compNombre = await connection.ExecuteScalarAsync<string>(
+                        "SELECT Nombre FROM TB_COMPANIAS WHERE Id = @companiaId",
+                        new { companiaId = dto.CompaniaId }) ?? "Compañía";
+
+                    await connection.ExecuteAsync(@"
+                        INSERT INTO TB_NOTIFICACIONES_MOVIL (UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt)
+                        VALUES (@UsuarioId, 'SALIDA_COMPANIA', @Titulo, @Mensaje, @FechaOperativa, @ReferenciaId, 0, GETDATE())",
+                        new
+                        {
+                            UsuarioId = dto.UsuarioId,
+                            Titulo = "🏭 Salida a Compañía Asignada",
+                            Mensaje = $"Tienes un traslado asignado a la compañía {compNombre} por {dto.LitrosDespachados:N0} Lts de leche {tipoLeche} para la fecha {fecha:dd/MM/yyyy}.",
+                            FechaOperativa = fecha,
+                            ReferenciaId = id
+                        });
+                }
+                catch { /* Tolerante */ }
+            }
+
             return id;
         }
 
@@ -11085,6 +11147,67 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 CantidadCompaniasDestino = companiasCount,
                 Detalle = list
             };
+        }
+    }
+
+    // =========================================================================
+    // INTERFACE & IMPLEMENTATION: INotificacionesRepository
+    // =========================================================================
+    public interface INotificacionesRepository
+    {
+        Task<IEnumerable<NotificacionMovilDto>> ObtenerMisNotificacionesAsync(int usuarioId, int limite = 30);
+        Task<long> CrearNotificacionAsync(CrearNotificacionMovilDto dto);
+        Task<bool> MarcarComoLeidaAsync(long id, int usuarioId);
+        Task<bool> MarcarTodasComoLeidasAsync(int usuarioId);
+    }
+
+    public class NotificacionesRepository : INotificacionesRepository
+    {
+        private readonly string _connectionString;
+
+        public NotificacionesRepository(IConfiguration configuration)
+        {
+            _connectionString = configuration.GetConnectionString("DefaultConnection")!;
+        }
+
+        public async Task<IEnumerable<NotificacionMovilDto>> ObtenerMisNotificacionesAsync(int usuarioId, int limite = 30)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT TOP (@limite)
+                    Id, UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt
+                FROM TB_NOTIFICACIONES_MOVIL
+                WHERE UsuarioId = @usuarioId
+                ORDER BY CreatedAt DESC, Id DESC";
+
+            return await connection.QueryAsync<NotificacionMovilDto>(sql, new { usuarioId, limite });
+        }
+
+        public async Task<long> CrearNotificacionAsync(CrearNotificacionMovilDto dto)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                INSERT INTO TB_NOTIFICACIONES_MOVIL (UsuarioId, Tipo, Titulo, Mensaje, FechaOperativa, ReferenciaId, Leido, CreatedAt)
+                VALUES (@UsuarioId, @Tipo, @Titulo, @Mensaje, @FechaOperativa, @ReferenciaId, 0, GETDATE());
+                SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
+
+            return await connection.ExecuteScalarAsync<long>(sql, dto);
+        }
+
+        public async Task<bool> MarcarComoLeidaAsync(long id, int usuarioId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = "UPDATE TB_NOTIFICACIONES_MOVIL SET Leido = 1 WHERE Id = @id AND UsuarioId = @usuarioId";
+            var rows = await connection.ExecuteAsync(sql, new { id, usuarioId });
+            return rows > 0;
+        }
+
+        public async Task<bool> MarcarTodasComoLeidasAsync(int usuarioId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = "UPDATE TB_NOTIFICACIONES_MOVIL SET Leido = 1 WHERE UsuarioId = @usuarioId AND Leido = 0";
+            var rows = await connection.ExecuteAsync(sql, new { usuarioId });
+            return rows > 0;
         }
     }
 }

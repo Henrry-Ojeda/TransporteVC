@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { AUTH_TOKEN_KEY } from '@/api/client';
 import { authApi } from '@/api/auth.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
 import { sistemaApi } from '@/api/sistema.api';
+import { notificacionesApi, type NotificacionMovil } from '@/api/notificaciones.api';
 import type { FincaDto, DespachoCompaniaDto } from '@/types';
 
 interface DispositivoMovilData {
@@ -49,7 +50,7 @@ const REPORTES_CHOFER = [
   { value: 'RELACION_CHOFER', label: '7. RELACIÓN CHOFER (Liquidación de Viajes)', icon: 'fa-truck-arrow-right' },
 ];
 
-export const APP_VERSION = 'v2.4.3';
+export const APP_VERSION = 'v2.5.0';
 
 export const AppMovilPage: React.FC = () => {
   // Navegación de Pestañas Móviles
@@ -57,6 +58,47 @@ export const AppMovilPage: React.FC = () => {
 
   // Estado de Red (Online / Offline)
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  // Tenant / Base de Datos Guardada en este Dispositivo
+  const [tenantDomain, setTenantDomain] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('movil_tenant_domain');
+      if (saved) return saved;
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      if (host.includes('campoverde')) return 'lacteos-campoverde.vercel.app';
+      if (host.includes('vergel')) return 'transporte-vergel-carrillo.vercel.app';
+      return host || 'transporte-vergel-carrillo.vercel.app';
+    } catch {
+      return 'transporte-vergel-carrillo.vercel.app';
+    }
+  });
+
+  const [empresaGuardada, setEmpresaGuardada] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('movil_tenant_empresa');
+      if (saved) return saved;
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      if (host.includes('campoverde')) return 'Lácteos Campo Verde';
+      if (host.includes('vergel')) return 'Transporte Vergel & Carrillo';
+      return 'Transporte Vergel & Carrillo';
+    } catch {
+      return 'Transporte Vergel & Carrillo';
+    }
+  });
+
+  const [mostrarSelectorEmpresa, setMostrarSelectorEmpresa] = useState(false);
+
+  // Modo de Login (cuando !dispositivo): 'credenciales' (Usuario y Contraseña) o 'codigo' (6 dígitos)
+  const [modoLogin, setModoLogin] = useState<'credenciales' | 'codigo'>('credenciales');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [iniciandoLogin, setIniciandoLogin] = useState(false);
+
+  // Notificaciones Push y Alertas
+  const [notificaciones, setNotificaciones] = useState<NotificacionMovil[]>([]);
+  const [modalNotificaciones, setModalNotificaciones] = useState(false);
+  const ultimasIdsNotificadas = useRef<Set<number>>(new Set());
 
   // Estado del Dispositivo Vinculado
   const [dispositivo, setDispositivo] = useState<DispositivoMovilData | null>(() => {
@@ -161,6 +203,80 @@ export const AppMovilPage: React.FC = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Persistir configuración de tenant de empresa en LocalStorage
+  useEffect(() => {
+    if (tenantDomain) {
+      localStorage.setItem('movil_tenant_domain', tenantDomain);
+    }
+    if (empresaGuardada) {
+      localStorage.setItem('movil_tenant_empresa', empresaGuardada);
+    }
+  }, [tenantDomain, empresaGuardada]);
+
+  // Consultar notificaciones en tiempo real cada 12s cuando está autenticado y online
+  useEffect(() => {
+    if (!dispositivo || !isOnline) return;
+
+    // Solicitar permiso de notificaciones push nativas si el navegador lo permite
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        Notification.requestPermission();
+      } catch {}
+    }
+
+    const pollingNotificaciones = async () => {
+      try {
+        const data = await notificacionesApi.getMisNotificaciones(30);
+        if (Array.isArray(data)) {
+          // Detectar nuevas notificaciones no leídas para emitir vibración / aviso toast
+          const nuevas = data.filter(
+            (n) => !n.leido && !ultimasIdsNotificadas.current.has(n.id)
+          );
+
+          if (nuevas.length > 0) {
+            nuevas.forEach((n) => ultimasIdsNotificadas.current.add(n.id));
+
+            // Vibración háptica en móvil
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try {
+                navigator.vibrate([200, 100, 200]);
+              } catch {}
+            }
+
+            // Alerta Sonner en pantalla
+            const nReciente = nuevas[0];
+            toast.info(`🔔 ${nReciente.titulo}`, {
+              description: nReciente.mensaje,
+              duration: 7000,
+              action: {
+                label: 'Ver Alerta',
+                onClick: () => setModalNotificaciones(true),
+              },
+            });
+
+            // Notificación nativa PWA si está permitido
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(nReciente.titulo, {
+                  body: nReciente.mensaje,
+                  icon: '/favicon.ico',
+                });
+              } catch {}
+            }
+          }
+
+          setNotificaciones(data);
+        }
+      } catch (err) {
+        console.warn('Error al consultar notificaciones móvil:', err);
+      }
+    };
+
+    pollingNotificaciones();
+    const interval = setInterval(pollingNotificaciones, 12000);
+    return () => clearInterval(interval);
+  }, [dispositivo, isOnline]);
 
   // Guardar cargas en LocalStorage cada vez que cambian
   useEffect(() => {
@@ -320,6 +436,11 @@ export const AppMovilPage: React.FC = () => {
         modulosHabilitados: res.modulosHabilitados || [],
       };
 
+      if (res.empresaNombre) {
+        setEmpresaGuardada(res.empresaNombre);
+        localStorage.setItem('movil_tenant_empresa', res.empresaNombre);
+      }
+
       setDispositivo(dispData);
       localStorage.setItem('movil_device_info', JSON.stringify(dispData));
       toast.success(`¡Dispositivo Vinculado con Éxito! Bienvenido ${res.nombreCompleto}`);
@@ -338,16 +459,163 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
-  // Acción: Desvincular dispositivo
-  const handleDesvincular = () => {
-    if (window.confirm('¿Seguro que deseas desvincular este dispositivo? Deberás solicitar un nuevo código a tu administrador para volver a ingresar.')) {
+  // Acción: Iniciar sesión directa con Usuario y Contraseña (persistiendo base de datos del tenant)
+  const handleLoginUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginUsername.trim() || !loginPassword.trim()) {
+      toast.error('Ingresa tu nombre de usuario y contraseña');
+      return;
+    }
+
+    setIniciandoLogin(true);
+    try {
+      const res = await authApi.login({
+        username: loginUsername.trim(),
+        password: loginPassword,
+      });
+
+      localStorage.setItem(AUTH_TOKEN_KEY, res.token);
+      localStorage.setItem('token', res.token);
+      localStorage.setItem(
+        'auth-storage',
+        JSON.stringify({
+          state: {
+            token: res.token,
+            user: {
+              id: res.id,
+              username: res.username,
+              nombreCompleto: res.nombreCompleto,
+              rol: res.rol,
+              permisos: res.permisos,
+            },
+          },
+          version: 0,
+        })
+      );
+
+      const empNombre = res.empresaNombre || empresaGuardada;
+      setEmpresaGuardada(empNombre);
+      localStorage.setItem('movil_tenant_empresa', empNombre);
+
+      // Buscar si el chofer tiene camión y capacidad asignada en el catálogo
+      let camionId: number | undefined;
+      let placaCamion: string | undefined;
+      let capacidadTanqueLitros = 6000;
+
+      try {
+        const choferes = await catalogosApi.getChoferes();
+        const ch = (choferes || []).find(
+          (c) =>
+            (c.username && res.username && c.username.toLowerCase() === res.username.toLowerCase()) ||
+            (c.nombreCompleto &&
+              res.nombreCompleto &&
+              c.nombreCompleto.toLowerCase().trim() === res.nombreCompleto.toLowerCase().trim())
+        );
+        if (ch) {
+          camionId = ch.camionId;
+          placaCamion = ch.camionPlaca || ch.vehiculoPlaca;
+          if (ch.capacidadLitros) capacidadTanqueLitros = ch.capacidadLitros;
+        }
+      } catch {}
+
+      const dispData: DispositivoMovilData = {
+        token: res.token,
+        empresaCodigo: res.empresaCodigo || 'EMPRESA',
+        empresaNombre: empNombre,
+        id: res.id,
+        username: res.username,
+        nombreCompleto: res.nombreCompleto,
+        rol: res.rol,
+        camionId,
+        placaCamion,
+        capacidadTanqueLitros,
+        permisos: res.permisos || [],
+        modulosHabilitados: res.modulosHabilitados || [],
+      };
+
+      setDispositivo(dispData);
+      localStorage.setItem('movil_device_info', JSON.stringify(dispData));
+      toast.success(`¡Bienvenido ${res.nombreCompleto}!`);
+
+      // Descargar catálogo de fincas offline para este chofer
+      try {
+        const fincasData = await catalogosApi.getFincas();
+        if (Array.isArray(fincasData) && fincasData.length > 0) {
+          setFincas(fincasData);
+          localStorage.setItem('movil_fincas_cache', JSON.stringify(fincasData));
+        }
+      } catch {}
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message || 'Usuario o contraseña incorrectos. Verifica tus credenciales.'
+      );
+    } finally {
+      setIniciandoLogin(false);
+    }
+  };
+
+  // Acción: Cerrar Sesión del chofer (preserva la empresa y base de datos guardada en este teléfono)
+  const handleCerrarSesion = () => {
+    if (
+      window.confirm(
+        `¿Deseas cerrar la sesión de ${dispositivo?.nombreCompleto}? La base de datos de "${dispositivo?.empresaNombre || empresaGuardada}" permanecerá activa en este teléfono para que otro chofer pueda ingresar.`
+      )
+    ) {
       localStorage.removeItem('movil_device_info');
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
       setDispositivo(null);
-      toast.info('Dispositivo desvinculado correctamente');
+      setLoginUsername('');
+      setLoginPassword('');
+      toast.info('Sesión cerrada. La base de datos sigue guardada.');
     }
+  };
+
+  // Acción: Desvincular por completo y cambiar de empresa
+  const handleDesvincular = () => {
+    if (
+      window.confirm(
+        '¿Seguro que deseas desvincular este dispositivo y borrar la empresa guardada? Deberás seleccionar la empresa nuevamente para volver a ingresar.'
+      )
+    ) {
+      localStorage.removeItem('movil_device_info');
+      localStorage.removeItem('movil_tenant_domain');
+      localStorage.removeItem('movil_tenant_empresa');
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem('token');
+      localStorage.removeItem('auth-storage');
+      setDispositivo(null);
+      toast.info('Dispositivo y empresa desvinculados correctamente');
+    }
+  };
+
+  // Seleccionar empresa manualmente
+  const seleccionarEmpresa = (domain: string, nombre: string) => {
+    setTenantDomain(domain);
+    setEmpresaGuardada(nombre);
+    localStorage.setItem('movil_tenant_domain', domain);
+    localStorage.setItem('movil_tenant_empresa', nombre);
+    setMostrarSelectorEmpresa(false);
+    toast.success(`Base de datos configurada: ${nombre}`);
+  };
+
+  // Acciones de Notificaciones
+  const handleMarcarLeida = async (id: number) => {
+    try {
+      await notificacionesApi.marcarLeida(id);
+      setNotificaciones((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, leido: true } : n))
+      );
+    } catch {}
+  };
+
+  const handleMarcarTodasLeidas = async () => {
+    try {
+      await notificacionesApi.marcarTodasLeidas();
+      setNotificaciones((prev) => prev.map((n) => ({ ...n, leido: true })));
+      toast.success('Todas las notificaciones marcadas como leídas');
+    } catch {}
   };
 
   // Forzar actualización y limpiar cachés del navegador / PWA
@@ -448,6 +716,10 @@ export const AppMovilPage: React.FC = () => {
   const pendientesSync = useMemo(() => {
     return cargas.filter((c) => !c.synced);
   }, [cargas]);
+
+  const noLeidasCount = useMemo(() => {
+    return notificaciones.filter((n) => !n.leido).length;
+  }, [notificaciones]);
 
   const fincasFiltradas = useMemo(() => {
     if (!busquedaFinca.trim()) return fincas;
@@ -693,88 +965,402 @@ export const AppMovilPage: React.FC = () => {
               <i className="fa-solid fa-code-branch"></i> Versión {APP_VERSION}
             </span>
           </div>
-          <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 24px 0', lineHeight: '1.4' }}>
-            Ingresa el código numérico de 6 dígitos suministrado por tu administrador para vincular este teléfono.
-          </p>
-
-          <form onSubmit={handleVincular}>
-            <div style={{ marginBottom: '22px' }}>
-              <label
+          {/* Tarjeta de Base de Datos / Empresa Conectada */}
+          <div
+            style={{
+              marginBottom: '20px',
+              background: 'rgba(15, 23, 42, 0.7)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: '16px',
+              padding: '12px 14px',
+              textAlign: 'left',
+              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'rgba(14, 165, 233, 0.2)',
+                    color: '#38bdf8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '17px',
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="fa-solid fa-database"></i>
+                </div>
+                <div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px' }}>
+                    Base de Datos Activa
+                  </div>
+                  <div style={{ fontSize: '14.5px', fontWeight: 900, color: '#f8fafc' }}>
+                    {empresaGuardada}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMostrarSelectorEmpresa(!mostrarSelectorEmpresa)}
                 style={{
-                  display: 'block',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#94a3b8',
+                  padding: '5px 10px',
+                  borderRadius: '8px',
                   fontSize: '11px',
-                  fontWeight: 800,
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  color: '#38bdf8',
-                  marginBottom: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  flexShrink: 0,
                 }}
               >
-                Código de Vinculación
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={7}
-                value={codigoInput}
-                onChange={(e) => setCodigoInput(e.target.value)}
-                placeholder="000 000"
-                style={{
-                  width: '100%',
-                  height: '62px',
-                  background: '#0f172a',
-                  border: '2px solid #334155',
-                  borderRadius: '16px',
-                  color: '#38bdf8',
-                  fontSize: '32px',
-                  fontWeight: 900,
-                  letterSpacing: '8px',
-                  textAlign: 'center',
-                  outline: 'none',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
-                }}
-                required
-              />
+                {mostrarSelectorEmpresa ? 'Cerrar' : 'Cambiar'}
+              </button>
             </div>
 
+            {/* Selector Desplegable de Empresa / Tenant */}
+            {mostrarSelectorEmpresa && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#cbd5e1' }}>
+                  Selecciona la empresa correspondiente:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => seleccionarEmpresa('transporte-vergel-carrillo.vercel.app', 'Transporte Vergel & Carrillo')}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: empresaGuardada.includes('Vergel') ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                      border: empresaGuardada.includes('Vergel') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                      color: empresaGuardada.includes('Vergel') ? '#38bdf8' : '#e2e8f0',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>🏢 Transporte Vergel & Carrillo</span>
+                    {empresaGuardada.includes('Vergel') && <i className="fa-solid fa-check text-sky-400"></i>}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => seleccionarEmpresa('lacteos-campoverde.vercel.app', 'Lácteos Campo Verde')}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: empresaGuardada.includes('Campo') ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                      border: empresaGuardada.includes('Campo') ? '1px solid #34d399' : '1px solid rgba(255, 255, 255, 0.1)',
+                      color: empresaGuardada.includes('Campo') ? '#34d399' : '#e2e8f0',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>🥛 Lácteos Campo Verde</span>
+                    {empresaGuardada.includes('Campo') && <i className="fa-solid fa-check text-emerald-400"></i>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Selector de Pestañas de Acceso */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '6px',
+              marginBottom: '20px',
+              background: 'rgba(15, 23, 42, 0.6)',
+              padding: '4px',
+              borderRadius: '14px',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+            }}
+          >
             <button
-              type="submit"
-              disabled={vinculando || codigoInput.trim().length < 6}
+              type="button"
+              onClick={() => setModoLogin('credenciales')}
               style={{
-                width: '100%',
-                height: '52px',
-                borderRadius: '14px',
-                background:
-                  codigoInput.trim().length >= 6
-                    ? 'linear-gradient(135deg, #0284c7, #2563eb)'
-                    : 'rgba(255, 255, 255, 0.1)',
-                color: '#ffffff',
+                padding: '9px 6px',
+                borderRadius: '10px',
                 border: 'none',
-                fontSize: '15px',
+                background: modoLogin === 'credenciales' ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'transparent',
+                color: modoLogin === 'credenciales' ? '#ffffff' : '#94a3b8',
                 fontWeight: 800,
-                cursor: codigoInput.trim().length >= 6 ? 'pointer' : 'not-allowed',
-                boxShadow: codigoInput.trim().length >= 6 ? '0 8px 20px rgba(37, 99, 235, 0.4)' : 'none',
+                fontSize: '12px',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '10px',
+                gap: '6px',
                 transition: 'all 0.2s ease',
               }}
             >
-              {vinculando ? (
-                <>
-                  <i className="fa-solid fa-circle-notch fa-spin"></i>
-                  <span>Verificando...</span>
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-mobile-screen-button"></i>
-                  <span>Vincular y Entrar</span>
-                </>
-              )}
+              <i className="fa-solid fa-user-lock"></i>
+              <span>Usuario y Clave</span>
             </button>
-          </form>
+
+            <button
+              type="button"
+              onClick={() => setModoLogin('codigo')}
+              style={{
+                padding: '9px 6px',
+                borderRadius: '10px',
+                border: 'none',
+                background: modoLogin === 'codigo' ? 'linear-gradient(135deg, #0284c7, #2563eb)' : 'transparent',
+                color: modoLogin === 'codigo' ? '#ffffff' : '#94a3b8',
+                fontWeight: 800,
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="fa-solid fa-key"></i>
+              <span>Código 6 Dígitos</span>
+            </button>
+          </div>
+
+          {/* MODO 1: LOGIN CON USUARIO Y CONTRASEÑA */}
+          {modoLogin === 'credenciales' ? (
+            <form onSubmit={handleLoginUsuario} style={{ textAlign: 'left' }}>
+              <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0', lineHeight: '1.4', textAlign: 'center' }}>
+                Ingresa con tu usuario y contraseña de {empresaGuardada}.
+              </p>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    letterSpacing: '0.8px',
+                    textTransform: 'uppercase',
+                    color: '#38bdf8',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Usuario
+                </label>
+                <input
+                  type="text"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="ej: chofer1"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    background: '#0f172a',
+                    border: '1.5px solid #334155',
+                    borderRadius: '12px',
+                    color: '#ffffff',
+                    fontSize: '15px',
+                    padding: '0 14px',
+                    outline: 'none',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '22px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    letterSpacing: '0.8px',
+                    textTransform: 'uppercase',
+                    color: '#38bdf8',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Contraseña
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={mostrarPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    style={{
+                      width: '100%',
+                      height: '48px',
+                      background: '#0f172a',
+                      border: '1.5px solid #334155',
+                      borderRadius: '12px',
+                      color: '#ffffff',
+                      fontSize: '15px',
+                      padding: '0 44px 0 14px',
+                      outline: 'none',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
+                    }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarPassword(!mostrarPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      fontSize: '15px',
+                      padding: '4px',
+                    }}
+                  >
+                    <i className={`fa-solid ${mostrarPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={iniciandoLogin || !loginUsername.trim() || !loginPassword.trim()}
+                style={{
+                  width: '100%',
+                  height: '50px',
+                  borderRadius: '14px',
+                  background:
+                    loginUsername.trim() && loginPassword.trim()
+                      ? 'linear-gradient(135deg, #0284c7, #2563eb)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  cursor: loginUsername.trim() && loginPassword.trim() ? 'pointer' : 'not-allowed',
+                  boxShadow: loginUsername.trim() && loginPassword.trim() ? '0 8px 20px rgba(37, 99, 235, 0.4)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {iniciandoLogin ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin"></i>
+                    <span>Iniciando Sesión...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-right-to-bracket"></i>
+                    <span>Iniciar Sesión</span>
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            /* MODO 2: VINCULACIÓN CON CÓDIGO DE 6 DÍGITOS */
+            <form onSubmit={handleVincular}>
+              <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: '1.4' }}>
+                Ingresa el código numérico suministrado por tu administrador para vincular este teléfono.
+              </p>
+
+              <div style={{ marginBottom: '22px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    color: '#38bdf8',
+                    marginBottom: '10px',
+                  }}
+                >
+                  Código de Vinculación
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={7}
+                  value={codigoInput}
+                  onChange={(e) => setCodigoInput(e.target.value)}
+                  placeholder="000 000"
+                  style={{
+                    width: '100%',
+                    height: '62px',
+                    background: '#0f172a',
+                    border: '2px solid #334155',
+                    borderRadius: '16px',
+                    color: '#38bdf8',
+                    fontSize: '32px',
+                    fontWeight: 900,
+                    letterSpacing: '8px',
+                    textAlign: 'center',
+                    outline: 'none',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
+                  }}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={vinculando || codigoInput.trim().length < 6}
+                style={{
+                  width: '100%',
+                  height: '52px',
+                  borderRadius: '14px',
+                  background:
+                    codigoInput.trim().length >= 6
+                      ? 'linear-gradient(135deg, #0284c7, #2563eb)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  cursor: codigoInput.trim().length >= 6 ? 'pointer' : 'not-allowed',
+                  boxShadow: codigoInput.trim().length >= 6 ? '0 8px 20px rgba(37, 99, 235, 0.4)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {vinculando ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin"></i>
+                    <span>Verificando...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-mobile-screen-button"></i>
+                    <span>Vincular y Entrar</span>
+                  </>
+                )}
+              </button>
+            </form>
+          )}
 
           {!esInstalada && (
             <div style={{ marginTop: '16px' }}>
@@ -966,6 +1552,52 @@ export const AppMovilPage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Botón de Notificaciones con Badge */}
+            <button
+              type="button"
+              onClick={() => setModalNotificaciones(true)}
+              title="Notificaciones de Rutas y Salidas"
+              style={{
+                position: 'relative',
+                background: noLeidasCount > 0 ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+                border: noLeidasCount > 0 ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)',
+                color: noLeidasCount > 0 ? '#fca5a5' : '#e2e8f0',
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <i className={`fa-solid fa-bell ${noLeidasCount > 0 ? 'fa-shake' : ''}`}></i>
+              {noLeidasCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-5px',
+                    right: '-5px',
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '9.5px',
+                    fontWeight: 900,
+                    minWidth: '17px',
+                    height: '17px',
+                    borderRadius: '9px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 4px',
+                    border: '1.5px solid #0f172a',
+                    boxShadow: '0 2px 5px rgba(239,68,68,0.5)',
+                  }}
+                >
+                  {noLeidasCount > 9 ? '9+' : noLeidasCount}
+                </span>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={handleForzarRecarga}
@@ -1003,12 +1635,12 @@ export const AppMovilPage: React.FC = () => {
             )}
             <button
               type="button"
-              onClick={handleDesvincular}
-              title="Desvincular Dispositivo"
+              onClick={handleCerrarSesion}
+              title="Cerrar Sesión (Mantener Empresa)"
               style={{
-                background: 'rgba(239, 68, 68, 0.2)',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
-                color: '#f87171',
+                background: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                color: '#fbbf24',
                 width: '34px',
                 height: '34px',
                 borderRadius: '8px',
@@ -1858,28 +2490,55 @@ export const AppMovilPage: React.FC = () => {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleDesvincular}
-              style={{
-                width: '100%',
-                height: '44px',
-                borderRadius: '10px',
-                background: '#fee2e2',
-                color: '#b91c1c',
-                border: '1px solid #fecaca',
-                fontSize: '13px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              }}
-            >
-              <i className="fa-solid fa-arrow-right-from-bracket"></i>
-              Desvincular Dispositivo y Salir
-            </button>
+            {/* Acciones de Sesión y Dispositivo */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
+              <button
+                type="button"
+                onClick={handleCerrarSesion}
+                style={{
+                  width: '100%',
+                  height: '46px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)',
+                }}
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                Cerrar Sesión (Mantener Empresa)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDesvincular}
+                style={{
+                  width: '100%',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: '#fee2e2',
+                  color: '#b91c1c',
+                  border: '1px solid #fecaca',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <i className="fa-solid fa-trash-can"></i>
+                Desvincular y Olvidar Empresa
+              </button>
+            </div>
           </div>
         )}
       </main>
@@ -2334,6 +2993,240 @@ export const AppMovilPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE NOTIFICACIONES Y ASIGNACIONES (PUSH) */}
+      {modalNotificaciones && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(5px)',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '540px',
+              background: '#ffffff',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              boxShadow: '0 -10px 40px rgba(0,0,0,0.3)',
+              padding: '22px 20px',
+            }}
+          >
+            {/* Header del Modal */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: '#eff6ff',
+                    color: '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '17px',
+                  }}
+                >
+                  <i className="fa-solid fa-bell"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                    Centro de Notificaciones
+                  </h3>
+                  <p style={{ margin: '1px 0 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                    {noLeidasCount > 0 ? `${noLeidasCount} mensaje(s) sin leer` : 'Al día, no hay alertas nuevas'}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {noLeidasCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarcarTodasLeidas}
+                    title="Marcar todas como leídas"
+                    style={{
+                      background: '#f1f5f9',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Marcar leídas
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setModalNotificaciones(false)}
+                  style={{
+                    background: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '34px',
+                    height: '34px',
+                    fontSize: '20px',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                  }}
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+
+            {/* Listado de Notificaciones */}
+            {notificaciones.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                <i className="fa-solid fa-bell-slash" style={{ fontSize: '36px', marginBottom: '12px', color: '#cbd5e1' }}></i>
+                <p style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>No tienes notificaciones recibidas</p>
+                <p style={{ fontSize: '12px', margin: '4px 0 0 0' }}>Las rutas planificadas y salidas asignadas aparecerán aquí.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {notificaciones.map((notif) => {
+                  const esRuta = notif.tipo === 'RUTA_ASIGNADA';
+                  const esSalida = notif.tipo === 'SALIDA_COMPANIA';
+
+                  const badgeBg = esRuta ? '#dcfce7' : esSalida ? '#f3e8ff' : '#e0f2fe';
+                  const badgeColor = esRuta ? '#15803d' : esSalida ? '#7e22ce' : '#0369a1';
+                  const badgeIcon = esRuta ? 'fa-route' : esSalida ? 'fa-industry' : 'fa-bell';
+                  const badgeLabel = esRuta ? 'RUTA ASIGNADA' : esSalida ? 'SALIDA A COMPAÑÍA' : 'AVISO';
+
+                  return (
+                    <div
+                      key={notif.id}
+                      style={{
+                        background: notif.leido ? '#ffffff' : '#f8fafc',
+                        border: notif.leido ? '1px solid #e2e8f0' : '1.5px solid #38bdf8',
+                        borderRadius: '14px',
+                        padding: '14px',
+                        boxShadow: notif.leido ? 'none' : '0 4px 12px rgba(56, 189, 248, 0.15)',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                        <span
+                          style={{
+                            background: badgeBg,
+                            color: badgeColor,
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            letterSpacing: '0.4px',
+                          }}
+                        >
+                          <i className={`fa-solid ${badgeIcon}`}></i>
+                          {badgeLabel}
+                        </span>
+                        <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                          {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                        </span>
+                      </div>
+
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>
+                        {notif.titulo}
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#475569', lineHeight: '1.45', whiteSpace: 'pre-line' }}>
+                        {notif.mensaje}
+                      </p>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+                        {esRuta && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!notif.leido) handleMarcarLeida(notif.id);
+                              setModalNotificaciones(false);
+                              setTabActiva('recoleccion');
+                            }}
+                            style={{
+                              background: '#10b981',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '5px 12px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <span>Ir a Recolección</span>
+                            <i className="fa-solid fa-arrow-right"></i>
+                          </button>
+                        )}
+                        {esSalida && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!notif.leido) handleMarcarLeida(notif.id);
+                              setModalNotificaciones(false);
+                              setTabActiva('entregas');
+                            }}
+                            style={{
+                              background: '#9333ea',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '5px 12px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <span>Ver en Entregas</span>
+                            <i className="fa-solid fa-arrow-right"></i>
+                          </button>
+                        )}
+                        {!esRuta && !esSalida && <div />}
+
+                        {!notif.leido && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarcarLeida(notif.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#0284c7',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Marcar leída
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

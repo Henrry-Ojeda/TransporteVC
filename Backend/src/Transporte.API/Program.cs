@@ -102,6 +102,7 @@ builder.Services.AddScoped<IRutasLogisticaRepository, RutasLogisticaRepository>(
 builder.Services.AddScoped<ICombustibleRepository, CombustibleRepository>();
 builder.Services.AddScoped<IMantenimientoCamionesRepository, MantenimientoCamionesRepository>();
 builder.Services.AddScoped<IRepuestosRepository, RepuestosRepository>();
+builder.Services.AddScoped<INotificacionesRepository, NotificacionesRepository>();
 
 // 2. Controladores
 builder.Services.AddControllers();

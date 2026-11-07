@@ -2290,6 +2290,32 @@ namespace Transporte.Core.DTOs
         public DateTime Fecha { get; set; }
         public string? Observaciones { get; set; }
     }
+
+    // =========================================================================
+    // DTOs para NOTIFICACIONES MÓVIL (PUSH & IN-APP ALERTAS CHOFERES)
+    // =========================================================================
+    public class NotificacionMovilDto
+    {
+        public long Id { get; set; }
+        public int UsuarioId { get; set; }
+        public string Tipo { get; set; } = string.Empty; // 'RUTA_ASIGNADA' | 'SALIDA_COMPANIA' | 'AVISO_GENERAL'
+        public string Titulo { get; set; } = string.Empty;
+        public string Mensaje { get; set; } = string.Empty;
+        public DateTime? FechaOperativa { get; set; }
+        public long? ReferenciaId { get; set; }
+        public bool Leido { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class CrearNotificacionMovilDto
+    {
+        public int UsuarioId { get; set; }
+        public string Tipo { get; set; } = "AVISO_GENERAL";
+        public string Titulo { get; set; } = string.Empty;
+        public string Mensaje { get; set; } = string.Empty;
+        public DateTime? FechaOperativa { get; set; }
+        public long? ReferenciaId { get; set; }
+    }
 }
 
 

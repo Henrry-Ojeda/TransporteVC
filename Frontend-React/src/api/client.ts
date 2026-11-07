@@ -32,7 +32,8 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     if (typeof window !== 'undefined' && config.headers) {
-      config.headers['X-Tenant-Domain'] = window.location.hostname;
+      const storedTenant = localStorage.getItem('movil_tenant_domain');
+      config.headers['X-Tenant-Domain'] = storedTenant || window.location.hostname;
     }
     return config;
   },
