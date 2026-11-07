@@ -52,6 +52,9 @@ namespace Transporte.API.Controllers
         private static bool EsAdminOSupervisor(string? rol) =>
             string.Equals(rol, "ADMIN", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(rol, "ADMINISTRADOR", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rol, "SUPERADMIN", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rol, "SUPER_ADMIN", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rol, "SUPER ADMINISTRADOR", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(rol, "SUPERVISOR", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(rol, "GERENTE", StringComparison.OrdinalIgnoreCase);
 
@@ -65,7 +68,7 @@ namespace Transporte.API.Controllers
                 ?? User.FindFirst("role")?.Value 
                 ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
 
-            if (!string.IsNullOrEmpty(rol) && !EsAdminOSupervisor(rol))
+            if (!string.IsNullOrEmpty(rol) && !EsAdminOSupervisor(rol) && !string.Equals(rol, "CHOFER", StringComparison.OrdinalIgnoreCase) && !string.Equals(rol, "CONDUCTOR", StringComparison.OrdinalIgnoreCase))
             {
                 return Forbid();
             }
@@ -102,8 +105,12 @@ namespace Transporte.API.Controllers
             DateTime fIni = fechaInicio ?? DateTime.Today.AddDays(-6);
             DateTime fFin = fechaFin ?? DateTime.Today;
 
-            var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var rol = User.FindFirstValue(ClaimTypes.Role) 
+                ?? User.FindFirst("role")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) 
+                ?? User.FindFirst("nameid")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("nameidentifier", StringComparison.OrdinalIgnoreCase))?.Value;
             int userId = int.TryParse(userIdClaim, out var u) ? u : 0;
 
             if (!EsAdminOSupervisor(rol))
@@ -123,7 +130,9 @@ namespace Transporte.API.Controllers
             [FromQuery] int? cicloId = null,
             [FromQuery] decimal? tasaBcv = null)
         {
-            var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
+            var rol = User.FindFirstValue(ClaimTypes.Role) 
+                ?? User.FindFirst("role")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
             if (!EsAdminOSupervisor(rol))
             {
                 return Forbid();
@@ -144,6 +153,14 @@ namespace Transporte.API.Controllers
             [FromQuery] int? cicloId = null,
             [FromQuery] decimal? tasaBcv = null)
         {
+            var rol = User.FindFirstValue(ClaimTypes.Role) 
+                ?? User.FindFirst("role")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
+            if (!EsAdminOSupervisor(rol))
+            {
+                return Forbid();
+            }
+
             DateTime fIni = fechaInicio ?? DateTime.Today.AddDays(-6);
             DateTime fFin = fechaFin ?? DateTime.Today;
 
@@ -161,8 +178,12 @@ namespace Transporte.API.Controllers
 
             var res = await _reportesRepository.ObtenerReporteRelacionChoferesAsync(fIni, fFin);
 
-            var rol = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var rol = User.FindFirstValue(ClaimTypes.Role) 
+                ?? User.FindFirst("role")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("role", StringComparison.OrdinalIgnoreCase))?.Value;
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) 
+                ?? User.FindFirst("nameid")?.Value 
+                ?? User.Claims.FirstOrDefault(c => c.Type.EndsWith("nameidentifier", StringComparison.OrdinalIgnoreCase))?.Value;
             int userId = int.TryParse(userIdClaim, out var u) ? u : 0;
             var username = User.Identity?.Name ?? "";
 
