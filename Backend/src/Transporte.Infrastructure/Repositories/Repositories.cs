@@ -8038,6 +8038,19 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<IEnumerable<ControlRutaDto>> ObtenerControlesAsync(int usuarioId, string rol, DateTime? fecha = null, DateTime? fechaInicio = null, DateTime? fechaFin = null, int? cicloId = null)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableNotificacionesExistsAsync(connection);
+
+            // Auto-enlazar paradas huérfanas de ese conductor y fecha si tienen ControlRutaId NULL
+            try
+            {
+                await connection.ExecuteAsync(@"
+                    UPDATE r SET r.ControlRutaId = cr.Id
+                    FROM TB_RUTAS_RECOLECCION r
+                    INNER JOIN TB_CONTROL_RUTAS cr ON r.UsuarioId = cr.UsuarioId AND CAST(r.Fecha AS DATE) = CAST(cr.Fecha AS DATE)
+                    WHERE r.ControlRutaId IS NULL;");
+            }
+            catch { /* Tolerante */ }
+
             bool hayFiltroFecha = fecha.HasValue || fechaInicio.HasValue || fechaFin.HasValue;
             DateTime inicio = (fechaInicio ?? fecha ?? DateTime.Today.AddDays(-30)).Date;
             DateTime fin = (fechaFin ?? fecha ?? DateTime.Today.AddDays(30)).Date;
@@ -8076,7 +8089,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     cr.FechaEntregaCompania,
                     cr.CerradoPor,
                     uc.NombreCompleto AS NombreCerradoPor,
-                    (SELECT COUNT(*) FROM TB_RUTAS_RECOLECCION r WHERE r.ControlRutaId = cr.Id) AS TotalFincas
+                    (SELECT COUNT(*) FROM TB_RUTAS_RECOLECCION r WHERE r.ControlRutaId = cr.Id OR (r.ControlRutaId IS NULL AND r.UsuarioId = cr.UsuarioId AND CAST(r.Fecha AS DATE) = CAST(cr.Fecha AS DATE))) AS TotalFincas
                 FROM TB_CONTROL_RUTAS cr
                 INNER JOIN TB_USUARIOS u ON cr.UsuarioId = u.Id
                 LEFT JOIN TB_PROCESOS_TICKET pt ON cr.ProcesoActualId = pt.Id
@@ -8842,6 +8855,28 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<IEnumerable<RutaItemDto>> ObtenerFincasDeViajeAsync(long controlRutaId)
         {
             using var connection = new SqlConnection(_connectionString);
+            await EnsureTableNotificacionesExistsAsync(connection);
+
+            // Auto-enlazar recolecciones huérfanas de ese viaje
+            try
+            {
+                var viajeInfo = await connection.QueryFirstOrDefaultAsync<dynamic>(
+                    "SELECT TOP 1 UsuarioId, Fecha FROM TB_CONTROL_RUTAS WHERE Id = @controlRutaId", new { controlRutaId });
+                if (viajeInfo != null && viajeInfo.UsuarioId != null && viajeInfo.Fecha != null)
+                {
+                    int uId = (int)viajeInfo.UsuarioId;
+                    DateTime fViaje = (DateTime)viajeInfo.Fecha;
+                    await connection.ExecuteAsync(@"
+                        UPDATE TB_RUTAS_RECOLECCION
+                        SET ControlRutaId = @controlRutaId
+                        WHERE UsuarioId = @uId 
+                          AND CAST(Fecha AS DATE) = CAST(@fViaje AS DATE) 
+                          AND ControlRutaId IS NULL",
+                        new { controlRutaId, uId, fViaje });
+                }
+            }
+            catch { /* Tolerante */ }
+
             var sql = @"
                 SELECT 
                     r.Id AS Id,
@@ -8869,6 +8904,9 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 LEFT JOIN TB_USUARIOS u ON r.UsuarioId = u.Id
                 LEFT JOIN TB_COMPANIAS comp ON f.CompaniaId = comp.Id
                 WHERE r.ControlRutaId = @controlRutaId
+                   OR (r.ControlRutaId IS NULL 
+                       AND r.UsuarioId = (SELECT TOP 1 UsuarioId FROM TB_CONTROL_RUTAS WHERE Id = @controlRutaId)
+                       AND CAST(r.Fecha AS DATE) = (SELECT TOP 1 CAST(Fecha AS DATE) FROM TB_CONTROL_RUTAS WHERE Id = @controlRutaId))
                 ORDER BY r.Id ASC";
 
             return await connection.QueryAsync<RutaItemDto>(sql, new { controlRutaId });

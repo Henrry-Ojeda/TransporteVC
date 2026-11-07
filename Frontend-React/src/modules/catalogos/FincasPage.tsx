@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { catalogosApi } from '@/api/catalogos.api';
+import { operacionesApi } from '@/api/operaciones.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { PropietarioSelect, CompaniaSelect } from '@/components/selectors';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
 import { useAuthStore } from '@/stores/authStore';
-import type { FincaDto, GuardarFincaDto, PropietarioDto } from '@/types';
+import type { FincaDto, GuardarFincaDto, PropietarioDto, RutaLogisticaDto } from '@/types';
 
 export const FincasPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -45,6 +46,12 @@ export const FincasPage: React.FC = () => {
   const { data: propietarios = [] } = useQuery<PropietarioDto[]>({
     queryKey: ['propietarios-selector'],
     queryFn: () => catalogosApi.getPropietarios(),
+  });
+
+  const { data: rutasLogistica = [] } = useQuery<RutaLogisticaDto[]>({
+    queryKey: ['rutas-logistica-list'],
+    queryFn: () => operacionesApi.getRutasLogistica(),
+    staleTime: 1000 * 60 * 5,
   });
 
   const invalidarCachesFincas = () => {
@@ -304,19 +311,35 @@ export const FincasPage: React.FC = () => {
       ),
     },
     {
-      header: 'TELÉFONO',
-      accessorKey: 'telefono',
+      header: 'RUTA LOGÍSTICA',
+      accessorKey: 'rutaNombre',
+      sortable: true,
       cell: (row) => (
-        <span style={{ color: '#64748b', fontSize: '12.5px' }}>
-          {row.telefono ? (
-            <>
-              <i className="fa-solid fa-phone" style={{ color: '#94a3b8', marginRight: '4px' }}></i>
-              {row.telefono}
-            </>
+        <div>
+          {row.rutaNombre ? (
+            <span
+              style={{
+                background: '#f5f3ff',
+                color: '#6d28d9',
+                border: '1px solid #ddd6fe',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontWeight: 700,
+                fontSize: '11px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <i className="fa-solid fa-route" style={{ color: '#8b5cf6' }}></i>
+              {row.rutaNombre}
+            </span>
           ) : (
-            '-'
+            <span style={{ color: '#94a3b8', fontSize: '11.5px', fontStyle: 'italic' }}>
+              Sin ruta asignada
+            </span>
           )}
-        </span>
+        </div>
       ),
     },
     {
@@ -895,6 +918,50 @@ export const FincasPage: React.FC = () => {
                       <option value={2}>TRANSPORTE</option>
                     </select>
                   </div>
+
+                  {Number(form.tipoServicioId) === 1 && (
+                    <div style={{ animation: 'fadeIn 0.2s ease-out' }}>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#6d28d9',
+                          marginBottom: '6px',
+                        }}
+                      >
+                        <i className="fa-solid fa-route" style={{ color: '#8b5cf6' }}></i> Ruta Logística / Circuito Habitual
+                      </label>
+                      <select
+                        value={form.rutaId || ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || undefined;
+                          setForm({ ...form, rutaId: val });
+                        }}
+                        className="form-input"
+                        style={{
+                          width: '100%',
+                          height: '42px',
+                          fontSize: '13.5px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#ffffff',
+                          border: '1.5px solid #cbd5e1',
+                          borderRadius: '8px',
+                          padding: '0 10px',
+                        }}
+                      >
+                        <option value="">-- Sin Ruta Asignada (Modo Libre) --</option>
+                        {rutasLogistica.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {Number(form.tipoServicioId) === 2 && (
                     <div style={{ animation: 'fadeIn 0.2s ease-out' }}>

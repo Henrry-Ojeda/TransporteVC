@@ -58,7 +58,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPost("fincas")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> CrearFinca([FromBody] CrearFincaDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
@@ -69,7 +69,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPut("fincas/{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> ActualizarFinca([FromRoute] int id, [FromBody] EditarFincaDto dto)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -82,7 +82,7 @@ namespace Transporte.API.Controllers
 
         [HttpPost("fincas/precios-masivo")]
         [HttpPost("fincas/actualizar-precios-masivo")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> ActualizarPreciosMasivo([FromBody] ActualizarPrecioMasivoDto dto)
         {
             if (dto.NuevoPrecioUSD <= 0)
@@ -103,7 +103,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpDelete("fincas/{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> EliminarFinca([FromRoute] int id)
         {
             var ok = await _catalogosRepository.EliminarFincaAsync(id);
@@ -131,7 +131,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPost("companias")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> CrearCompania([FromBody] CrearCompaniaDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
@@ -142,7 +142,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPut("companias/{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> ActualizarCompania([FromRoute] int id, [FromBody] EditarCompaniaDto dto)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -171,7 +171,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpDelete("companias/{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> EliminarCompania([FromRoute] int id)
         {
             var ok = await _catalogosRepository.EliminarCompaniaAsync(id);
@@ -233,7 +233,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPost("bancos")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> CrearBanco([FromBody] CrearBancoDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Nombre))
@@ -244,7 +244,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPut("bancos/{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> ActualizarBanco([FromRoute] int id, [FromBody] EditarBancoDto dto)
         {
             var ok = await _catalogosRepository.ActualizarBancoAsync(id, dto);
@@ -253,7 +253,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpDelete("bancos/{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
         public async Task<IActionResult> EliminarBanco([FromRoute] int id)
         {
             var ok = await _catalogosRepository.EliminarBancoAsync(id);

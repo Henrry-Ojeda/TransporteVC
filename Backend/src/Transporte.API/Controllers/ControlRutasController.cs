@@ -8,9 +8,8 @@ namespace Transporte.API.Controllers
 {
     [Authorize]
     [ApiController]
-    [Route("api/[controller]")]
-    [Route("api/control-rutas")]
     [Route("api/controlrutas")]
+    [Route("api/control-rutas")]
     public class ControlRutasController : ControllerBase
     {
         private readonly IControlRutasRepository _controlRutasRepository;

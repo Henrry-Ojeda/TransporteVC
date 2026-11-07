@@ -2257,6 +2257,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                       : recolecciones.filter((r) => r.controlRutaId != null && Number(r.controlRutaId) === Number(item.id)))
                   : [];
 
+                const cantParadas = fincasTicket.length > 0 ? fincasTicket.length : (item.totalFincas || 0);
                 const sumFincasLts = fincasTicket.reduce((acc, f: any) => acc + Number(f.litros ?? f.Litros ?? 0), 0);
                 const ltsRecolectados = item._litrosRecogidos > 0 ? item._litrosRecogidos : sumFincasLts;
                 const ltsEntregados = item._litrosEntregados || 0;
@@ -2532,7 +2533,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                             </strong>
                             {esRuta && (
                               <small style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>
-                                {fincasTicket.length} paradas registradas
+                                {cantParadas} paradas registradas
                               </small>
                             )}
                           </div>
@@ -2592,7 +2593,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                               title="Ver Timelapse & Recorrido de Paradas"
                             >
                               <i className="fa-solid fa-timeline" style={{ color: '#2563eb' }}></i>
-                              <span>Timelapse ({fincasTicket.length})</span>
+                              <span>Timelapse ({cantParadas})</span>
                             </button>
 
                             {puedeEditarTicket && (
