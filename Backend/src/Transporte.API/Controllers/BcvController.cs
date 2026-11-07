@@ -51,7 +51,7 @@ namespace Transporte.API.Controllers
         [HttpPost]
         [HttpPost("registrar")]
         [HttpPost("guardar")]
-        [Authorize(Roles = "ADMIN,FINANZAS")]
+        [Authorize(Roles = "SUPERADMIN,ADMIN,FINANZAS,SUPERVISOR,RECEPTOR")]
         public async Task<IActionResult> GuardarTasa([FromBody] RegistrarBcvDto dto)
         {
             if (dto.TasaDolarBs <= 0)
@@ -73,7 +73,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "ADMIN,FINANZAS")]
+        [Authorize(Roles = "SUPERADMIN,ADMIN,FINANZAS")]
         public async Task<IActionResult> EditarTasa([FromRoute] int id, [FromBody] EditarBcvDto dto)
         {
             if (dto.TasaDolarBs.HasValue && dto.TasaDolarBs.Value <= 0)
@@ -96,7 +96,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "ADMIN,FINANZAS")]
+        [Authorize(Roles = "SUPERADMIN,ADMIN,FINANZAS")]
         public async Task<IActionResult> EliminarTasa([FromRoute] int id)
         {
             try

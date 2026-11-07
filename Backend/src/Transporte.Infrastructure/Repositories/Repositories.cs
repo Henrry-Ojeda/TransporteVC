@@ -10622,23 +10622,28 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         public async Task<bool> ValidarYFinalizarEntregaAsync(long id, ValidarEntregaCompaniaDto dto, int modificadoPor)
         {
             using var connection = new SqlConnection(_connectionString);
-            var control = await connection.QueryFirstOrDefaultAsync<ControlCompania>(
+            var control = await connection.QueryFirstOrDefaultAsync<dynamic>(
                 "SELECT * FROM TB_CONTROL_COMPANIAS WHERE Id = @id", new { id });
             if (control == null) return false;
 
-            int despachados = control.LitrosDespachados;
+            int despachados = (int)(control.LitrosDespachados ?? 0);
             int recibidos = dto.Desgloses != null && dto.Desgloses.Count > 0 
                 ? dto.Desgloses.Sum(d => d.LitrosRecibidos) 
-                : (dto.LitrosRecibidosCompania > 0 ? dto.LitrosRecibidosCompania : (dto.LitrosConfirmados ?? dto.LitrosRecibidosCompania));
+                : (dto.LitrosRecibidosCompania > 0 
+                    ? dto.LitrosRecibidosCompania 
+                    : (dto.LitrosConfirmados.HasValue && dto.LitrosConfirmados.Value > 0 
+                        ? dto.LitrosConfirmados.Value 
+                        : (dto.Litros.HasValue && dto.Litros.Value > 0 ? dto.Litros.Value : despachados)));
+
             int diferencia = despachados - recibidos; // Falla
             decimal porcentaje = despachados > 0 ? Math.Round((decimal)diferencia / despachados * 100m, 2) : 0.00m;
 
-            var cicloId = control.CicloId;
+            var cicloId = (int?)control.CicloId;
             if (!cicloId.HasValue || cicloId.Value <= 0)
             {
                 cicloId = await connection.ExecuteScalarAsync<int?>(
                     "SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS WHERE @fecha BETWEEN FechaInicio AND FechaFin ORDER BY Id DESC",
-                    new { fecha = control.Fecha });
+                    new { fecha = (DateTime)control.Fecha });
                 if (!cicloId.HasValue)
                 {
                     cicloId = await connection.ExecuteScalarAsync<int?>("SELECT TOP 1 Id FROM TB_CICLOS_OPERATIVOS ORDER BY Id DESC");
@@ -10787,7 +10792,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     var compDestino = await connection.ExecuteScalarAsync<string>("SELECT Nombre FROM TB_COMPANIAS WHERE Id = @companiaId", new { companiaId = targetComp }) ?? "Compañía";
                     
                     // 1. Entrada a Compañía / Quesera (Positivo) con vinculación a ControlRutaId si aplica
-                    var entregaExistenteId = await connection.ExecuteScalarAsync<int?>(
+                    var entregaExistenteId = await connection.ExecuteScalarAsync<long?>(
                         @"SELECT TOP 1 Id FROM TB_ENTREGAS_COMPANIA 
                           WHERE ControlCompaniaId = @id
                             OR (ControlRutaId = @cRutaId AND @cRutaId IS NOT NULL AND ControlCompaniaId IS NULL AND CompaniaId = @targetComp)
@@ -10829,8 +10834,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                             {
                                 cicloId = cicloId.Value,
                                 companiaId = targetComp,
-                                usuarioId = control.UsuarioId,
-                                fecha = control.Fecha,
+                                usuarioId = (int)control.UsuarioId,
+                                fecha = (DateTime)control.Fecha,
                                 litros = recibidos,
                                 tipoFinal,
                                 obs = obsEntrega,
@@ -10852,9 +10857,9 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 try
                 {
                     long cRutaId = (long)control.ControlRutaId;
-                    var despachosRuta = (await connection.QueryAsync<dynamic>(
+                    var despachosRuta = await connection.QueryAsync<dynamic>(
                         "SELECT Id, LitrosRecibidosCompania, Estado FROM TB_CONTROL_COMPANIAS WHERE ControlRutaId = @cRutaId",
-                        new { cRutaId })).ToList();
+                        new { cRutaId });
 
                     bool todosFinalizados = despachosRuta.All(d => (string)d.Estado == "FINALIZADO");
                     int totalRecibidoRuta = despachosRuta.Sum(d => (int)(d.LitrosRecibidosCompania ?? 0));
@@ -10881,9 +10886,9 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                         WHERE Id = @cRutaId",
                         new { targetComp, totalRecibidoRuta, mermaRuta, procesoRuta, estadoRuta, modificadoPor, cRutaId });
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Console.WriteLine($"[ValidarYFinalizarEntregaAsync] Error actualizando viaje padre: {ex.Message}");
+                    // Registro silencioso si falla actualización secundaria
                 }
             }
 

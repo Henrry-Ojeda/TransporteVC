@@ -264,6 +264,8 @@ export const ReceptoriaPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['viajes-activos-receptoria'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['controles-rutas-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['receptoria-balance'] });
       setModalConfirmar(false);
     },
     onError: (err: any) => {
@@ -971,7 +973,7 @@ export const ReceptoriaPage: React.FC = () => {
                           className="btn btn-sm btn-primary"
                           onClick={() => {
                             setDespachoSeleccionado(d);
-                            setLitrosConfirmadosInput(d.litrosDespachados || 0);
+                            setLitrosConfirmadosInput(Number(d.litrosDespachados || (d as any).LitrosDespachados || 0));
                             setObsConfirmacionInput('');
                             setModalConfirmar(true);
                           }}
@@ -2205,9 +2207,13 @@ export const ReceptoriaPage: React.FC = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  const ltsAConfirmar = Number(litrosConfirmadosInput) > 0
+                    ? Number(litrosConfirmadosInput)
+                    : Number(despachoSeleccionado.litrosDespachados || (despachoSeleccionado as any).LitrosDespachados || 0);
+
                   validarMutation.mutate({
                     id: despachoSeleccionado.id,
-                    litros: litrosConfirmadosInput,
+                    litros: ltsAConfirmar,
                     obs: obsConfirmacionInput,
                   });
                 }}

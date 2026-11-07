@@ -10,6 +10,7 @@ namespace Transporte.API.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Route("api/control-companias")]
+    [Route("api/controlcompanias")]
     public class ControlCompaniasController : ControllerBase
     {
         private readonly IControlCompaniasRepository _controlCompaniasRepository;
@@ -31,11 +32,15 @@ namespace Transporte.API.Controllers
             [FromQuery] int? usuarioId = null,
             [FromQuery] int? companiaId = null)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "CHOFER";
+            int userId = 1;
+            var uidClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirst("id")?.Value;
+            if (int.TryParse(uidClaim, out var parsedId)) userId = parsedId;
 
-            // Si es chofer y no es admin, solo ve sus despachos asignados a menos que filtre
-            int? filtroChofer = (rol == "ADMIN" || rol == "SUPERADMIN") ? usuarioId : userId;
+            var rol = (User.FindFirstValue(ClaimTypes.Role) ?? "CHOFER").ToUpper();
+
+            // Si es chofer y no es administrativo/supervisor, solo ve sus despachos asignados a menos que filtre
+            bool esAdminOReceptor = rol == "ADMIN" || rol == "SUPERADMIN" || rol == "SUPERVISOR" || rol == "RECEPTOR" || rol == "FINANZAS";
+            int? filtroChofer = esAdminOReceptor ? usuarioId : userId;
 
             var despachos = await _controlCompaniasRepository.ObtenerTodosAsync(fecha, fechaInicio, fechaFin, estado, filtroChofer, companiaId);
             return Ok(despachos);
@@ -127,11 +132,19 @@ namespace Transporte.API.Controllers
         [HttpPost("{id:long}/validar-entrega")]
         public async Task<IActionResult> ValidarEntrega([FromRoute] long id, [FromBody] ValidarEntregaCompaniaDto dto)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            int userId = 1;
+            var uidClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirst("id")?.Value;
+            if (int.TryParse(uidClaim, out var parsedId)) userId = parsedId;
 
             try
             {
-                if (dto.LitrosRecibidosCompania < 0)
+                var ltsValidar = dto.Desgloses != null && dto.Desgloses.Count > 0
+                    ? dto.Desgloses.Sum(d => d.LitrosRecibidos)
+                    : (dto.LitrosRecibidosCompania > 0
+                        ? dto.LitrosRecibidosCompania
+                        : (dto.LitrosConfirmados ?? dto.Litros ?? 0));
+
+                if (ltsValidar < 0)
                 {
                     return BadRequest(new { message = "Los litros recibidos no pueden ser negativos." });
                 }
@@ -139,7 +152,7 @@ namespace Transporte.API.Controllers
                 var ok = await _controlCompaniasRepository.ValidarYFinalizarEntregaAsync(id, dto, userId);
                 if (!ok) return NotFound(new { message = "Despacho no encontrado." });
 
-                return Ok(new { message = "Entrega en compañía validada exitosamente. Estado actualizado a DESPACHO." });
+                return Ok(new { message = "Entrega en compañía validada exitosamente. Estado actualizado a FINALIZADO." });
             }
             catch (Exception ex)
             {

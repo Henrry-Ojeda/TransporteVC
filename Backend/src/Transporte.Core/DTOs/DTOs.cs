@@ -1571,6 +1571,7 @@ namespace Transporte.Core.DTOs
     {
         public int LitrosRecibidosCompania { get; set; }
         public int? LitrosConfirmados { get; set; }
+        public int? Litros { get; set; }
         public string? TipoLeche { get; set; }
         public string? Observacion { get; set; }
         public string? Observaciones { get; set; }
