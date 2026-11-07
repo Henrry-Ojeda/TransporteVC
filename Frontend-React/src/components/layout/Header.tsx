@@ -251,7 +251,24 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     queryClient.invalidateQueries({ queryKey: ['header-paradas-hoy'] });
 
     setOpenNotif(false);
-    navigate('/operaciones/rutas');
+
+    // Extraer número de ticket
+    const matchTicket = (notif.titulo || notif.mensaje || '').match(/Ticket\s*#?(\d+)/i);
+    const ticketId = notif.referenciaId || (matchTicket ? matchTicket[1] : undefined);
+
+    // Extraer fecha operativa del ticket
+    let fechaTarget = '';
+    if (notif.fechaOperativa) {
+      fechaTarget = String(notif.fechaOperativa).split('T')[0];
+    } else if (notif.createdAt) {
+      fechaTarget = String(notif.createdAt).split('T')[0];
+    }
+
+    const params = new URLSearchParams();
+    if (fechaTarget) params.set('fecha', fechaTarget);
+    if (ticketId) params.set('ticket', String(ticketId));
+
+    navigate(`/rutas?${params.toString()}`);
   };
 
   const calcularTiempo = (fechaIso?: string) => {

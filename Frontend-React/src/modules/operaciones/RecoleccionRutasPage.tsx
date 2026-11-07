@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import apiClient from '@/api/client';
@@ -55,13 +56,36 @@ export const RecoleccionRutasPage: React.FC = () => {
   // 2 Vistas Principales:
   // 1) 'viajes': Control de Rutas & Camiones (Fusión de Mis Tickets y Camiones en Ruta)
   // 2) 'fincas': Detalle por Fincas (Historial / Buscador de solo lectura)
+  // Parámetros de URL para redirecciones desde notificaciones (fecha y ticket)
+  const [searchParams] = useSearchParams();
+
   const [modoVista, setModoVista] = useState<'viajes' | 'fincas'>('viajes');
-  const [fechaFiltro, setFechaFiltro] = useState<string>(hoyStr);
+  const [fechaFiltro, setFechaFiltro] = useState<string>(() => {
+    const qFecha = new URLSearchParams(window.location.search).get('fecha');
+    return qFecha || hoyStr;
+  });
 
   // Sub-filtros en la vista de Rutas & Camiones
   const [filtroOrigenTicket, setFiltroOrigenTicket] = useState<'todos' | 'RUTA' | 'RECEPTORIA'>('todos');
   const [filtroEstadoTicket, setFiltroEstadoTicket] = useState<'activos' | 'todos'>('activos');
-  const [busquedaTexto, setBusquedaTexto] = useState<string>('');
+  const [busquedaTexto, setBusquedaTexto] = useState<string>(() => {
+    return new URLSearchParams(window.location.search).get('ticket') || '';
+  });
+
+  // Escuchar cambios reactivos en searchParams (por ejemplo si el usuario hace clic en una notificación)
+  useEffect(() => {
+    const pFecha = searchParams.get('fecha');
+    const pTicket = searchParams.get('ticket');
+
+    if (pFecha) {
+      setFechaFiltro(pFecha);
+    }
+    if (pTicket) {
+      setBusquedaTexto(pTicket);
+      setModoVista('viajes');
+      setFiltroEstadoTicket('todos'); // Para asegurar que se muestre el ticket esté activo o finalizado
+    }
+  }, [searchParams]);
 
   // Filtros desplegables para Vista 2: Detalle por Fincas (Historial / Buscador)
   const [filtroDetalleChoferId, setFiltroDetalleChoferId] = useState<number | null>(null);
@@ -101,6 +125,8 @@ export const RecoleccionRutasPage: React.FC = () => {
   const [nowTick, setNowTick] = useState(Date.now());
   const [ticketsTitilando, setTicketsTitilando] = useState<Record<number, number>>({});
   const prevTicketsDataRef = useRef<Record<number, { count: number; litros: number }>>({});
+  const paradasVistasRef = useRef<Set<number>>(new Set());
+  const esPrimeraCargaParadasRef = useRef<boolean>(true);
 
   // Reloj permanente cada segundo para animaciones y cuenta regresiva de titilar en toda la vista
   useEffect(() => {
@@ -117,13 +143,13 @@ export const RecoleccionRutasPage: React.FC = () => {
     return obs.includes('[ORIGEN_MOVIL]') || obs.includes('APP MÓVIL') || obs.includes('APP MOVIL');
   };
 
-  // Helper para verificar si una parada debe estar titilando (25 segundos, menos de un minuto)
+  // Helper para verificar si una parada debe estar titilando (20 segundos, estrictamente menos de un minuto)
   const estaTitilando = (p: any): boolean => {
     if (!esOrigenMovil(p)) return false; // NUNCA titila si fue registrada desde la web
     const refTime = paradasDetectadasEnSesion[p.id];
-    if (!refTime) return false;
+    if (!refTime || refTime <= 0) return false;
     const diff = nowTick - refTime;
-    return diff >= 0 && diff < 25000;
+    return diff >= 0 && diff < 20000;
   };
 
   // Polling ultra-reactivo en vivo cada 2.5s cuando el modal Timelapse está abierto (sin recargar la página)
@@ -165,20 +191,16 @@ export const RecoleccionRutasPage: React.FC = () => {
       if (!p.id) continue;
       if (nuevoMap[p.id] === undefined) {
         if (esOrigenMovil(p)) {
-          // Si tiene createdAt en el backend, calcular el desfase con la hora actual
           const serverCreated = p.createdAt || (p as any).CreatedAt;
           const createdAtMs = serverCreated ? new Date(serverCreated).getTime() : ahora;
-          const antiguedadMs = ahora - createdAtMs;
+          const antiguedadMs = Math.abs(ahora - createdAtMs);
 
-          // Si fue creado hace menos de 25 segundos en el servidor o se detecta en vivo
-          if (antiguedadMs >= 0 && antiguedadMs < 25000) {
-            nuevoMap[p.id] = createdAtMs;
-            huboNuevos = true;
-          } else if (!serverCreated) {
+          // Si fue creado en los últimos 20 segundos
+          if (antiguedadMs < 20000) {
             nuevoMap[p.id] = ahora;
             huboNuevos = true;
           } else {
-            // Ya tiene más de 25 segundos de antigüedad; no debe titilar
+            // Ya tiene más de 20 segundos de antigüedad; no debe titilar
             nuevoMap[p.id] = 0;
             huboNuevos = true;
           }
@@ -292,10 +314,32 @@ export const RecoleccionRutasPage: React.FC = () => {
     }
   }, [viajes]);
 
-  // Rastrear actividad reciente en tickets para hacerlos TITILAR con destello brillante (durante 60 segundos)
+  // Rastrear actividad reciente en tickets para hacerlos TITILAR (durante 20 segundos, estrictamente menos de un minuto)
   useEffect(() => {
     if (!viajes || viajes.length === 0) return;
     const ahora = Date.now();
+
+    // 1. En la primera carga de la página, registrar todas las paradas existentes para que NO titilen por defecto
+    if (esPrimeraCargaParadasRef.current) {
+      let algunaCargada = false;
+      viajes.forEach((v) => {
+        const paradas = fincasTicketsMap[v.id] || [];
+        if (paradas.length > 0) algunaCargada = true;
+        paradas.forEach((p: any) => {
+          if (p.id) paradasVistasRef.current.add(p.id);
+        });
+        prevTicketsDataRef.current[v.id] = {
+          count: paradas.length,
+          litros: v.totalLitrosFinca || paradas.reduce((acc: number, p: any) => acc + Number(p.litros || p.Litros || 0), 0),
+        };
+      });
+      if (algunaCargada) {
+        esPrimeraCargaParadasRef.current = false;
+      }
+      return;
+    }
+
+    // 2. En encuestas posteriores (en vivo): detectar ÚNICAMENTE paradas nuevas agregadas en tiempo real
     let huboCambios = false;
     const nuevosTitilando = { ...ticketsTitilando };
 
@@ -304,23 +348,22 @@ export const RecoleccionRutasPage: React.FC = () => {
       const litrosActuales = v.totalLitrosFinca || paradas.reduce((acc: number, p: any) => acc + Number(p.litros || p.Litros || 0), 0);
       const paradasCount = paradas.length;
 
-      const prev = prevTicketsDataRef.current[v.id];
-      if (prev) {
-        // Si aumentaron las paradas o aumentaron los litros recolectados, ¡hacer titilar el ticket 25s!
-        if (paradasCount > prev.count || litrosActuales > prev.litros) {
-          nuevosTitilando[v.id] = ahora + 25000;
-          huboCambios = true;
+      // Buscar si hay alguna parada nueva que nunca hayamos visto en esta sesión
+      let tieneParadaNueva = false;
+      paradas.forEach((p: any) => {
+        if (p.id && !paradasVistasRef.current.has(p.id)) {
+          paradasVistasRef.current.add(p.id);
+          tieneParadaNueva = true;
         }
-      }
-
-      // También verificar si alguna parada fue registrada hace menos de 25 segundos
-      const tieneParadaReciente = paradas.some((p: any) => {
-        const c = p.createdAt || p.CreatedAt;
-        return c && ahora - new Date(c).getTime() < 25000;
       });
 
-      if (tieneParadaReciente && (!nuevosTitilando[v.id] || nuevosTitilando[v.id] < ahora)) {
-        nuevosTitilando[v.id] = ahora + 25000;
+      const prev = prevTicketsDataRef.current[v.id];
+      const aumentoConteo = prev ? paradasCount > prev.count : false;
+      const aumentoLitros = prev ? litrosActuales > prev.litros : false;
+
+      if (tieneParadaNueva || aumentoConteo || aumentoLitros) {
+        // Titila durante 20 segundos estrictos (menos de un minuto)
+        nuevosTitilando[v.id] = ahora + 20000;
         huboCambios = true;
       }
 
@@ -1611,11 +1654,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                   : item.camionPlaca || (item.camionId ? `Cisterna #${item.camionId}` : 'Cisterna en Turno');
 
                 const tiempoFinTitilar = ticketsTitilando[item.id] || 0;
-                const tieneParadaReciente = fincasTicket.some((p: any) => {
-                  const c = p.createdAt || (p as any).CreatedAt;
-                  return c && (nowTick - new Date(c).getTime() < 25000);
-                });
-                const esTicketTitilando = (tiempoFinTitilar > nowTick) || tieneParadaReciente;
+                const esTicketTitilando = tiempoFinTitilar > nowTick;
 
                 return (
                   <div
