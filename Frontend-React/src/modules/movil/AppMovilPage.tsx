@@ -981,6 +981,17 @@ export const AppMovilPage: React.FC = () => {
     });
   }, [viajeActivo, rutasActivasIds, fincas, todasLasParadas]);
 
+  // Filtro de circuito en pestaña Recolección
+  const [filtroCircuito, setFiltroCircuito] = useState<'todas' | 'pendientes' | 'recolectadas'>('todas');
+
+  // Sumar litros rápidamente en el modal
+  const sumarLitros = (cant: number) => {
+    setFormCarga((prev) => {
+      const actual = Number(prev.litros) || 0;
+      return { ...prev, litros: String(actual + cant) };
+    });
+  };
+
   // Abrir modal de carga preseleccionando una finca específica
   const abrirCargaParaFinca = (fincaItem: any) => {
     if (viajeActivo?.fecha) {
@@ -1936,235 +1947,417 @@ export const AppMovilPage: React.FC = () => {
       <main style={{ padding: '16px', maxWidth: '600px', margin: '0 auto' }}>
         
         {/* ===================================================================
-            PESTAÑA 1: PRINCIPAL / INICIO (SOLO SUS VIAJES Y TANQUE)
+            PESTAÑA 1: PRINCIPAL / INICIO (DASHBOARD MÓVIL PREMIUM)
            =================================================================== */}
-        {tabActiva === 'principal' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* TARJETA DE TICKET / VIAJE ACTIVO ASIGNADO */}
-            {viajeActivo ? (
+        {tabActiva === 'principal' && (() => {
+          const recCount = fincasDeMiRuta.filter((f) => f.recolectada).length;
+          const pendientesCount = fincasDeMiRuta.length - recCount;
+          const litrosDisponibles = Math.max(0, capacidad - totalLitrosCargados);
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Tarjeta de Bienvenida y Turno */}
               <div
                 style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
-                  borderRadius: '18px',
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                  borderRadius: '20px',
                   padding: '16px 18px',
-                  border: '1.5px solid #86efac',
-                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.08)',
+                  color: '#ffffff',
+                  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '16px', fontWeight: 900, color: '#166534' }}>
-                      <i className="fa-solid fa-ticket mr-1 text-emerald-600"></i> Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
-                    </span>
-                    <span
-                      style={{
-                        background: '#dcfce7',
-                        color: '#15803d',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        border: '1px solid #bbf7d0',
-                      }}
-                    >
-                      ● {viajeActivo.estado || 'EN RUTA'}
-                    </span>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Turno de Recolección • {new Date().toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' })}
                   </div>
-                  <button
-                    type="button"
-                    onClick={cargarViajeActivo}
-                    disabled={cargandoViaje}
+                  <span
                     style={{
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      padding: '2px 8px',
                       borderRadius: '8px',
-                      padding: '4px 8px',
                       fontSize: '11px',
-                      fontWeight: 700,
-                      color: '#334155',
-                      cursor: 'pointer',
+                      fontWeight: 800,
                     }}
-                    title="Actualizar datos del ticket"
                   >
-                    <i className={`fa-solid fa-rotate ${cargandoViaje ? 'fa-spin' : ''}`}></i>
-                  </button>
+                    🚛 {dispositivo.placaCamion || 'Cisterna'}
+                  </span>
                 </div>
-
-                <div style={{ fontSize: '12px', color: '#475569', marginBottom: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <i className="fa-solid fa-truck text-slate-500"></i>
-                    <strong>{viajeActivo.camionPlaca || dispositivo?.placaCamion || 'Cisterna en Turno'}</strong>
-                    <span style={{ color: '#94a3b8' }}>•</span>
-                    <span>Capacidad: {(viajeActivo.capacidadCamionLitros || capacidad).toLocaleString()} L</span>
-                  </div>
-                  <div style={{ marginTop: '3px' }}>
-                    <i className="fa-solid fa-route text-slate-400 mr-1"></i>
-                    <span>{viajeActivo.rutaLogisticaNombre ? `Ruta: ${viajeActivo.rutaLogisticaNombre}` : 'Modo Libre (Paradas Flexibles)'}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '10px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Cargado en Cisterna</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#15803d' }}>
-                      {totalLitrosCargados.toLocaleString()} L
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Paradas</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>
-                      {todasLasParadas.length}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div
-                style={{
-                  background: '#f8fafc',
-                  borderRadius: '18px',
-                  padding: '16px',
-                  border: '1.5px dashed #cbd5e1',
-                  textAlign: 'center',
-                }}
-              >
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
-                  <i className="fa-solid fa-route mr-2 text-slate-400"></i>
-                  No tienes un ticket de ruta abierto actualmente
-                </div>
-                <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '4px 0 10px 0' }}>
-                  Al registrar tu primera carga en finca o cuando tu supervisor te asigne una ruta, aparecerá aquí.
+                <h2 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 4px 0', letterSpacing: '-0.3px' }}>
+                  ¡Hola, {dispositivo.nombreCompleto.split(' ')[0]}!
+                </h2>
+                <p style={{ margin: 0, fontSize: '12px', color: '#cbd5e1' }}>
+                  {viajeActivo ? `Ticket #${viajeActivo.codigoTicket || viajeActivo.id} en curso` : 'Listo para iniciar recolección en ruta'}
                 </p>
-                <button
-                  type="button"
-                  onClick={cargarViajeActivo}
-                  className="btn btn-sm btn-outline"
-                  style={{ fontSize: '11px', padding: '4px 10px' }}
-                >
-                  <i className="fa-solid fa-rotate mr-1"></i> Verificar Asignación
-                </button>
-              </div>
-            )}
-
-            {/* Widget Tanque */}
-            <div
-              style={{
-                background: '#ffffff',
-                borderRadius: '18px',
-                padding: '18px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-                border: '1px solid #e2e8f0',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
-                  <i className="fa-solid fa-gas-pump mr-2 text-blue-600"></i>
-                  Capacidad de Cisterna
-                </div>
-                <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#2563eb' }}>
-                  {porcentajeLlenado}% Lleno
-                </div>
               </div>
 
-              <div
-                style={{
-                  width: '100%',
-                  height: '14px',
-                  background: '#e2e8f0',
-                  borderRadius: '10px',
-                  overflow: 'hidden',
-                  marginBottom: '10px',
-                }}
-              >
+              {/* TARJETA DE TICKET / VIAJE ACTIVO ASIGNADO */}
+              {viajeActivo ? (
                 <div
                   style={{
-                    width: `${porcentajeLlenado}%`,
-                    height: '100%',
-                    background:
-                      porcentajeLlenado > 90
-                        ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
-                        : 'linear-gradient(90deg, #0284c7, #2563eb)',
-                    borderRadius: '10px',
-                    transition: 'width 0.5s ease',
+                    background: '#ffffff',
+                    borderRadius: '20px',
+                    padding: '16px 18px',
+                    border: '1.5px solid #86efac',
+                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)',
                   }}
-                ></div>
-              </div>
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 900, color: '#166534' }}>
+                        <i className="fa-solid fa-ticket mr-1 text-emerald-600"></i> Ticket #{viajeActivo.codigoTicket || viajeActivo.id}
+                      </span>
+                      <span
+                        style={{
+                          background: '#dcfce7',
+                          color: '#15803d',
+                          fontSize: '10.5px',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #bbf7d0',
+                        }}
+                      >
+                        ● {viajeActivo.estado || 'EN RUTA'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cargarViajeActivo}
+                      disabled={cargandoViaje}
+                      style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#334155',
+                        cursor: 'pointer',
+                      }}
+                      title="Actualizar datos del ticket"
+                    >
+                      <i className={`fa-solid fa-rotate ${cargandoViaje ? 'fa-spin' : ''}`}></i>
+                    </button>
+                  </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
-                <span>Recolectado a Bordo: <strong style={{ color: '#0f172a' }}>{totalLitrosCargados.toLocaleString()} L</strong></span>
-                <span>Capacidad: <strong>{capacidad.toLocaleString()} L</strong></span>
-              </div>
-            </div>
+                  <div style={{ fontSize: '12px', color: '#475569', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-solid fa-route text-indigo-600"></i>
+                      <strong style={{ color: '#0f172a' }}>
+                        {viajeActivo.rutaLogisticaNombre ? `Ruta: ${viajeActivo.rutaLogisticaNombre}` : 'Modo Libre (Paradas Flexibles)'}
+                      </strong>
+                    </div>
+                  </div>
 
-            {/* Resumen de Mis Viajes de Hoy */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {/* Estadísticas del Viaje Activo */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
+                    <div style={{ background: '#f0fdf4', padding: '10px 8px', borderRadius: '12px', textAlign: 'center', border: '1px solid #bbf7d0' }}>
+                      <span style={{ fontSize: '10px', color: '#166534', fontWeight: 800, textTransform: 'uppercase' }}>Cargado</span>
+                      <div style={{ fontSize: '15px', fontWeight: 900, color: '#15803d', marginTop: '2px' }}>
+                        {totalLitrosCargados.toLocaleString()} L
+                      </div>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: '10px 8px', borderRadius: '12px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Paradas</span>
+                      <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
+                        {todasLasParadas.length}
+                      </div>
+                    </div>
+                    <div style={{ background: '#eff6ff', padding: '10px 8px', borderRadius: '12px', textAlign: 'center', border: '1px solid #bfdbfe' }}>
+                      <span style={{ fontSize: '10px', color: '#1e40af', fontWeight: 800, textTransform: 'uppercase' }}>Pendientes</span>
+                      <div style={{ fontSize: '15px', fontWeight: 900, color: '#1d4ed8', marginTop: '2px' }}>
+                        {pendientesCount}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones Rápidas del Viaje */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viajeActivo?.fecha) {
+                          setFormCarga((prev) => ({ ...prev, fecha: viajeActivo.fecha.split('T')[0] }));
+                        }
+                        setModalRegistro(true);
+                      }}
+                      style={{
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '12px',
+                        padding: '11px',
+                        fontSize: '13px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                      }}
+                    >
+                      <i className="fa-solid fa-plus text-xs"></i>
+                      <span>+ Cargar Finca</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTabActiva('recoleccion')}
+                      style={{
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '12px',
+                        padding: '11px',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <i className="fa-solid fa-route text-xs"></i>
+                      <span>Ver Circuito</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '20px',
+                    padding: '22px 18px',
+                    border: '1.5px dashed #cbd5e1',
+                    textAlign: 'center',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '14px',
+                      background: '#f1f5f9',
+                      color: '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '22px',
+                      margin: '0 auto 10px auto',
+                    }}
+                  >
+                    <i className="fa-solid fa-truck-ramp-box"></i>
+                  </div>
+                  <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#1e293b' }}>
+                    Sin Ticket de Ruta Activo
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 14px 0', lineHeight: '1.4' }}>
+                    Registra tu primera recolección o pulsa el botón para iniciar el viaje del día.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormCarga((prev) => ({ ...prev, fecha: hoyStr }));
+                      setModalRegistro(true);
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '12px',
+                      padding: '10px 18px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
+                    }}
+                  >
+                    <i className="fa-solid fa-play text-xs"></i>
+                    <span>Iniciar Recorrido / Cargar Finca</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Widget Capacidad Cisterna (Dashboard Nivel de Tanque) */}
               <div
                 style={{
                   background: '#ffffff',
-                  borderRadius: '16px',
-                  padding: '16px',
+                  borderRadius: '20px',
+                  padding: '16px 18px',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
                   border: '1px solid #e2e8f0',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                 }}
               >
-                <div style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>
-                  Paradas Registradas
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                    <i className="fa-solid fa-gas-pump" style={{ color: '#2563eb' }}></i>
+                    <span>Nivel de Cisterna</span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 900,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      background: porcentajeLlenado > 95 ? '#fee2e2' : porcentajeLlenado >= 80 ? '#fef3c7' : '#ecfdf5',
+                      color: porcentajeLlenado > 95 ? '#b91c1c' : porcentajeLlenado >= 80 ? '#b45309' : '#047857',
+                    }}
+                  >
+                    {porcentajeLlenado}% Lleno
+                  </span>
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
-                  {todasLasParadas.length}
+
+                <div
+                  style={{
+                    width: '100%',
+                    height: '14px',
+                    background: '#f1f5f9',
+                    borderRadius: '999px',
+                    overflow: 'hidden',
+                    marginBottom: '10px',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.min(porcentajeLlenado, 100)}%`,
+                      height: '100%',
+                      background:
+                        porcentajeLlenado > 95
+                          ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                          : porcentajeLlenado >= 80
+                          ? 'linear-gradient(90deg, #3b82f6, #f59e0b)'
+                          : 'linear-gradient(90deg, #0284c7, #10b981)',
+                      borderRadius: '999px',
+                      transition: 'width 0.4s ease',
+                    }}
+                  />
                 </div>
-                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                  {totalLitrosCargados.toLocaleString()} L recolectados
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b' }}>
+                  <span>A Bordo: <strong style={{ color: '#0f172a' }}>{totalLitrosCargados.toLocaleString()} L</strong></span>
+                  <span>Disponible: <strong style={{ color: '#0284c7' }}>{litrosDisponibles.toLocaleString()} L</strong></span>
+                  <span>Total: <strong>{capacidad.toLocaleString()} L</strong></span>
                 </div>
               </div>
 
-              <div
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '16px',
-                  padding: '16px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-                }}
-              >
-                <div style={{ fontSize: '11px', fontWeight: 800, color: '#9333ea', textTransform: 'uppercase' }}>
-                  Mis Entregas Asignadas
-                </div>
-                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
-                  {entregas.length}
-                </div>
-                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                  Hacia Receptoría / Planta
-                </div>
+              {/* Botones de Acceso Rápido (Cuadrícula 2x2) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTabActiva('recoleccion')}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', flexShrink: 0 }}>
+                    <i className="fa-solid fa-faucet-drip"></i>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Recolección</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>{fincasDeMiRuta.length} fincas en ruta</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTabActiva('entregas')}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', flexShrink: 0 }}>
+                    <i className="fa-solid fa-warehouse"></i>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Entregas</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>{entregas.length} asignadas</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTabActiva('reportes')}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f0f9ff', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', flexShrink: 0 }}>
+                    <i className="fa-solid fa-chart-pie"></i>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Reportes</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Resumen diario</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => sincronizarCargas()}
+                  disabled={sincronizando || !isOnline}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: isOnline ? 'pointer' : 'not-allowed',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                    textAlign: 'left',
+                    opacity: isOnline ? 1 : 0.6,
+                  }}
+                >
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f0f9ff', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', flexShrink: 0 }}>
+                    <i className={`fa-solid ${sincronizando ? 'fa-arrows-rotate fa-spin' : 'fa-cloud-arrow-up'}`}></i>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Sincronizar</div>
+                    <div style={{ fontSize: '11px', color: pendientesSync.length > 0 ? '#b45309' : '#15803d', fontWeight: 700 }}>
+                      {pendientesSync.length > 0 ? `${pendientesSync.length} pendientes` : 'Al día'}
+                    </div>
+                  </div>
+                </button>
               </div>
             </div>
-
-            {/* Botón Acción Rápida: Ir a Recolección */}
-            <button
-              type="button"
-              onClick={() => setTabActiva('recoleccion')}
-              style={{
-                width: '100%',
-                height: '56px',
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '15px',
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                boxShadow: '0 6px 20px rgba(16, 185, 129, 0.3)',
-                cursor: 'pointer',
-              }}
-            >
-              <i className="fa-solid fa-faucet-drip text-lg"></i>
-              <span>Ir a Recolección de Leche</span>
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ===================================================================
             PESTAÑA 2: RECOLECCIÓN (SOLO SUS VIAJES Y CARGAS EN FINCAS)
@@ -2357,151 +2550,216 @@ export const AppMovilPage: React.FC = () => {
             })()}
 
             {/* Recorrido de Fincas de la Ruta Asignada */}
-            {fincasDeMiRuta.length > 0 && (
-              <div
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '16px',
-                  padding: '14px 16px',
-                  border: '1px solid #e2e8f0',
-                  marginBottom: '18px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fa-solid fa-route" style={{ color: '#2563eb' }}></i>
-                    <span>Fincas de Mi Ruta ({fincasDeMiRuta.length})</span>
-                  </div>
-                  {(() => {
-                    const recCount = fincasDeMiRuta.filter((f) => f.recolectada).length;
-                    const pct = Math.round((recCount / fincasDeMiRuta.length) * 100);
-                    return (
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: pct === 100 ? '#dcfce7' : '#eff6ff',
-                          color: pct === 100 ? '#15803d' : '#1d4ed8',
-                        }}
-                      >
-                        {recCount}/{fincasDeMiRuta.length} ({pct}%)
-                      </span>
-                    );
-                  })()}
-                </div>
+            {fincasDeMiRuta.length > 0 && (() => {
+              const recCount = fincasDeMiRuta.filter((f) => f.recolectada).length;
+              const pendientesCount = fincasDeMiRuta.length - recCount;
+              const pct = Math.round((recCount / fincasDeMiRuta.length) * 100);
 
-                {/* Barra de progreso de recolección */}
-                {(() => {
-                  const recCount = fincasDeMiRuta.filter((f) => f.recolectada).length;
-                  const pct = Math.round((recCount / fincasDeMiRuta.length) * 100);
-                  return (
-                    <div style={{ width: '100%', height: '6px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden', marginBottom: '12px' }}>
-                      <div
-                        style={{
-                          width: `${pct}%`,
-                          height: '100%',
-                          background: pct === 100 ? '#10b981' : 'linear-gradient(90deg, #3b82f6, #10b981)',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
+              const fincasAMostrar = fincasDeMiRuta.filter((f) => {
+                if (filtroCircuito === 'pendientes') return !f.recolectada;
+                if (filtroCircuito === 'recolectadas') return f.recolectada;
+                return true;
+              });
+
+              return (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '18px',
+                    padding: '16px',
+                    border: '1px solid #e2e8f0',
+                    marginBottom: '18px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                      <i className="fa-solid fa-route" style={{ color: '#2563eb' }}></i>
+                      <span>Circuito de Ruta ({fincasDeMiRuta.length})</span>
                     </div>
-                  );
-                })()}
-
-                {/* Lista de Fincas (Verdes las ya recogidas, Grises las pendientes con botón Cargar) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {fincasDeMiRuta.map((f) => (
-                    <div
-                      key={f.id}
+                    <span
                       style={{
-                        borderRadius: '12px',
-                        padding: '10px 12px',
-                        border: f.recolectada ? '1.5px solid #86efac' : '1px solid #e2e8f0',
-                        background: f.recolectada ? '#f0fdf4' : '#f8fafc',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '10px',
+                        fontSize: '11px',
+                        fontWeight: 900,
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        background: pct === 100 ? '#dcfce7' : '#eff6ff',
+                        color: pct === 100 ? '#15803d' : '#1d4ed8',
+                        border: pct === 100 ? '1px solid #86efac' : '1px solid #bfdbfe',
                       }}
                     >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: f.recolectada ? '#166534' : '#1e293b' }}>
-                            {f.recolectada ? '✓ ' : ''}{f.nombre}
-                          </span>
-                          {f.recolectada ? (
-                            <span
-                              style={{
-                                background: '#dcfce7',
-                                color: '#15803d',
-                                fontSize: '10px',
-                                fontWeight: 800,
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                              }}
-                            >
-                              Recolectada
-                            </span>
-                          ) : (
-                            <span
-                              style={{
-                                background: '#f1f5f9',
-                                color: '#64748b',
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                              }}
-                            >
-                              ⏳ Pendiente
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                          {f.propietarioNombre || f.propietario || f.codigo || 'Finca ganadera'}
-                          {f.recolectada && f.parada?.hora ? ` • Recogida ${f.parada.hora}` : ''}
-                        </div>
-                      </div>
+                      {recCount}/{fincasDeMiRuta.length} ({pct}%)
+                    </span>
+                  </div>
 
-                      <div>
-                        {f.recolectada ? (
-                          <div style={{ textAlign: 'right' }}>
-                            <span style={{ fontSize: '14px', fontWeight: 900, color: '#15803d' }}>
-                              +{f.litrosRecolectados.toLocaleString()} L
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => abrirCargaParaFinca(f)}
-                            style={{
-                              background: '#10b981',
-                              color: '#ffffff',
-                              border: 'none',
-                              borderRadius: '8px',
-                              padding: '6px 12px',
-                              fontSize: '11.5px',
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
-                            }}
-                          >
-                            <i className="fa-solid fa-plus text-[10px]"></i>
-                            <span>Cargar</span>
-                          </button>
-                        )}
+                  {/* Barra de progreso de recolección */}
+                  <div style={{ width: '100%', height: '7px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden', marginBottom: '12px' }}>
+                    <div
+                      style={{
+                        width: `${pct}%`,
+                        height: '100%',
+                        background: pct === 100 ? '#10b981' : 'linear-gradient(90deg, #3b82f6, #10b981)',
+                        transition: 'width 0.4s ease',
+                      }}
+                    />
+                  </div>
+
+                  {/* Filtro segmentado: Todas | Pendientes | Recolectadas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroCircuito('todas')}
+                      style={{
+                        padding: '6px 4px',
+                        borderRadius: '8px',
+                        border: filtroCircuito === 'todas' ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                        background: filtroCircuito === 'todas' ? '#eff6ff' : '#f8fafc',
+                        color: filtroCircuito === 'todas' ? '#1d4ed8' : '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      Todas ({fincasDeMiRuta.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroCircuito('pendientes')}
+                      style={{
+                        padding: '6px 4px',
+                        borderRadius: '8px',
+                        border: filtroCircuito === 'pendientes' ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
+                        background: filtroCircuito === 'pendientes' ? '#fef3c7' : '#f8fafc',
+                        color: filtroCircuito === 'pendientes' ? '#b45309' : '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      ⏳ Pendientes ({pendientesCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroCircuito('recolectadas')}
+                      style={{
+                        padding: '6px 4px',
+                        borderRadius: '8px',
+                        border: filtroCircuito === 'recolectadas' ? '1.5px solid #10b981' : '1px solid #e2e8f0',
+                        background: filtroCircuito === 'recolectadas' ? '#ecfdf5' : '#f8fafc',
+                        color: filtroCircuito === 'recolectadas' ? '#047857' : '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      ✓ Hechas ({recCount})
+                    </button>
+                  </div>
+
+                  {/* Lista de Fincas */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {fincasAMostrar.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '11.5px' }}>
+                        No hay fincas en esta vista
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      fincasAMostrar.map((f) => (
+                        <div
+                          key={f.id}
+                          style={{
+                            borderRadius: '14px',
+                            padding: '11px 13px',
+                            border: f.recolectada ? '1.5px solid #86efac' : '1px solid #e2e8f0',
+                            background: f.recolectada ? 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)' : '#f8fafc',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '13.5px', fontWeight: 800, color: f.recolectada ? '#166534' : '#1e293b' }}>
+                                {f.recolectada ? '✓ ' : ''}{f.nombre}
+                              </span>
+                              {f.recolectada ? (
+                                <span
+                                  style={{
+                                    background: '#dcfce7',
+                                    color: '#15803d',
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    padding: '1px 6px',
+                                    borderRadius: '5px',
+                                    border: '1px solid #bbf7d0',
+                                  }}
+                                >
+                                  Recolectada
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    background: '#f1f5f9',
+                                    color: '#64748b',
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: '5px',
+                                  }}
+                                >
+                                  ⏳ Pendiente
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              {f.propietarioNombre || f.propietario || f.codigo || 'Finca ganadera'}
+                              {f.recolectada && f.parada?.hora ? ` • Recogida ${f.parada.hora}` : ''}
+                              {f.parada?.tipoLeche === 'BUFALA' ? ' • 🐃 Búfala' : ''}
+                            </div>
+                          </div>
+
+                          <div>
+                            {f.recolectada ? (
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: '15px', fontWeight: 900, color: '#15803d' }}>
+                                  +{f.litrosRecolectados.toLocaleString()} L
+                                </span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => abrirCargaParaFinca(f)}
+                                style={{
+                                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '10px',
+                                  padding: '7px 14px',
+                                  fontSize: '12px',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 3px 8px rgba(16, 185, 129, 0.3)',
+                                }}
+                              >
+                                <i className="fa-solid fa-plus text-[11px]"></i>
+                                <span>Cargar</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Historial de Cargas de Hoy */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -3201,147 +3459,77 @@ export const AppMovilPage: React.FC = () => {
         )}
       </main>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL (BOTTOM NAVIGATION BAR) */}
+      {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL ESTILO NATIVO PREMIUM */}
       <nav
         style={{
           position: 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
-          height: '66px',
-          background: '#ffffff',
-          borderTop: '1px solid #e2e8f0',
+          height: '68px',
+          background: 'rgba(255, 255, 255, 0.94)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderTop: '1px solid rgba(226, 232, 240, 0.8)',
           display: 'grid',
           gridTemplateColumns: 'repeat(5, 1fr)',
           alignItems: 'center',
           zIndex: 1000,
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          boxShadow: '0 -4px 20px rgba(15, 23, 42, 0.06)',
+          padding: '0 8px env(safe-area-inset-bottom, 0px) 8px',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setTabActiva('principal')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: tabActiva === 'principal' ? '#2563eb' : '#64748b',
-            cursor: 'pointer',
-            padding: '6px 0',
-          }}
-        >
-          <i className="fa-solid fa-house" style={{ fontSize: '18px' }}></i>
-          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'principal' ? 800 : 600 }}>
-            Inicio
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTabActiva('recoleccion')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: tabActiva === 'recoleccion' ? '#10b981' : '#64748b',
-            cursor: 'pointer',
-            padding: '6px 0',
-            position: 'relative',
-          }}
-        >
-          <i className="fa-solid fa-faucet-drip" style={{ fontSize: '18px' }}></i>
-          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'recoleccion' ? 800 : 600 }}>
-            Recolección
-          </span>
-          {pendientesSync.length > 0 && (
-            <span
+        {[
+          { key: 'principal', label: 'Inicio', icon: 'fa-house', color: '#2563eb', bg: '#eff6ff' },
+          { key: 'recoleccion', label: 'Recolección', icon: 'fa-faucet-drip', color: '#10b981', bg: '#ecfdf5', badge: pendientesSync.length },
+          { key: 'entregas', label: 'Entregas', icon: 'fa-warehouse', color: '#9333ea', bg: '#f5f3ff', badge: entregas.filter(e => e.estado === 'EN VIA').length },
+          { key: 'reportes', label: 'Reportes', icon: 'fa-chart-pie', color: '#0284c7', bg: '#f0f9ff' },
+          { key: 'perfil', label: 'Perfil', icon: 'fa-user-gear', color: '#0f172a', bg: '#f1f5f9' },
+        ].map((item) => {
+          const isActiva = tabActiva === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setTabActiva(item.key as TabMovil)}
               style={{
-                position: 'absolute',
-                top: '4px',
-                right: '16px',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#f59e0b',
+                background: isActiva ? item.bg : 'transparent',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '3px',
+                color: isActiva ? item.color : '#64748b',
+                cursor: 'pointer',
+                padding: '6px 2px',
+                position: 'relative',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: isActiva ? 'scale(1.05)' : 'scale(1)',
               }}
-            ></span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTabActiva('entregas')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: tabActiva === 'entregas' ? '#9333ea' : '#64748b',
-            cursor: 'pointer',
-            padding: '6px 0',
-          }}
-        >
-          <i className="fa-solid fa-warehouse" style={{ fontSize: '18px' }}></i>
-          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'entregas' ? 800 : 600 }}>
-            Entregas
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTabActiva('reportes')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: tabActiva === 'reportes' ? '#0284c7' : '#64748b',
-            cursor: 'pointer',
-            padding: '6px 0',
-          }}
-        >
-          <i className="fa-solid fa-chart-pie" style={{ fontSize: '18px' }}></i>
-          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'reportes' ? 800 : 600 }}>
-            Reportes
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTabActiva('perfil')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: tabActiva === 'perfil' ? '#0f172a' : '#64748b',
-            cursor: 'pointer',
-            padding: '6px 0',
-          }}
-        >
-          <i className="fa-solid fa-user-gear" style={{ fontSize: '18px' }}></i>
-          <span style={{ fontSize: '10px', fontWeight: tabActiva === 'perfil' ? 800 : 600 }}>
-            Perfil
-          </span>
-        </button>
+            >
+              <i className={`fa-solid ${item.icon}`} style={{ fontSize: '18px' }}></i>
+              <span style={{ fontSize: '10.5px', fontWeight: isActiva ? 900 : 600, letterSpacing: '-0.2px' }}>
+                {item.label}
+              </span>
+              {item.badge && item.badge > 0 ? (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '12px',
+                    minWidth: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: item.key === 'recoleccion' ? '#f59e0b' : '#ef4444',
+                    boxShadow: '0 0 0 2px #ffffff',
+                  }}
+                ></span>
+              ) : null}
+            </button>
+          );
+        })}
       </nav>
 
       {/* MODAL REGISTRAR CARGA EN FINCA */}
@@ -3555,6 +3743,47 @@ export const AppMovilPage: React.FC = () => {
                   >
                     Litros
                   </span>
+                </div>
+                {/* Botones de incremento rápido táctil */}
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  {[50, 100, 200, 500, 1000].map((inc) => (
+                    <button
+                      key={inc}
+                      type="button"
+                      onClick={() => sumarLitros(inc)}
+                      style={{
+                        flex: 1,
+                        minWidth: '55px',
+                        padding: '6px 2px',
+                        borderRadius: '8px',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        border: '1px solid #bfdbfe',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      +{inc}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setFormCarga((p) => ({ ...p, litros: '' }))}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      background: '#f1f5f9',
+                      color: '#64748b',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Borrar
+                  </button>
                 </div>
               </div>
 
