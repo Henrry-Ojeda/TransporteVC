@@ -220,6 +220,9 @@ export const RecoleccionRutasPage: React.FC = () => {
   // Modales Operativos
   const [modalIniciarViaje, setModalIniciarViaje] = useState(false);
   const [modalRegistroFinca, setModalRegistroFinca] = useState(false);
+  const [modalAsignarRutas, setModalAsignarRutas] = useState(false);
+  const [ticketParaRutas, setTicketParaRutas] = useState<any | null>(null);
+  const [rutasSeleccionadasTicket, setRutasSeleccionadasTicket] = useState<number[]>([]);
   const [modalEditarRecoleccion, setModalEditarRecoleccion] = useState(false);
   const [modalEnviarReceptoria, setModalEnviarReceptoria] = useState(false);
   const [modalEnviarCompania, setModalEnviarCompania] = useState(false);
@@ -513,6 +516,38 @@ export const RecoleccionRutasPage: React.FC = () => {
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al registrar recolección');
+    },
+  });
+
+  const abrirModalAsignarRutas = (ticket: any) => {
+    setTicketParaRutas(ticket);
+    const parsedRutas = (() => {
+      const obs = ticket.observacion || '';
+      const match = obs.match(/\[RUTAS:([^\]]+)\]/);
+      if (match) {
+        return match[1].split(',').map((id: string) => Number(id.trim())).filter((x: number) => x > 0);
+      }
+      return ticket.rutaLogisticaId ? [Number(ticket.rutaLogisticaId)] : [];
+    })();
+    setRutasSeleccionadasTicket(parsedRutas);
+    setModalAsignarRutas(true);
+  };
+
+  const asignarRutasMutation = useMutation({
+    mutationFn: async ({ ticketId, rutasIds }: { ticketId: number; rutasIds: number[] }) => {
+      return operacionesApi.asignarRutasLogisticas(ticketId, {
+        rutaLogisticaId: rutasIds.length > 0 ? rutasIds[0] : 0,
+        rutasLogisticasIds: rutasIds,
+      });
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || 'Rutas logísticas actualizadas en el ticket');
+      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
+      setModalAsignarRutas(false);
+      setTicketParaRutas(null);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al asignar rutas logísticas al ticket');
     },
   });
 
@@ -1859,45 +1894,59 @@ export const RecoleccionRutasPage: React.FC = () => {
                       <div>
                         {esRuta ? (
                           <>
-                            <div style={{ marginBottom: '8px' }}>
+                            <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               {tieneRutaLogistica ? (
-                                <span
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModalAsignarRutas(item)}
                                   className="badge"
+                                  title="Haga clic para modificar o agregar más rutas logísticas a este ticket"
                                   style={{
                                     background: '#faf5ff',
                                     color: '#7e22ce',
-                                    border: '1px solid #e9d5ff',
+                                    border: '1.5px solid #d8b4fe',
                                     fontWeight: 700,
                                     fontSize: '11px',
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '5px',
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
+                                    gap: '6px',
+                                    padding: '4px 10px',
+                                    borderRadius: '7px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
                                   }}
                                 >
-                                  <i className="fa-solid fa-route"></i>
+                                  <i className="fa-solid fa-route" style={{ color: '#9333ea' }}></i>
                                   Ruta: {item.rutaLogisticaNombre || item.rutaNombre || `#${item.rutaLogisticaId}`}
-                                </span>
+                                  <i className="fa-solid fa-pen-to-square" style={{ fontSize: '10px', color: '#a855f7', marginLeft: '4px' }}></i>
+                                </button>
                               ) : (
-                                <span
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModalAsignarRutas(item)}
                                   className="badge"
+                                  title="Haga clic para asignar una o más rutas logísticas a este ticket"
                                   style={{
                                     background: '#f8fafc',
                                     color: '#475569',
-                                    border: '1px solid #cbd5e1',
+                                    border: '1.5px dashed #94a3b8',
                                     fontWeight: 700,
                                     fontSize: '11px',
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '5px',
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
+                                    gap: '6px',
+                                    padding: '4px 10px',
+                                    borderRadius: '7px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
                                   }}
                                 >
-                                  <i className="fa-solid fa-compass"></i>
+                                  <i className="fa-solid fa-compass" style={{ color: '#64748b' }}></i>
                                   Modo Libre (Paradas Flexibles)
-                                </span>
+                                  <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 800, marginLeft: '4px', textDecoration: 'underline' }}>
+                                    <i className="fa-solid fa-plus"></i> Asignar Rutas
+                                  </span>
+                                </button>
                               )}
                             </div>
 
@@ -3056,6 +3105,74 @@ export const RecoleccionRutasPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* 1.1 BANNER DE RUTA LOGÍSTICA CON BOTÓN DE ASIGNAR / CAMBIAR */}
+                {(() => {
+                  const parsedRutasActivas = (() => {
+                    const obs = viajeActivo.observacion || '';
+                    const match = obs.match(/\[RUTAS:([^\]]+)\]/);
+                    if (match) {
+                      return match[1].split(',').map((id: string) => Number(id.trim())).filter((x: number) => x > 0);
+                    }
+                    return viajeActivo.rutaLogisticaId ? [Number(viajeActivo.rutaLogisticaId)] : [];
+                  })();
+                  const tieneRuta = parsedRutasActivas.length > 0;
+                  const nombresRutas = parsedRutasActivas
+                    .map((id: number) => rutasLogistica.find((r) => r.id === id)?.nombre || `Ruta #${id}`)
+                    .join(', ');
+
+                  return (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: tieneRuta ? '#faf5ff' : '#f8fafc',
+                        border: `1.5px solid ${tieneRuta ? '#d8b4fe' : '#e2e8f0'}`,
+                        borderRadius: '12px',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                        <i
+                          className={`fa-solid ${tieneRuta ? 'fa-route' : 'fa-compass'}`}
+                          style={{ color: tieneRuta ? '#9333ea' : '#64748b', fontSize: '14px' }}
+                        ></i>
+                        <span>
+                          <strong style={{ color: '#1e293b' }}>Ruta Logística: </strong>
+                          <span style={{ color: tieneRuta ? '#7e22ce' : '#64748b', fontWeight: 700 }}>
+                            {tieneRuta ? nombresRutas : 'Modo Libre (Sin Ruta Asignada)'}
+                          </span>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalRegistroFinca(false);
+                          abrirModalAsignarRutas(viajeActivo);
+                        }}
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 800,
+                          color: '#4f46e5',
+                          background: '#eef2ff',
+                          border: '1px solid #c7d2fe',
+                          padding: '4px 10px',
+                          borderRadius: '7px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        <i className="fa-solid fa-map-location-dot"></i>
+                        {tieneRuta ? 'Cambiar / Agregar Rutas' : '+ Asignar Rutas al Ticket'}
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {/* 2. FINCA GANADERA */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
@@ -3073,6 +3190,15 @@ export const RecoleccionRutasPage: React.FC = () => {
                   </label>
                   <FincaSelect
                     value={formFinca.fincaId}
+                    rutaLogisticaId={viajeActivo.rutaLogisticaId}
+                    rutasLogisticasIds={(() => {
+                      const obs = viajeActivo.observacion || '';
+                      const match = obs.match(/\[RUTAS:([^\]]+)\]/);
+                      if (match) {
+                        return match[1].split(',').map((id: string) => Number(id.trim())).filter((x: number) => x > 0);
+                      }
+                      return viajeActivo.rutaLogisticaId ? [Number(viajeActivo.rutaLogisticaId)] : [];
+                    })()}
                     onChange={(id) => {
                       const fMatch = fincas.find((f) => f.id === id);
                       const esBuf = (fMatch?.tipoLeche || '').toUpperCase().includes('BUFAL');
@@ -3270,6 +3396,233 @@ export const RecoleccionRutasPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ASIGNAR / MODIFICAR RUTAS LOGÍSTICAS AL TICKET ABIERTO              */}
+      {/* ========================================================================= */}
+      {modalAsignarRutas && ticketParaRutas && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1250, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
+          <div className="content-card" style={{ width: '100%', maxWidth: '620px', maxHeight: '92vh', overflowY: 'auto', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                  <i className="fa-solid fa-route" style={{ color: '#9333ea', marginRight: '8px' }}></i>
+                  Asignar Rutas Logísticas al Ticket #{ticketParaRutas.id || ticketParaRutas.ticketId}
+                </h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  Seleccione una o varias rutas planificadas para vincularlas a este viaje en curso, o desmarque para Modo Libre.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalAsignarRutas(false);
+                  setTicketParaRutas(null);
+                }}
+                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            {/* RESUMEN DEL TICKET Y CHOFER */}
+            <div style={{ padding: '12px 14px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
+                  <i className="fa-solid fa-user-tie" style={{ color: '#3b82f6', marginRight: '6px' }}></i>
+                  {ticketParaRutas.choferNombre || ticketParaRutas.chofer?.nombreCompleto || 'Chofer Responsable'}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                  <i className="fa-solid fa-truck" style={{ marginRight: '5px' }}></i>
+                  {ticketParaRutas.camionPlaca || ticketParaRutas.camion?.placa || 'Cisterna'} • Capacidad: <strong>{(ticketParaRutas.capacidadCisterna || ticketParaRutas.camionCapacidad || 0).toLocaleString()} L</strong>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Carga Actual en Cisterna:</span>
+                <span style={{ fontSize: '14px', fontWeight: 900, color: '#2563eb' }}>
+                  {(ticketParaRutas.litrosEnCamion || ticketParaRutas.totalLitros || ticketParaRutas.litrosRecogidos || 0).toLocaleString()} L
+                </span>
+              </div>
+            </div>
+
+            {/* SELECCIÓN MÚLTIPLE DE RUTAS */}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="form-label" style={{ fontWeight: 800, margin: 0, color: '#0f172a', fontSize: '13px' }}>
+                  <i className="fa-solid fa-map-location-dot" style={{ color: '#9333ea', marginRight: '6px' }}></i>
+                  Rutas Logísticas Disponibles
+                </label>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: rutasSeleccionadasTicket.length === 0 ? '#64748b' : '#9333ea' }}>
+                  {rutasSeleccionadasTicket.length === 0 ? 'Modo Libre (Sin Ruta)' : `${rutasSeleccionadasTicket.length} seleccionada(s)`}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', background: '#faf5ff', border: '1.5px solid #d8b4fe', borderRadius: '12px', maxHeight: '180px', overflowY: 'auto' }}>
+                {rutasLogistica.length === 0 ? (
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>No hay rutas registradas en el sistema.</span>
+                ) : (
+                  rutasLogistica.map((r: any) => {
+                    const isChecked = rutasSeleccionadasTicket.includes(r.id);
+                    const fincasDeEsta = fincas.filter((f) => f.rutaId === r.id);
+                    const ltsEstimadosEsta = fincasDeEsta.reduce((acc, f) => acc + getPromedioFinca(f.id, f), 0);
+
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => {
+                          setRutasSeleccionadasTicket((prev) => {
+                            if (prev.includes(r.id)) {
+                              return prev.filter((id) => id !== r.id);
+                            } else {
+                              return [...prev, r.id];
+                            }
+                          });
+                        }}
+                        style={{
+                          border: isChecked ? '1.5px solid #9333ea' : '1px solid #cbd5e1',
+                          background: isChecked ? '#ffffff' : '#f8fafc',
+                          color: isChecked ? '#7e22ce' : '#475569',
+                          fontWeight: isChecked ? 800 : 600,
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: isChecked ? '0 1px 3px rgba(147, 51, 234, 0.15)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <i className={`fa-${isChecked ? 'solid fa-check-circle' : 'regular fa-circle'}`} style={{ color: isChecked ? '#9333ea' : '#94a3b8' }}></i>
+                        {r.nombre}
+                        <span style={{ fontSize: '10.5px', opacity: 0.8, color: isChecked ? '#7e22ce' : '#64748b' }}>
+                          (~{ltsEstimadosEsta.toLocaleString()} L • {fincasDeEsta.length} fincas)
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {rutasSeleccionadasTicket.length > 0 && (
+                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRutasSeleccionadasTicket([])}
+                    style={{ background: 'none', border: 'none', padding: '2px 0', fontSize: '11.5px', color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    <i className="fa-solid fa-xmark"></i> Desmarcar todas (Cambiar a Modo Libre)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* DETALLE Y FINCAS QUE PERTENECEN A LAS RUTAS SELECCIONADAS */}
+            {(() => {
+              const fincasSeleccionadas = fincas.filter((f) => f.rutaId && rutasSeleccionadasTicket.includes(f.rutaId));
+              const ltsTotalEstimado = fincasSeleccionadas.reduce((acc, f) => acc + getPromedioFinca(f.id, f), 0);
+              const capCisterna = ticketParaRutas.capacidadCisterna || ticketParaRutas.camionCapacidad || 0;
+
+              return (
+                <div style={{ marginBottom: '18px', padding: '12px 14px', borderRadius: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>
+                      <i className="fa-solid fa-list-check" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                      Resumen del Itinerario Planificado:
+                    </span>
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#0f172a' }}>
+                      {fincasSeleccionadas.length} Fincas • Est. {ltsTotalEstimado.toLocaleString()} L
+                      {capCisterna > 0 && ` (${Math.round((ltsTotalEstimado / capCisterna) * 100)}% cisterna)`}
+                    </span>
+                  </div>
+                  {fincasSeleccionadas.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxHeight: '100px', overflowY: 'auto', marginTop: '6px' }}>
+                      {fincasSeleccionadas.map((f) => (
+                        <span
+                          key={f.id}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            color: '#1e293b',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <i className="fa-solid fa-location-dot" style={{ color: '#38bdf8', fontSize: '9px' }}></i>
+                          {f.nombre}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic', marginTop: '4px' }}>
+                      {rutasSeleccionadasTicket.length === 0
+                        ? 'Al operar en Modo Libre, el chofer o supervisor puede registrar paradas en cualquier finca sin restricciones de ruta.'
+                        : 'No se encontraron fincas asignadas a las rutas seleccionadas.'}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* BOTONES DE ACCIÓN */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalAsignarRutas(false);
+                  setTicketParaRutas(null);
+                }}
+                className="btn btn-outline"
+                style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700 }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={asignarRutasMutation.isPending}
+                onClick={() => {
+                  asignarRutasMutation.mutate({
+                    ticketId: ticketParaRutas.id || ticketParaRutas.ticketId,
+                    rutasIds: rutasSeleccionadasTicket,
+                  });
+                }}
+                className="btn"
+                style={{
+                  background: 'linear-gradient(135deg, #9333ea 0%, #7e22ce 100%)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '12.5px',
+                  padding: '8px 20px',
+                  borderRadius: '9px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 6px rgba(147, 51, 234, 0.25)',
+                }}
+              >
+                {asignarRutasMutation.isPending ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin"></i> Guardando Rutas...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-check"></i>
+                    {rutasSeleccionadasTicket.length > 0 ? 'Guardar y Asignar al Ticket' : 'Guardar (Dejar en Modo Libre)'}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1409,6 +1409,13 @@ namespace Transporte.Core.DTOs
         public int? UsuarioId { get; set; }
     }
 
+    public class AsignarRutasTicketDto
+    {
+        public int? RutaLogisticaId { get; set; }
+        public List<int>? RutasLogisticasIds { get; set; }
+        public string? Observacion { get; set; }
+    }
+
     public class ProcesoTicketDto
     {
         public int Id { get; set; }

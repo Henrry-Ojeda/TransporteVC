@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Dapper;
 using Microsoft.Extensions.Configuration;
@@ -7933,6 +7934,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
         Task<bool> EliminarControlAsync(long id, int usuarioId, string rol);
         Task<IEnumerable<ProcesoTicketDto>> ObtenerProcesosDisponiblesAsync();
         Task<bool> CambiarProcesoAsync(long controlId, int procesoId, int usuarioId, string? observacion);
+        Task<bool> AsignarRutasLogisticasAsync(long id, AsignarRutasTicketDto dto, int usuarioId, string rol);
         Task<IEnumerable<HistorialProcesoTicketDto>> ObtenerHistorialProcesosAsync(long controlId);
 
         // Nuevos métodos del ciclo de vida logístico de Viajes / Tickets (AGENTS_2)
@@ -8367,6 +8369,55 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     VALUES (@id, @procesoId, GETDATE(), @usuarioId, @obs);",
                     new { id, procesoId = dto.ProcesoActualId.Value, usuarioId, obs = dto.Observacion ?? "Cambio de proceso en edición" });
             }
+
+            return rows > 0;
+        }
+
+        public async Task<bool> AsignarRutasLogisticasAsync(long id, AsignarRutasTicketDto dto, int usuarioId, string rol)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var control = await connection.QueryFirstOrDefaultAsync<dynamic>("SELECT * FROM TB_CONTROL_RUTAS WHERE Id = @id", new { id });
+            if (control == null) return false;
+
+            if (rol == "CHOFER" && (int)control.UsuarioId != usuarioId)
+                throw new UnauthorizedAccessException("No tienes permiso para modificar rutas de otro chofer.");
+
+            int? primaryRutaId = dto.RutaLogisticaId;
+            if (dto.RutasLogisticasIds != null && dto.RutasLogisticasIds.Any(x => x > 0))
+            {
+                if (!primaryRutaId.HasValue || primaryRutaId.Value <= 0)
+                {
+                    primaryRutaId = dto.RutasLogisticasIds.First(x => x > 0);
+                }
+            }
+            if (primaryRutaId.HasValue && primaryRutaId.Value <= 0) primaryRutaId = null;
+
+            string obsActual = (string?)control.Observacion ?? string.Empty;
+            obsActual = Regex.Replace(obsActual, @"\s*\[RUTAS:[^\]]*\]", "").Trim();
+
+            if (dto.RutasLogisticasIds != null && dto.RutasLogisticasIds.Any(x => x > 0))
+            {
+                var validIds = dto.RutasLogisticasIds.Where(x => x > 0).Distinct().ToList();
+                obsActual = $"{obsActual} [RUTAS:{string.Join(",", validIds)}]".Trim();
+            }
+            else if (primaryRutaId.HasValue && primaryRutaId.Value > 0)
+            {
+                obsActual = $"{obsActual} [RUTAS:{primaryRutaId.Value}]".Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.Observacion))
+            {
+                obsActual = $"{obsActual} {dto.Observacion.Trim()}".Trim();
+            }
+
+            var rows = await connection.ExecuteAsync(@"
+                UPDATE TB_CONTROL_RUTAS
+                SET RutaLogisticaId = @primaryRutaId,
+                    Observacion = @obsActual,
+                    ModifiedAt = GETDATE(),
+                    ModifiedBy = @usuarioId
+                WHERE Id = @id",
+                new { primaryRutaId, obsActual, usuarioId, id });
 
             return rows > 0;
         }

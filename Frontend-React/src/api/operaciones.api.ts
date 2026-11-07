@@ -44,6 +44,11 @@ export const operacionesApi = {
     return res.data;
   },
 
+  asignarRutasLogisticas: async (id: number, dto: { rutaLogisticaId?: number; rutasLogisticasIds?: number[]; observacion?: string }): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/control-rutas/${id}/rutas-logisticas`, dto);
+    return res.data;
+  },
+
   finalizarViajeAdmin: async (id: number, observacion?: string): Promise<{ message: string }> => {
     const res = await apiClient.post(`/control-rutas/${id}/finalizar`, { observacion });
     return res.data;

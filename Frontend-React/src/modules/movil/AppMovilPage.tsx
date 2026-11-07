@@ -849,15 +849,38 @@ export const AppMovilPage: React.FC = () => {
     return notificaciones.filter((n) => !n.leido).length;
   }, [notificaciones]);
 
+  const rutasActivasIds = useMemo(() => {
+    if (!viajeActivo) return [];
+    const obs = viajeActivo.observacion || '';
+    const match = obs.match(/\[RUTAS:([^\]]+)\]/);
+    if (match) {
+      return match[1].split(',').map((id: string) => Number(id.trim())).filter((x: number) => x > 0);
+    }
+    return viajeActivo.rutaLogisticaId ? [Number(viajeActivo.rutaLogisticaId)] : [];
+  }, [viajeActivo]);
+
   const fincasFiltradas = useMemo(() => {
-    if (!busquedaFinca.trim()) return fincas;
-    const term = busquedaFinca.toLowerCase();
-    return fincas.filter(
-      (f) =>
-        f.nombre.toLowerCase().includes(term) ||
-        (f.codigo && f.codigo.toLowerCase().includes(term))
-    );
-  }, [fincas, busquedaFinca]);
+    let result = fincas;
+    if (busquedaFinca.trim()) {
+      const term = busquedaFinca.toLowerCase();
+      result = fincas.filter(
+        (f) =>
+          f.nombre.toLowerCase().includes(term) ||
+          (f.codigo && f.codigo.toLowerCase().includes(term))
+      );
+    }
+
+    if (rutasActivasIds.length > 0) {
+      return [...result].sort((a, b) => {
+        const aEnRuta = a.rutaId && rutasActivasIds.includes(a.rutaId) ? 1 : 0;
+        const bEnRuta = b.rutaId && rutasActivasIds.includes(b.rutaId) ? 1 : 0;
+        if (aEnRuta !== bEnRuta) return bEnRuta - aEnRuta;
+        return a.nombre.localeCompare(b.nombre);
+      });
+    }
+
+    return result;
+  }, [fincas, busquedaFinca, rutasActivasIds]);
 
   // Guardar nueva carga en local
   const handleGuardarCarga = (e: React.FormEvent) => {
@@ -3062,11 +3085,14 @@ export const AppMovilPage: React.FC = () => {
                   }}
                 >
                   <option value={0}>-- Selecciona la Finca ({fincasFiltradas.length}) --</option>
-                  {fincasFiltradas.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nombre} {f.codigo ? `(${f.codigo})` : ''}
-                    </option>
-                  ))}
+                  {fincasFiltradas.map((f) => {
+                    const enRuta = f.rutaId && rutasActivasIds.includes(f.rutaId);
+                    return (
+                      <option key={f.id} value={f.id}>
+                        {enRuta ? '⭐ [En Ruta] ' : ''}{f.nombre} {f.codigo ? `(${f.codigo})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

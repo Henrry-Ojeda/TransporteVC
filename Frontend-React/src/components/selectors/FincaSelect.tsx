@@ -8,6 +8,7 @@ interface FincaSelectProps {
   value: number | string | undefined | null;
   onChange: (value: number, finca?: FincaDto) => void;
   rutaLogisticaId?: number | null;
+  rutasLogisticasIds?: number[] | null;
   placeholder?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
@@ -21,6 +22,7 @@ export const FincaSelect: React.FC<FincaSelectProps> = ({
   value,
   onChange,
   rutaLogisticaId,
+  rutasLogisticasIds,
   placeholder = '-- Seleccionar Finca Ganadera --',
   searchPlaceholder = 'Buscar finca por nombre o productor...',
   disabled = false,
@@ -35,11 +37,22 @@ export const FincaSelect: React.FC<FincaSelectProps> = ({
     staleTime: 1000 * 60 * 5,
   });
 
+  const idsRutasEfectivas = useMemo(() => {
+    const list: number[] = [];
+    if (rutaLogisticaId && rutaLogisticaId > 0) list.push(rutaLogisticaId);
+    if (rutasLogisticasIds && rutasLogisticasIds.length > 0) {
+      rutasLogisticasIds.forEach((id) => {
+        if (id > 0 && !list.includes(id)) list.push(id);
+      });
+    }
+    return list;
+  }, [rutaLogisticaId, rutasLogisticasIds]);
+
   const options: SelectOption[] = useMemo(() => {
     const sorted = [...fincas].sort((a, b) => {
-      if (rutaLogisticaId && rutaLogisticaId > 0) {
-        const aEnRuta = a.rutaId === rutaLogisticaId;
-        const bEnRuta = b.rutaId === rutaLogisticaId;
+      if (idsRutasEfectivas.length > 0) {
+        const aEnRuta = a.rutaId ? idsRutasEfectivas.includes(a.rutaId) : false;
+        const bEnRuta = b.rutaId ? idsRutasEfectivas.includes(b.rutaId) : false;
         if (aEnRuta && !bEnRuta) return -1;
         if (!aEnRuta && bEnRuta) return 1;
       }
@@ -47,7 +60,7 @@ export const FincaSelect: React.FC<FincaSelectProps> = ({
     });
 
     return sorted.map((f) => {
-      const esDeRutaActual = rutaLogisticaId && rutaLogisticaId > 0 && f.rutaId === rutaLogisticaId;
+      const esDeRutaActual = f.rutaId ? idsRutasEfectivas.includes(f.rutaId) : false;
       return {
         value: f.id,
         label: f.nombre,
@@ -55,7 +68,7 @@ export const FincaSelect: React.FC<FincaSelectProps> = ({
         badge: esDeRutaActual ? '⭐ En esta ruta' : (f.tipoLeche === 'BUFALA' ? '🐃 BÚFALA' : '🥛 VACA'),
       };
     });
-  }, [fincas, rutaLogisticaId]);
+  }, [fincas, idsRutasEfectivas]);
 
   const handleChange = (val: string | number) => {
     const num = Number(val) || 0;

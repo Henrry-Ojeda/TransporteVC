@@ -180,6 +180,31 @@ namespace Transporte.API.Controllers
         }
 
         /// <summary>
+        /// Asigna o modifica las rutas logísticas asociadas a un ticket de control ya creado.
+        /// </summary>
+        [HttpPut("{id:long}/rutas-logisticas")]
+        public async Task<IActionResult> AsignarRutasLogisticas([FromRoute] long id, [FromBody] AsignarRutasTicketDto dto)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var rol = User.FindFirstValue(ClaimTypes.Role) ?? "CHOFER";
+
+            try
+            {
+                var ok = await _controlRutasRepository.AsignarRutasLogisticasAsync(id, dto, userId, rol);
+                if (!ok) return NotFound(new { message = "Ticket no encontrado." });
+                return Ok(new { message = "Rutas logísticas asignadas al ticket exitosamente." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Obtiene el historial de cambios de proceso de un ticket.
         /// </summary>
         [HttpGet("{id:long}/historial")]
