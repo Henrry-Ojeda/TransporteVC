@@ -6,7 +6,9 @@ import { operacionesApi } from '@/api/operaciones.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { sistemaApi } from '@/api/sistema.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
-import { CamionSelect, ChoferSelect, FincaSelect } from '@/components/selectors';
+import { CamionSelect, ChoferSelect, FincaSelect, CompaniaSelect } from '@/components/selectors';
+import { SearchableSelect, type SelectOption } from '@/components/common/SearchableSelect';
+import Swal from 'sweetalert2';
 import { confirmDialog } from '@/lib/sweetalert';
 import { useAuthStore } from '@/stores/authStore';
 import type { ControlRutaDto, FincaDto, CamionDto, CompaniaDto, DespachoCompaniaDto } from '@/types';
@@ -237,26 +239,32 @@ export const RecoleccionRutasPage: React.FC = () => {
     observacion: '',
   });
 
-  // Formulario Enviar Receptoría
+  // Formulario Enviar Receptoría (1:1 V2_3_11_26)
   const [formReceptoria, setFormReceptoria] = useState({
     observacion: '',
   });
 
-  // Formulario Enviar Compañía Directo
-  const [formCompania, setFormCompania] = useState({
-    companiaId: 0,
-    litros: 0,
-    tipoLeche: 'VACA',
-    observacion: '',
-  });
+  // Formulario Enviar Compañía Directo (Multi-Destino 1:1 V2_3_11_26 modalEntregaDirecta)
+  interface FilaEntregaDirecta {
+    companiaId: number;
+    litros: number | string;
+    tipoLeche: string;
+  }
+  const [filasEntregaDirecta, setFilasEntregaDirecta] = useState<FilaEntregaDirecta[]>([
+    { companiaId: 0, litros: '', tipoLeche: 'VACA' },
+  ]);
+  const [obsEntregaDirecta, setObsEntregaDirecta] = useState('');
 
-  // Formulario Traspaso
+  // Formulario Traspaso (1:1 V2_3_11_26 modalTraspasoLeche)
+  const [modoTraspaso, setModoTraspaso] = useState<'EXISTENTE' | 'NUEVO'>('EXISTENTE');
   const [formTraspaso, setFormTraspaso] = useState({
     ticketDestinoId: 0,
     choferDestinoId: 0,
-    litrosTraspaso: 0,
+    litrosTraspaso: 0 as number | string,
     observacion: '',
   });
+  const [traspasoChoferDestinoId, setTraspasoChoferDestinoId] = useState<number>(0);
+  const [traspasoFechaDestino, setTraspasoFechaDestino] = useState<string>(hoyStr);
 
   // Formulario Cerrar Viaje
   const [formCerrar, setFormCerrar] = useState({
@@ -524,7 +532,14 @@ export const RecoleccionRutasPage: React.FC = () => {
   const enviarReceptoriaMutation = useMutation({
     mutationFn: (ticketId: number) => operacionesApi.enviarAReceptoria(ticketId, formReceptoria.observacion),
     onSuccess: (data) => {
-      toast.success(data.message || 'Viaje enviado a Receptoría');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Despachado a Receptoría!',
+        text: data?.message || 'El viaje ha sido enviado a receptoría para pesaje y control.',
+        confirmButtonColor: '#d97706',
+        timer: 2800,
+        showConfirmButton: false,
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalEnviarReceptoria(false);
     },
@@ -534,14 +549,28 @@ export const RecoleccionRutasPage: React.FC = () => {
   });
 
   const enviarCompaniaMutation = useMutation({
-    mutationFn: (ticketId: number) =>
-      operacionesApi.enviarACompania(ticketId, {
-        companiaId: formCompania.companiaId,
-        litrosDespachados: formCompania.litros,
-        observacion: formCompania.observacion,
-      }),
+    mutationFn: (ticketId: number) => {
+      const primeraFila = filasEntregaDirecta[0] || { companiaId: 0, litros: 0, tipoLeche: 'VACA' };
+      return operacionesApi.enviarACompania(ticketId, {
+        companiaId: Number(primeraFila.companiaId),
+        litrosDespachados: Number(primeraFila.litros || 0),
+        observacion: obsEntregaDirecta,
+        destinos: filasEntregaDirecta.map((f) => ({
+          companiaId: Number(f.companiaId),
+          litros: Number(f.litros || 0),
+          tipoLeche: f.tipoLeche || 'VACA',
+        })),
+      });
+    },
     onSuccess: (data) => {
-      toast.success(data.message || 'Despacho a compañía registrado exitosamente');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Entrega Registrada Exitosamente!',
+        text: data?.message || 'Se registraron los despachos a compañía correctamente.',
+        confirmButtonColor: '#059669',
+        timer: 2800,
+        showConfirmButton: false,
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-despachos-hoy'] });
       setModalEnviarCompania(false);
@@ -552,9 +581,29 @@ export const RecoleccionRutasPage: React.FC = () => {
   });
 
   const traspasoMutation = useMutation({
-    mutationFn: (id: number) => operacionesApi.traspasarLeche(id, formTraspaso),
+    mutationFn: (id: number) => {
+      const payload: any = {
+        litrosTraspaso: Number(formTraspaso.litrosTraspaso),
+        observacion: formTraspaso.observacion,
+      };
+      if (modoTraspaso === 'EXISTENTE') {
+        payload.ticketDestinoId = Number(formTraspaso.ticketDestinoId);
+      } else {
+        payload.choferDestinoId = Number(traspasoChoferDestinoId);
+        payload.fechaDestino = traspasoFechaDestino;
+      }
+      return operacionesApi.traspasarLeche(id, payload);
+    },
     onSuccess: (data) => {
-      toast.success(data.message || 'Traspaso de leche ejecutado exitosamente');
+      Swal.fire({
+        icon: 'success',
+        title: '¡Traspaso Exitoso!',
+        text: data?.mensaje || data?.message || 'Se traspasaron exitosamente los litros solicitados.',
+        confirmButtonColor: '#0d9488',
+        timer: 3500,
+        showConfirmButton: true,
+        confirmButtonText: 'Entendido',
+      });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalTraspaso(false);
     },
@@ -912,6 +961,49 @@ export const RecoleccionRutasPage: React.FC = () => {
     await cargarFincasTicket(viaje.id);
   };
 
+  const handleAbrirReceptoria = (item: any) => {
+    setViajeActivo(item);
+    setFormReceptoria({ observacion: '' });
+    setModalEnviarReceptoria(true);
+  };
+
+  const handleAbrirCompania = (item: any) => {
+    setViajeActivo(item);
+    const fincasT = fincasTicketsMap[item.id] || [];
+    const totalCamion = item._litrosRecogidos > 0 ? item._litrosRecogidos : fincasT.reduce((a: number, f: any) => a + Number(f.litros || f.Litros || 0), 0);
+    const yaAsignado = item._litrosEntregados || 0;
+    const faltante = Math.max(0, totalCamion - yaAsignado);
+
+    setFilasEntregaDirecta([
+      {
+        companiaId: item.companiaDestinoId || (companias.length > 0 ? companias[0].id : 0),
+        litros: faltante > 0 ? faltante : totalCamion,
+        tipoLeche: 'VACA',
+      },
+    ]);
+    setObsEntregaDirecta('');
+    setModalEnviarCompania(true);
+  };
+
+  const handleAbrirTraspaso = (item: any) => {
+    setViajeActivo(item);
+    const fincasT = fincasTicketsMap[item.id] || [];
+    const totalCamion = item._litrosRecogidos > 0 ? item._litrosRecogidos : fincasT.reduce((a: number, f: any) => a + Number(f.litros || f.Litros || 0), 0);
+    const yaAsignado = item._litrosEntregados || 0;
+    const ltsDisponibles = Math.max(0, totalCamion - yaAsignado);
+
+    setModoTraspaso('EXISTENTE');
+    setFormTraspaso({
+      ticketDestinoId: 0,
+      choferDestinoId: 0,
+      litrosTraspaso: ltsDisponibles > 0 ? ltsDisponibles : totalCamion,
+      observacion: '',
+    });
+    setTraspasoChoferDestinoId(0);
+    setTraspasoFechaDestino(hoyStr);
+    setModalTraspaso(true);
+  };
+
   // =========================================================================
   // COLUMNAS TABLA DETALLE POR FINCAS (HISTORIAL / BUSCADOR - SOLO LECTURA)
   // =========================================================================
@@ -1132,7 +1224,7 @@ export const RecoleccionRutasPage: React.FC = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', maxWidth: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginRight: '4px' }}>
             <i className="fa-solid fa-layer-group" style={{ color: '#4f46e5', marginRight: '4px' }}></i>
             Vista Operativa:
@@ -1140,15 +1232,12 @@ export const RecoleccionRutasPage: React.FC = () => {
           <div
             className="vista-operativa-switcher"
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              display: 'inline-flex',
               background: '#f1f5f9',
               padding: '3px',
               borderRadius: '10px',
               border: '1px solid #e2e8f0',
               gap: '4px',
-              width: '100%',
-              maxWidth: '520px',
             }}
           >
             <button
@@ -1158,7 +1247,7 @@ export const RecoleccionRutasPage: React.FC = () => {
               style={{
                 minHeight: '38px',
                 height: 'auto',
-                padding: '6px 10px',
+                padding: '6px 12px',
                 borderRadius: '7px',
                 border: 'none',
                 fontSize: '12px',
@@ -1201,7 +1290,7 @@ export const RecoleccionRutasPage: React.FC = () => {
               style={{
                 minHeight: '38px',
                 height: 'auto',
-                padding: '6px 10px',
+                padding: '6px 12px',
                 borderRadius: '7px',
                 border: 'none',
                 fontSize: '12px',
@@ -1239,8 +1328,8 @@ export const RecoleccionRutasPage: React.FC = () => {
           </div>
         </div>
 
-        {/* SELECTOR DE FECHA GLOBAL */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '4px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+        {/* SELECTOR DE FECHA GLOBAL (ALINEADO A LA DERECHA) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '6px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginLeft: 'auto' }}>
           <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
             <i className="fa-regular fa-calendar-days" style={{ color: '#2563eb' }}></i>
             Fecha Operativa:
@@ -1840,11 +1929,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                             <button
                               type="button"
-                              onClick={() => {
-                                setViajeActivo(item);
-                                setFormReceptoria({ observacion: '' });
-                                setModalEnviarReceptoria(true);
-                              }}
+                              onClick={() => handleAbrirReceptoria(item)}
                               className="btn btn-sm"
                               style={{
                                 background: '#f0fdf4',
@@ -1866,16 +1951,7 @@ export const RecoleccionRutasPage: React.FC = () => {
 
                             <button
                               type="button"
-                              onClick={() => {
-                                setViajeActivo(item);
-                                setFormCompania({
-                                  companiaId: 0,
-                                  litros: ltsRecolectados - ltsEntregados > 0 ? ltsRecolectados - ltsEntregados : ltsRecolectados,
-                                  tipoLeche: 'VACA',
-                                  observacion: '',
-                                });
-                                setModalEnviarCompania(true);
-                              }}
+                              onClick={() => handleAbrirCompania(item)}
                               className="btn btn-sm"
                               style={{
                                 background: '#faf5ff',
@@ -1897,16 +1973,7 @@ export const RecoleccionRutasPage: React.FC = () => {
 
                             <button
                               type="button"
-                              onClick={() => {
-                                setViajeActivo(item);
-                                setFormTraspaso({
-                                  ticketDestinoId: 0,
-                                  choferDestinoId: 0,
-                                  litrosTraspaso: ltsRecolectados - ltsEntregados > 0 ? ltsRecolectados - ltsEntregados : 0,
-                                  observacion: '',
-                                });
-                                setModalTraspaso(true);
-                              }}
+                              onClick={() => handleAbrirTraspaso(item)}
                               className="btn btn-sm"
                               style={{
                                 background: '#f0fdfa',
@@ -3307,201 +3374,646 @@ export const RecoleccionRutasPage: React.FC = () => {
         </div>
       )}
       {/* ========================================================================= */}
-      {/* MODAL 5: ENVIAR A RECEPTORÍA                                              */}
+      {/* MODAL 5: ENVIAR A RECEPTORÍA (1:1 V2_3_11_26 modalEnviarReceptoria)       */}
       {/* ========================================================================= */}
-      {modalEnviarReceptoria && viajeActivo && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
-          <div className="content-card" style={{ width: '100%', maxWidth: '440px', padding: '24px', borderRadius: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px 0', color: '#0f172a' }}>
-              <i className="fa-solid fa-scale-balanced" style={{ color: '#0284c7', marginRight: '8px' }}></i>
-              Enviar Viaje a Receptoría
-            </h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                enviarReceptoriaMutation.mutate(viajeActivo.id);
-              }}
-            >
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Observaciones / Notas de Entrada</label>
-                <textarea
-                  value={formReceptoria.observacion}
-                  onChange={(e) => setFormReceptoria({ ...formReceptoria, observacion: e.target.value })}
-                  className="form-input"
-                  rows={3}
-                  placeholder="Detalles para el operador del silo..."
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setModalEnviarReceptoria(false)} className="btn btn-outline">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={enviarReceptoriaMutation.isPending} className="btn btn-primary" style={{ fontWeight: 800 }}>
-                  {enviarReceptoriaMutation.isPending ? 'Enviando...' : 'Confirmar Envío'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {modalEnviarReceptoria && viajeActivo && (() => {
+        const fincasT = fincasTicketsMap[viajeActivo.id] || [];
+        const totalLts = ((viajeActivo as any)._litrosRecogidos || viajeActivo.totalLitrosRecogidos || 0) > 0 ? ((viajeActivo as any)._litrosRecogidos || viajeActivo.totalLitrosRecogidos) : fincasT.reduce((a: number, f: any) => a + Number(f.litros || f.Litros || 0), 0);
+        const cantFincas = fincasT.length > 0 ? fincasT.length : ((viajeActivo as any).cantidadParadas || 0);
 
-      {/* ========================================================================= */}
-      {/* MODAL 6: DESPACHAR A COMPAÑÍA / QUESERA                                  */}
-      {/* ========================================================================= */}
-      {modalEnviarCompania && viajeActivo && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
-          <div className="content-card" style={{ width: '100%', maxWidth: '460px', padding: '24px', borderRadius: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px 0', color: '#0f172a' }}>
-              <i className="fa-solid fa-building" style={{ color: '#7e22ce', marginRight: '8px' }}></i>
-              Despachar a Compañía / Planta
-            </h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!formCompania.companiaId || formCompania.companiaId <= 0) {
-                  toast.error('Seleccione una empresa de destino');
-                  return;
-                }
-                if (!formCompania.litros || Number(formCompania.litros) <= 0) {
-                  toast.error('Ingrese litros a entregar');
-                  return;
-                }
-                enviarCompaniaMutation.mutate(viajeActivo.id);
-              }}
-            >
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Compañía / Planta Destino *</label>
-                <select
-                  value={formCompania.companiaId}
-                  onChange={(e) => setFormCompania({ ...formCompania, companiaId: Number(e.target.value) })}
-                  className="form-input"
-                  required
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
+            <div className="content-card" style={{ width: '100%', maxWidth: '480px', borderRadius: '16px', overflow: 'hidden', padding: 0, border: '1px solid #e2e8f0', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+              {/* Header con gradiente ámbar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                    <i className="fa-solid fa-truck-fast"></i>
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Enviar Viaje a Receptoría</h2>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Despachar camión con las fincas recolectadas</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalEnviarReceptoria(false)}
+                  style={{ background: 'none', border: 'none', fontSize: '24px', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}
                 >
-                  <option value="0">-- Seleccione una Planta --</option>
-                  {companias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Litros a Entregar *</label>
-                <input
-                  type="number"
-                  value={formCompania.litros}
-                  onChange={(e) => setFormCompania({ ...formCompania, litros: Number(e.target.value) })}
-                  className="form-input"
-                  min="1"
-                  required
-                  style={{ height: '38px', fontWeight: 800 }}
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Observaciones</label>
-                <input
-                  type="text"
-                  value={formCompania.observacion}
-                  onChange={(e) => setFormCompania({ ...formCompania, observacion: e.target.value })}
-                  className="form-input"
-                  placeholder="Detalles del despacho..."
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setModalEnviarCompania(false)} className="btn btn-outline">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={enviarCompaniaMutation.isPending} className="btn btn-primary" style={{ fontWeight: 800, background: '#7e22ce' }}>
-                  {enviarCompaniaMutation.isPending ? 'Despachando...' : 'Confirmar Despacho'}
+                  &times;
                 </button>
               </div>
-            </form>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  enviarReceptoriaMutation.mutate(viajeActivo.id);
+                }}
+              >
+                <div style={{ padding: '20px', background: '#ffffff' }}>
+                  {/* Tarjeta oscura de resumen */}
+                  <div style={{ background: 'rgba(30, 41, 59, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8' }}>Ticket:</span>
+                      <strong style={{ color: '#60a5fa' }}>#{viajeActivo.codigoTicket || viajeActivo.id} ({viajeActivo.choferNombre || viajeActivo.nombreConductor})</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8' }}>Total Litros en Tanque:</span>
+                      <strong style={{ color: '#34d399', fontSize: '16px', fontWeight: 800 }}>{totalLts.toLocaleString()} Lts</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8' }}>Fincas Recolectadas:</span>
+                      <strong style={{ color: '#cbd5e1' }}>{cantFincas}</strong>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px', display: 'block', fontWeight: 600 }}>
+                      Nota de Despacho (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formReceptoria.observacion}
+                      onChange={(e) => setFormReceptoria({ ...formReceptoria, observacion: e.target.value })}
+                      className="form-input"
+                      placeholder="Ej: Camión precintado, temperatura 4°C..."
+                      style={{ height: '40px', fontSize: '13px' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                  <button type="button" onClick={() => setModalEnviarReceptoria(false)} className="btn btn-outline" style={{ height: '40px', padding: '0 18px', fontWeight: 700 }}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={enviarReceptoriaMutation.isPending}
+                    className="btn btn-warning"
+                    style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', fontWeight: 700, padding: '0 20px', height: '40px', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}
+                  >
+                    <i className="fa-solid fa-paper-plane"></i> {enviarReceptoriaMutation.isPending ? 'Enviando...' : 'Confirmar y Enviar'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
-      {/* MODAL 7: TRASPASO DE LECHE ENTRE CAMIONES                                */}
+      {/* MODAL 6: DESPACHAR A COMPAÑÍA / PLANTA (1:1 V2_3_11_26 modalEntregaDirecta) */}
       {/* ========================================================================= */}
-      {modalTraspaso && viajeActivo && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
-          <div className="content-card" style={{ width: '100%', maxWidth: '460px', padding: '24px', borderRadius: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px 0', color: '#0f172a' }}>
-              <i className="fa-solid fa-right-left" style={{ color: '#0f766e', marginRight: '8px' }}></i>
-              Traspasar Leche a Otro Camión
-            </h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!formTraspaso.ticketDestinoId || formTraspaso.ticketDestinoId <= 0) {
-                  toast.error('Seleccione un viaje / cisterna destino');
-                  return;
-                }
-                if (!formTraspaso.litrosTraspaso || Number(formTraspaso.litrosTraspaso) <= 0) {
-                  toast.error('Ingrese litros válidos a transferir');
-                  return;
-                }
-                traspasoMutation.mutate(viajeActivo.id);
-              }}
-            >
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Cisterna / Viaje Destino *</label>
-                <select
-                  value={formTraspaso.ticketDestinoId}
-                  onChange={(e) => setFormTraspaso({ ...formTraspaso, ticketDestinoId: Number(e.target.value) })}
-                  className="form-input"
-                  required
+      {modalEnviarCompania && viajeActivo && (() => {
+        const fincasT = fincasTicketsMap[viajeActivo.id] || [];
+        const totalCamion = ((viajeActivo as any)._litrosRecogidos || viajeActivo.totalLitrosRecogidos || 0) > 0 ? ((viajeActivo as any)._litrosRecogidos || viajeActivo.totalLitrosRecogidos) : fincasT.reduce((a: number, f: any) => a + Number(f.litros || f.Litros || 0), 0);
+        const yaAsignado = (viajeActivo as any)._litrosEntregados || viajeActivo.totalLitrosEntregados || 0;
+        const faltante = Math.max(0, totalCamion - yaAsignado);
+        const sumaFilas = filasEntregaDirecta.reduce((acc, f) => acc + (Number(f.litros) || 0), 0);
+        const diferencia = (faltante > 0 ? faltante : totalCamion) - sumaFilas;
+
+        const unificarLitros = () => {
+          setFilasEntregaDirecta([
+            {
+              companiaId: filasEntregaDirecta[0]?.companiaId || (companias[0]?.id || 0),
+              litros: faltante > 0 ? faltante : totalCamion,
+              tipoLeche: 'VACA',
+            },
+          ]);
+        };
+
+        const agregarFila = () => {
+          setFilasEntregaDirecta([
+            ...filasEntregaDirecta,
+            { companiaId: companias[0]?.id || 0, litros: '', tipoLeche: 'VACA' },
+          ]);
+        };
+
+        const removerFila = (index: number) => {
+          if (filasEntregaDirecta.length > 1) {
+            setFilasEntregaDirecta(filasEntregaDirecta.filter((_, i) => i !== index));
+          }
+        };
+
+        const actualizarFila = (index: number, campo: keyof FilaEntregaDirecta, valor: any) => {
+          const nuevas = [...filasEntregaDirecta];
+          nuevas[index] = { ...nuevas[index], [campo]: valor };
+          setFilasEntregaDirecta(nuevas);
+        };
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
+            <div className="content-card" style={{ maxWidth: '740px', width: '95%', background: '#ffffff', color: '#0f172a', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', padding: 0 }}>
+              {/* Header gradiente verde esmeralda */}
+              <div style={{ background: 'linear-gradient(135deg, #065f46, #059669, #10b981)', color: '#ffffff', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+                    <i className="fa-solid fa-building-circle-check"></i>
+                  </div>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>
+                      Entrega Directa a Compañías / Receptoría
+                    </h2>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#d1fae5', fontWeight: 500 }}>
+                      Despacho directo o distribuido a una o varias queseras y receptoría
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalEnviarCompania(false)}
+                  style={{ color: '#ffffff', background: 'rgba(255,255,255,0.15)', border: 'none', width: '32px', height: '32px', borderRadius: '8px', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
                 >
-                  <option value="0">-- Seleccione Cisterna Destino --</option>
-                  {viajes
-                    .filter((v) => v.id !== viajeActivo.id && v.estado !== 'FINALIZADO')
-                    .map((v) => (
-                      <option key={v.id} value={v.id}>
-                        Ticket #{v.codigoTicket || v.id} — {v.choferNombre || v.nombreConductor} ({v.camionPlaca})
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>Litros a Traspasar *</label>
-                <input
-                  type="number"
-                  value={formTraspaso.litrosTraspaso}
-                  onChange={(e) => setFormTraspaso({ ...formTraspaso, litrosTraspaso: Number(e.target.value) })}
-                  className="form-input"
-                  min="1"
-                  required
-                  style={{ height: '38px', fontWeight: 800 }}
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Motivo o Justificación</label>
-                <input
-                  type="text"
-                  value={formTraspaso.observacion}
-                  onChange={(e) => setFormTraspaso({ ...formTraspaso, observacion: e.target.value })}
-                  className="form-input"
-                  placeholder="Ej: Falla mecánica, relevo de ruta..."
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={() => setModalTraspaso(false)} className="btn btn-outline">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={traspasoMutation.isPending} className="btn btn-primary" style={{ fontWeight: 800, background: '#0f766e' }}>
-                  {traspasoMutation.isPending ? 'Traspasando...' : 'Ejecutar Traspaso'}
+                  &times;
                 </button>
               </div>
-            </form>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (filasEntregaDirecta.length === 0) {
+                    toast.error('Agregue al menos un destino');
+                    return;
+                  }
+                  for (let i = 0; i < filasEntregaDirecta.length; i++) {
+                    const fila = filasEntregaDirecta[i];
+                    if (!fila.companiaId || Number(fila.companiaId) <= 0) {
+                      toast.error(`Seleccione la compañía en el renglón #${i + 1}`);
+                      return;
+                    }
+                    if (!fila.litros || Number(fila.litros) <= 0) {
+                      toast.error(`Ingrese litros válidos en el renglón #${i + 1}`);
+                      return;
+                    }
+                  }
+                  enviarCompaniaMutation.mutate(viajeActivo.id);
+                }}
+              >
+                <div style={{ padding: '22px', background: '#f8fafc' }}>
+                  {/* Subtexto del ticket */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '0 4px' }}>
+                    <span style={{ fontSize: '13px', color: '#334155', fontWeight: 700 }}>
+                      <i className="fa-solid fa-ticket" style={{ color: '#059669', marginRight: '6px' }}></i>
+                      Ticket #{viajeActivo.codigoTicket || viajeActivo.id} — Conductor: {viajeActivo.choferNombre || viajeActivo.nombreConductor} ({viajeActivo.camionPlaca || 'Cisterna'})
+                    </span>
+                  </div>
+
+                  {/* 3 Tarjetas de Métricas del Ticket */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                    <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderBottomWidth: '3px', borderRadius: '10px', padding: '10px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'block' }}>
+                        Total en Camión
+                      </span>
+                      <strong style={{ display: 'block', fontSize: '18px', fontWeight: 800, color: '#059669', marginTop: '2px' }}>
+                        {totalCamion.toLocaleString()} Lts
+                      </strong>
+                    </div>
+
+                    <div style={{ background: '#fdf4ff', border: '1.5px solid #f0abfc', borderBottomWidth: '3px', borderRadius: '10px', padding: '10px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#86198f', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'block' }}>
+                        Ya Asignado
+                      </span>
+                      <strong style={{ display: 'block', fontSize: '18px', fontWeight: 800, color: '#9333ea', marginTop: '2px' }}>
+                        {yaAsignado.toLocaleString()} Lts
+                      </strong>
+                    </div>
+
+                    <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderBottomWidth: '3px', borderRadius: '10px', padding: '10px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'block' }}>
+                        Falta Asignar
+                      </span>
+                      <strong style={{ display: 'block', fontSize: '18px', fontWeight: 800, color: '#2563eb', marginTop: '2px' }}>
+                        {faltante.toLocaleString()} Lts
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* SECCIÓN MULTI-COMPAÑÍAS */}
+                  <div style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fa-solid fa-building" style={{ color: '#059669' }}></i> Destinos y Litros a Entregar
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={unificarLitros}
+                          style={{ fontSize: '12px', padding: '6px 14px', border: '1.5px solid #c084fc', color: '#6b21a8', background: '#faf5ff', fontWeight: 700, borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                          title="Unificar todos los litros en un solo destino"
+                        >
+                          <i className="fa-solid fa-arrows-to-circle" style={{ color: '#9333ea' }}></i> Unificar Litros
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={agregarFila}
+                          style={{ fontSize: '12px', padding: '6px 14px', border: '1.5px solid #a7f3d0', color: '#065f46', background: '#ecfdf5', fontWeight: 700, borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                        >
+                          <i className="fa-solid fa-plus-circle" style={{ color: '#059669' }}></i> + Añadir Destino / Compañía
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 140px 130px 38px', gap: '10px', padding: '0 12px 6px 12px', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                      <span>Destino / Quesera / Receptoría</span>
+                      <span>Tipo de Leche</span>
+                      <span style={{ textAlign: 'right', paddingRight: '14px' }}>Litros</span>
+                      <span></span>
+                    </div>
+
+                    {/* Filas dinámicas */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {filasEntregaDirecta.map((fila, idx) => (
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.8fr 140px 130px 38px', gap: '10px', alignItems: 'center' }}>
+                          <div>
+                            <CompaniaSelect
+                              value={fila.companiaId}
+                              onChange={(val) => actualizarFila(idx, 'companiaId', val)}
+                              placeholder="-- Seleccionar Compañía --"
+                            />
+                          </div>
+                          <div>
+                            <select
+                              value={fila.tipoLeche}
+                              onChange={(e) => actualizarFila(idx, 'tipoLeche', e.target.value)}
+                              className="form-input"
+                              style={{ height: '40px', fontSize: '12.5px', fontWeight: 700 }}
+                            >
+                              <option value="VACA">🥛 Vaca</option>
+                              {hasBufala && <option value="BUFALA">🐃 Búfala</option>}
+                              <option value="ACIDA">🍋 Ácida</option>
+                            </select>
+                          </div>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type="number"
+                              value={fila.litros}
+                              onChange={(e) => actualizarFila(idx, 'litros', e.target.value === '' ? '' : Number(e.target.value))}
+                              className="form-input"
+                              placeholder="0"
+                              min="1"
+                              step="1"
+                              required
+                              style={{ height: '40px', fontSize: '14px', fontWeight: 800, textAlign: 'right', paddingRight: '36px', color: '#059669' }}
+                            />
+                            <span style={{ position: 'absolute', right: '10px', top: '10px', fontSize: '12px', fontWeight: 700, color: '#64748b', pointerEvents: 'none' }}>
+                              Lts
+                            </span>
+                          </div>
+                          <div>
+                            {filasEntregaDirecta.length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => removerFila(idx)}
+                                style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                title="Eliminar este destino"
+                              >
+                                <i className="fa-solid fa-trash-can"></i>
+                              </button>
+                            ) : (
+                              <div style={{ width: '36px', height: '36px' }}></div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Balance Volumétrico Live */}
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      marginBottom: '16px',
+                      textAlign: 'center',
+                      background: diferencia === 0 ? '#f0fdf4' : diferencia > 0 ? '#eff6ff' : '#fef2f2',
+                      border: `1.5px solid ${diferencia === 0 ? '#86efac' : diferencia > 0 ? '#93c5fd' : '#fca5a5'}`,
+                    }}
+                  >
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: diferencia === 0 ? '#15803d' : diferencia > 0 ? '#1d4ed8' : '#b91c1c' }}>
+                      {diferencia === 0
+                        ? '✅ Total Distribuido con Precisión Exacta'
+                        : diferencia > 0
+                        ? `ℹ️ Faltan ${diferencia.toLocaleString()} Lts por asignar del tanque`
+                        : `⚠️ Exceso de ${Math.abs(diferencia).toLocaleString()} Lts sobre el volumen disponible`}
+                    </div>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#64748b' }}>
+                      Suma actual a despachar: {sumaFilas.toLocaleString()} Lts de {faltante > 0 ? faltante.toLocaleString() : totalCamion.toLocaleString()} Lts disponibles
+                    </span>
+                  </div>
+
+                  {/* Observaciones */}
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '5px', display: 'block' }}>
+                      <i className="fa-solid fa-comment-dots" style={{ color: '#64748b', marginRight: '4px' }}></i>
+                      Observación / Ticket de Pesaje Planta (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={obsEntregaDirecta}
+                      onChange={(e) => setObsEntregaDirecta(e.target.value)}
+                      className="form-input"
+                      placeholder="Ej: Ticket #5829, recibido por Ing. Romero..."
+                      style={{ height: '42px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px', background: '#ffffff', color: '#0f172a', width: '100%' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 22px', background: '#ffffff', borderTop: '1px solid #e2e8f0', borderRadius: '0 0 16px 16px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => setModalEnviarCompania(false)}
+                    style={{ height: '40px', padding: '0 18px', borderRadius: '8px', fontWeight: 600, borderColor: '#cbd5e1', color: '#475569' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={enviarCompaniaMutation.isPending}
+                    className="btn btn-success"
+                    style={{ background: 'linear-gradient(135deg, #059669, #10b981)', border: 'none', fontWeight: 700, padding: '0 22px', height: '40px', borderRadius: '8px', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(16,185,129,0.3)', cursor: 'pointer' }}
+                  >
+                    <i className="fa-solid fa-check-circle"></i> {enviarCompaniaMutation.isPending ? 'Registrando...' : 'Registrar Entrega'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: TRASPASO DE LECHE A OTRO CHOFER (1:1 V2_3_11_26 modalTraspasoLeche) */}
+      {/* ========================================================================= */}
+      {modalTraspaso && viajeActivo && (() => {
+        const fincasT = fincasTicketsMap[viajeActivo.id] || [];
+        const totalCamion = ((viajeActivo as any)._litrosRecogidos || viajeActivo.totalLitrosRecogidos || 0) > 0 ? ((viajeActivo as any)._litrosRecogidos || viajeActivo.totalLitrosRecogidos) : fincasT.reduce((a: number, f: any) => a + Number(f.litros || f.Litros || 0), 0);
+        const yaAsignado = (viajeActivo as any)._litrosEntregados || viajeActivo.totalLitrosEntregados || 0;
+        const ltsDisponibles = Math.max(0, totalCamion - yaAsignado);
+        const ticketsDestino = viajes.filter((v) => v.id !== viajeActivo.id && v.estado !== 'FINALIZADO');
+
+        const previewDestinoNombre = (() => {
+          if (modoTraspaso === 'EXISTENTE') {
+            const dest = ticketsDestino.find((t) => t.id === Number(formTraspaso.ticketDestinoId));
+            return dest ? `Ticket #${dest.codigoTicket || dest.id} - ${dest.choferNombre || dest.nombreConductor}` : 'Seleccionar Ticket Destino';
+          } else {
+            const ch = conductores.find((c: any) => c.id === Number(traspasoChoferDestinoId));
+            return ch ? (ch.nombreCompleto || ch.nombre) : 'Seleccionar Conductor';
+          }
+        })();
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', padding: '16px' }}>
+            <div className="content-card" style={{ maxWidth: '540px', width: '95%', borderRadius: '16px', border: '1.5px solid #0d948840', boxShadow: '0 20px 45px rgba(13, 148, 136, 0.2)', overflow: 'hidden', padding: 0, background: '#ffffff' }}>
+              {/* Header gradiente teal */}
+              <div style={{ background: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)', borderBottom: '1px solid #99f6e4', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ background: '#0d9488', color: '#ffffff', width: '42px', height: '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 4px 10px rgba(13, 148, 136, 0.3)' }}>
+                    <i className="fa-solid fa-right-left"></i>
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#115e59', margin: 0 }}>Traspaso de Leche a Otro Chofer</h2>
+                    <p style={{ fontSize: '12px', color: '#0f766e', margin: '2px 0 0 0' }}>Transferir carga recolectada a otro conductor / viaje</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalTraspaso(false)}
+                  style={{ color: '#0f766e', fontSize: '24px', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (modoTraspaso === 'EXISTENTE') {
+                    if (!formTraspaso.ticketDestinoId || Number(formTraspaso.ticketDestinoId) <= 0) {
+                      toast.error('Seleccione un viaje / cisterna destino');
+                      return;
+                    }
+                  } else {
+                    if (!traspasoChoferDestinoId || Number(traspasoChoferDestinoId) <= 0) {
+                      toast.error('Seleccione el conductor de destino');
+                      return;
+                    }
+                  }
+                  if (!formTraspaso.litrosTraspaso || Number(formTraspaso.litrosTraspaso) <= 0) {
+                    toast.error('Ingrese litros válidos a transferir');
+                    return;
+                  }
+                  traspasoMutation.mutate(viajeActivo.id);
+                }}
+              >
+                <div style={{ padding: '20px', background: '#ffffff' }}>
+                  {/* RESUMEN DEL TICKET ORIGEN */}
+                  <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Ticket Origen:</span>
+                      <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                        #{viajeActivo.codigoTicket || viajeActivo.id} - {viajeActivo.choferNombre || viajeActivo.nombreConductor}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Volumen Disponible:</span>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0d9488', marginTop: '2px' }}>
+                        {(ltsDisponibles > 0 ? ltsDisponibles : totalCamion).toLocaleString()} Lts
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SELECTOR DE MODO: EXISTENTE VS NUEVO */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                      <i className="fa-solid fa-layer-group" style={{ color: '#0d9488', marginRight: '4px' }}></i> Modo de Asignación del Ticket Destino:
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setModoTraspaso('EXISTENTE')}
+                        className="btn"
+                        style={{
+                          height: '36px',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          borderRadius: '8px',
+                          background: modoTraspaso === 'EXISTENTE' ? '#0d9488' : 'transparent',
+                          color: modoTraspaso === 'EXISTENTE' ? '#ffffff' : '#475569',
+                          border: 'none',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <i className="fa-solid fa-ticket"></i> Ticket Ya Creado
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoTraspaso('NUEVO')}
+                        className="btn"
+                        style={{
+                          height: '36px',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          borderRadius: '8px',
+                          background: modoTraspaso === 'NUEVO' ? '#0d9488' : 'transparent',
+                          color: modoTraspaso === 'NUEVO' ? '#ffffff' : '#475569',
+                          border: 'none',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <i className="fa-solid fa-plus-circle"></i> Crear Ticket Automático
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SECCIÓN MODO 1: TICKET YA CREADO */}
+                  {modoTraspaso === 'EXISTENTE' ? (
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                        <i className="fa-solid fa-ticket-simple" style={{ color: '#0d9488' }}></i> Seleccionar Ticket de Destino *
+                      </label>
+                      <select
+                        value={formTraspaso.ticketDestinoId}
+                        onChange={(e) => setFormTraspaso({ ...formTraspaso, ticketDestinoId: Number(e.target.value) })}
+                        className="form-input"
+                        style={{ height: '42px', fontSize: '13px', fontWeight: 700, color: '#0f172a', borderRadius: '8px', border: '1.5px solid #cbd5e1' }}
+                        required
+                      >
+                        <option value="0">-- Seleccione Cisterna / Viaje Destino --</option>
+                        {ticketsDestino.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            Ticket #{t.codigoTicket || t.id} — {t.choferNombre || t.nombreConductor} ({t.camionPlaca || 'Cisterna'})
+                          </option>
+                        ))}
+                      </select>
+                      <small style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                        Selecciona el viaje abierto del chofer receptor que recibirá los litros.
+                      </small>
+                    </div>
+                  ) : (
+                    /* SECCIÓN MODO 2: CREAR NUEVO TICKET AUTOMÁTICAMENTE */
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                            <i className="fa-solid fa-user-check" style={{ color: '#0d9488' }}></i> Chofer de Destino *
+                          </label>
+                          <ChoferSelect
+                            value={traspasoChoferDestinoId}
+                            onChange={(val) => setTraspasoChoferDestinoId(val)}
+                            placeholder="-- Seleccionar Conductor --"
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                            <i className="fa-solid fa-calendar-day" style={{ color: '#0d9488' }}></i> Fecha del Ticket
+                          </label>
+                          <input
+                            type="date"
+                            value={traspasoFechaDestino}
+                            onChange={(e) => setTraspasoFechaDestino(e.target.value)}
+                            className="form-input"
+                            style={{ height: '42px', fontSize: '13px', fontWeight: 700, borderRadius: '8px', border: '1.5px solid #cbd5e1' }}
+                          />
+                        </div>
+                      </div>
+                      <small style={{ fontSize: '11px', color: '#0d9488', fontWeight: 600, marginTop: '6px', display: 'block' }}>
+                        ✨ Se creará automáticamente un nuevo ticket en estado ABIERTO para el chofer seleccionado.
+                      </small>
+                    </div>
+                  )}
+
+                  {/* VOLUMEN A TRASPASAR */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', margin: 0 }}>
+                        <i className="fa-solid fa-faucet-drip" style={{ color: '#0d9488' }}></i> Litros a Traspasar *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormTraspaso({ ...formTraspaso, litrosTraspaso: ltsDisponibles > 0 ? ltsDisponibles : totalCamion })}
+                        style={{ fontSize: '11px', fontWeight: 800, color: '#0d9488', background: '#f0fdfa', border: '1px solid #99f6e4', padding: '2px 8px', borderRadius: '6px', cursor: 'pointer' }}
+                      >
+                        Traspasar Todo el Tanque
+                      </button>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        value={formTraspaso.litrosTraspaso}
+                        onChange={(e) => setFormTraspaso({ ...formTraspaso, litrosTraspaso: e.target.value === '' ? '' : Number(e.target.value) })}
+                        className="form-input"
+                        min="1"
+                        step="1"
+                        required
+                        style={{ height: '44px', fontSize: '17px', fontWeight: 800, color: '#0d9488', background: '#f0fdfa', border: '2px solid #5eead4', paddingRight: '48px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '14px', top: '12px', fontSize: '13px', fontWeight: 800, color: '#0d9488', pointerEvents: 'none' }}>
+                        Lts
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* OBSERVACIÓN */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                      <i className="fa-solid fa-comment-dots" style={{ color: '#64748b' }}></i> Nota / Motivo del Traspaso (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formTraspaso.observacion}
+                      onChange={(e) => setFormTraspaso({ ...formTraspaso, observacion: e.target.value })}
+                      className="form-input"
+                      placeholder="Ej: Traspaso de leche para completar viaje de despacho..."
+                      style={{ height: '40px', fontSize: '13px', borderRadius: '8px', border: '1.5px solid #cbd5e1' }}
+                    />
+                  </div>
+
+                  {/* DIAGRAMA VISUAL DE TRAZABILIDAD DEL TRASPASO */}
+                  <div style={{ background: '#f0fdfa', border: '1.5px dashed #5eead4', borderRadius: '12px', padding: '12px 14px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f766e', textTransform: 'uppercase', marginBottom: '6px' }}>
+                      <i className="fa-solid fa-route"></i> Flujo del Traspaso Logístico:
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '12px' }}>
+                      <div style={{ flex: 1, background: '#ffffff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccfbf1', textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: '10.5px', color: '#64748b' }}>ORIGEN</span>
+                        <strong style={{ color: '#0f172a', fontSize: '12px' }}>
+                          {viajeActivo.choferNombre || viajeActivo.nombreConductor}
+                        </strong>
+                      </div>
+                      <div style={{ color: '#0d9488', fontSize: '16px', fontWeight: 900 }}>
+                        <i className="fa-solid fa-arrow-right-long"></i>
+                      </div>
+                      <div style={{ flex: 1, background: '#ffffff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #ccfbf1', textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: '10.5px', color: '#64748b' }}>DESTINO</span>
+                        <strong style={{ color: '#0d9488', fontSize: '12px' }}>
+                          {previewDestinoNombre}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderRadius: '0 0 16px 16px' }}>
+                  <button type="button" onClick={() => setModalTraspaso(false)} className="btn btn-outline" style={{ height: '40px', padding: '0 18px', fontWeight: 600 }}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={traspasoMutation.isPending}
+                    className="btn btn-primary"
+                    style={{ background: 'linear-gradient(135deg, #0d9488, #059669)', border: 'none', fontWeight: 800, padding: '0 22px', height: '42px', color: '#fff', borderRadius: '8px', boxShadow: '0 4px 14px rgba(13,148,136,0.3)', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <i className="fa-solid fa-right-left"></i> {traspasoMutation.isPending ? 'Traspasando...' : 'Confirmar Traspaso'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* MODAL 8: FINALIZAR Y CERRAR VIAJE                                         */}
