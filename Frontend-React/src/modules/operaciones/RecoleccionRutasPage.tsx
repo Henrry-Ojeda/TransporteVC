@@ -41,7 +41,14 @@ export const RecoleccionRutasPage: React.FC = () => {
   const esAdminOSup = ['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'GERENTE', 'SUPERADMIN', 'SUPER_ADMIN'].includes(rol) || rol.includes('ADMIN');
   const esChofer = rol === 'CHOFER';
 
-  const hoyStr = new Date().toISOString().split('T')[0];
+  // Fecha local real (evita saltos al día siguiente por UTC en horario nocturno)
+  const hoyStr = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  })();
 
   // 2 Vistas Principales:
   // 1) 'viajes': Control de Rutas & Camiones (Fusión de Mis Tickets y Camiones en Ruta)
@@ -1378,7 +1385,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                           gap: '8px',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
                             <i className="fa-solid fa-ticket" style={{ color: item._origenColor }}></i> Ticket #{item.codigoTicket || item.id}
                           </span>
@@ -1395,6 +1402,29 @@ export const RecoleccionRutasPage: React.FC = () => {
                             }}
                           >
                             <i className={`fa-solid ${item._origenIcon}`}></i> {item._origenBadge}
+                          </span>
+                          {/* FECHA OPERATIVA ASIGNADA AL TICKET */}
+                          <span
+                            className="badge"
+                            style={{
+                              background: (item.fecha || '').split('T')[0] === fechaFiltro ? '#eff6ff' : '#fffbeb',
+                              color: (item.fecha || '').split('T')[0] === fechaFiltro ? '#1d4ed8' : '#b45309',
+                              border: `1px solid ${(item.fecha || '').split('T')[0] === fechaFiltro ? '#bfdbfe' : '#fde68a'}`,
+                              fontWeight: 800,
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="Fecha asignada a este ticket"
+                          >
+                            <i className="fa-regular fa-calendar"></i>
+                            {item.fecha ? item.fecha.split('T')[0] : 'Sin fecha'}
+                            {(item.fecha || '').split('T')[0] !== fechaFiltro && (
+                              <span style={{ fontSize: '9.5px', color: '#d97706', fontWeight: 800, marginLeft: '2px' }}>• Abierto Anterior</span>
+                            )}
                           </span>
                         </div>
 
