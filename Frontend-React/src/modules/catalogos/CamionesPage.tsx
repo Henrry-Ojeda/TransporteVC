@@ -23,6 +23,7 @@ export const CamionesPage: React.FC = () => {
     odometroActualKm: 0,
     usuarioId: undefined,
     activo: true,
+    estado: 'ACTIVO',
   };
   const [form, setForm] = useState<GuardarCamionDto>(initialForm);
 
@@ -79,6 +80,7 @@ export const CamionesPage: React.FC = () => {
       odometroActualKm: item.odometroActualKm,
       usuarioId: item.usuarioId,
       activo: item.activo,
+      estado: (item.estado as any) || (item.activo ? 'ACTIVO' : 'INACTIVO'),
     });
     setModalAbierto(true);
   };
@@ -168,10 +170,48 @@ export const CamionesPage: React.FC = () => {
       },
     },
     {
-      header: 'Estado',
-      accessorKey: 'activo',
-      cell: (row) =>
-        row.activo ? (
+      header: 'Estado Operativo',
+      accessorKey: 'estado',
+      sortable: true,
+      cell: (row) => {
+        const est = (row.estado || (row.activo ? 'ACTIVO' : 'INACTIVO')).toUpperCase();
+        if (est === 'MANTENIMIENTO') {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: '#fffbeb',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <i className="fa-solid fa-wrench" style={{ color: '#d97706' }}></i> En Taller
+            </span>
+          );
+        }
+        if (est === 'INACTIVO' || !row.activo) {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: '#fef2f2',
+                color: '#dc2626',
+                border: '1px solid #fecaca',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <i className="fa-solid fa-circle-xmark"></i> Inactivo
+            </span>
+          );
+        }
+        return (
           <span
             className="badge"
             style={{
@@ -179,25 +219,15 @@ export const CamionesPage: React.FC = () => {
               color: '#059669',
               border: '1px solid #a7f3d0',
               fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
             }}
           >
-            <i className="fa-solid fa-check-circle" style={{ marginRight: '4px' }}></i>
-            Operativo
+            <i className="fa-solid fa-check-circle"></i> Activo (Operativo)
           </span>
-        ) : (
-          <span
-            className="badge"
-            style={{
-              background: '#fef2f2',
-              color: '#dc2626',
-              border: '1px solid #fecaca',
-              fontWeight: 700,
-            }}
-          >
-            <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '4px' }}></i>
-            Inactivo
-          </span>
-        ),
+        );
+      },
     },
     {
       header: 'Acciones',
@@ -456,6 +486,82 @@ export const CamionesPage: React.FC = () => {
                     placeholder="-- Seleccionar o buscar chofer --"
                     allowClear
                   />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>
+                  Estado Operativo del Camión *
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, estado: 'ACTIVO', activo: true })}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: form.estado === 'ACTIVO' ? '2px solid #10b981' : '1.5px solid #e2e8f0',
+                      background: form.estado === 'ACTIVO' ? '#ecfdf5' : '#ffffff',
+                      color: form.estado === 'ACTIVO' ? '#065f46' : '#64748b',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <i className="fa-solid fa-check-circle" style={{ color: form.estado === 'ACTIVO' ? '#10b981' : '#94a3b8' }}></i>
+                    ACTIVO (Apto)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, estado: 'MANTENIMIENTO', activo: false })}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: form.estado === 'MANTENIMIENTO' ? '2px solid #f59e0b' : '1.5px solid #e2e8f0',
+                      background: form.estado === 'MANTENIMIENTO' ? '#fffbeb' : '#ffffff',
+                      color: form.estado === 'MANTENIMIENTO' ? '#92400e' : '#64748b',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <i className="fa-solid fa-wrench" style={{ color: form.estado === 'MANTENIMIENTO' ? '#f59e0b' : '#94a3b8' }}></i>
+                    EN TALLER
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, estado: 'INACTIVO', activo: false })}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: form.estado === 'INACTIVO' ? '2px solid #ef4444' : '1.5px solid #e2e8f0',
+                      background: form.estado === 'INACTIVO' ? '#fef2f2' : '#ffffff',
+                      color: form.estado === 'INACTIVO' ? '#991b1b' : '#64748b',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <i className="fa-solid fa-circle-xmark" style={{ color: form.estado === 'INACTIVO' ? '#ef4444' : '#94a3b8' }}></i>
+                    INACTIVO
+                  </button>
                 </div>
               </div>
 

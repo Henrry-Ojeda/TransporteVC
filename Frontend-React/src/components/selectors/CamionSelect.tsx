@@ -34,12 +34,26 @@ export const CamionSelect: React.FC<CamionSelectProps> = ({
   });
 
   const options: SelectOption[] = useMemo(() => {
-    return camiones.map((c) => ({
-      value: c.id,
-      label: `${c.placa} - ${c.marca || 'Cisterna'} ${c.modelo || ''}`.trim(),
-      subLabel: `Chofer: ${c.choferNombre || 'Sin chofer asignado'} | Capacidad: ${(c.capacidadLitros || 0).toLocaleString()} Lts`,
-      badge: `${(c.capacidadLitros || 0).toLocaleString()} L`,
-    }));
+    return camiones.map((c) => {
+      const enTaller = (c.estado || '').toUpperCase() === 'MANTENIMIENTO';
+      const inactivo = (c.estado || '').toUpperCase() === 'INACTIVO';
+      const noDisponible = enTaller || inactivo;
+
+      let prefix = '';
+      let suffix = '';
+      if (enTaller) suffix = ' [EN TALLER - NO DISPONIBLE]';
+      else if (inactivo) suffix = ' [INACTIVO - NO DISPONIBLE]';
+
+      return {
+        value: c.id,
+        label: `${c.placa} - ${c.marca || 'Cisterna'} ${c.modelo || ''}${suffix}`.trim(),
+        subLabel: enTaller
+          ? '⚠️ Camión en taller / mantenimiento correctivo'
+          : `Chofer: ${c.choferNombre || 'Sin chofer asignado'} | Capacidad: ${(c.capacidadLitros || 0).toLocaleString()} Lts`,
+        badge: enTaller ? 'TALLER' : inactivo ? 'INACTIVO' : `${(c.capacidadLitros || 0).toLocaleString()} L`,
+        disabled: noDisponible,
+      };
+    });
   }, [camiones]);
 
   const handleChange = (val: string | number) => {

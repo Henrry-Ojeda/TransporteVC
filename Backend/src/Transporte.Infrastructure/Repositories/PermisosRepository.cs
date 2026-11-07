@@ -31,6 +31,13 @@ namespace Transporte.Infrastructure.Repositories
         Task<IEnumerable<RolPermisoItemDto>> ObtenerPermisosPorRolAsync(int rolId);
         Task<bool> GuardarRolPermisosAsync(int rolId, List<int> permisosIds);
         Task<bool> ToggleRolPermisoAsync(int rolId, int permisoId, bool concedido);
+
+        // Roles (CRUD SUPERADMIN)
+        Task<IEnumerable<RolDto>> ObtenerRolesAsync(bool soloActivos = false);
+        Task<RolDto?> ObtenerRolPorIdAsync(int id);
+        Task<int> CrearRolAsync(CrearRolDto dto);
+        Task<bool> ActualizarRolAsync(int id, CrearRolDto dto);
+        Task<bool> EliminarRolAsync(int id);
     }
 
     public class PermisosRepository : IPermisosRepository
@@ -355,6 +362,109 @@ namespace Transporte.Infrastructure.Repositories
                     new { rolId, permisoId });
             }
             return true;
+        }
+        // ====================================================================
+        // GESTIÓN DE ROLES (CRUD SUPERADMIN)
+        // ====================================================================
+        public async Task<IEnumerable<RolDto>> ObtenerRolesAsync(bool soloActivos = false)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT r.Id, r.Codigo, r.Nombre, r.Descripcion, r.Activo,
+                       (SELECT COUNT(*) FROM TB_USUARIOS u WHERE u.RolId = r.Id OR (u.RolId IS NULL AND u.Rol = r.Codigo)) AS UsuariosCount
+                FROM TB_ROLES r " +
+                (soloActivos ? " WHERE r.Activo = 1 " : "") +
+                " ORDER BY r.Id ASC";
+            return await connection.QueryAsync<RolDto>(sql);
+        }
+
+        public async Task<RolDto?> ObtenerRolPorIdAsync(int id)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT r.Id, r.Codigo, r.Nombre, r.Descripcion, r.Activo,
+                       (SELECT COUNT(*) FROM TB_USUARIOS u WHERE u.RolId = r.Id OR (u.RolId IS NULL AND u.Rol = r.Codigo)) AS UsuariosCount
+                FROM TB_ROLES r
+                WHERE r.Id = @id";
+            return await connection.QueryFirstOrDefaultAsync<RolDto>(sql, new { id });
+        }
+
+        public async Task<int> CrearRolAsync(CrearRolDto dto)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var cod = dto.Codigo.Trim().ToUpper();
+            var existe = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM TB_ROLES WHERE UPPER(Codigo) = @cod", new { cod });
+            if (existe > 0) throw new InvalidOperationException($"Ya existe un rol con el código '{cod}'.");
+
+            var sql = @"
+                INSERT INTO TB_ROLES (Codigo, Nombre, Descripcion, Activo)
+                VALUES (@cod, @nombre, @descripcion, @activo);
+                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            return await connection.ExecuteScalarAsync<int>(sql, new
+            {
+                cod,
+                nombre = dto.Nombre.Trim(),
+                descripcion = dto.Descripcion?.Trim(),
+                dto.Activo
+            });
+        }
+
+        public async Task<bool> ActualizarRolAsync(int id, CrearRolDto dto)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var rol = await ObtenerRolPorIdAsync(id);
+            if (rol == null) return false;
+
+            var cod = dto.Codigo.Trim().ToUpper();
+            var existe = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM TB_ROLES WHERE UPPER(Codigo) = @cod AND Id <> @id", new { cod, id });
+            if (existe > 0) throw new InvalidOperationException($"Ya existe otro rol con el código '{cod}'.");
+
+            var sql = @"
+                UPDATE TB_ROLES
+                SET Codigo = @cod,
+                    Nombre = @nombre,
+                    Descripcion = @descripcion,
+                    Activo = @activo
+                WHERE Id = @id";
+
+            var rows = await connection.ExecuteAsync(sql, new
+            {
+                id,
+                cod,
+                nombre = dto.Nombre.Trim(),
+                descripcion = dto.Descripcion?.Trim(),
+                dto.Activo
+            });
+
+            return rows > 0;
+        }
+
+        public async Task<bool> EliminarRolAsync(int id)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            var rol = await ObtenerRolPorIdAsync(id);
+            if (rol == null) return false;
+
+            var cod = rol.Codigo.ToUpper();
+            if (cod == "SUPERADMIN" || cod == "ADMIN" || cod == "CHOFER")
+            {
+                throw new InvalidOperationException($"El rol del sistema '{rol.Nombre}' ({cod}) no puede ser eliminado.");
+            }
+
+            var usuariosCount = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM TB_USUARIOS WHERE RolId = @id OR UPPER(Rol) = @cod", new { id, cod });
+            if (usuariosCount > 0)
+            {
+                throw new InvalidOperationException($"No se puede eliminar el rol '{rol.Nombre}' porque tiene {usuariosCount} usuario(s) asignado(s). Reasigne los usuarios antes de eliminarlo.");
+            }
+
+            // Eliminar asignaciones de permisos
+            await connection.ExecuteAsync("DELETE FROM TB_ROL_PERMISOS WHERE RolId = @id", new { id });
+            var rows = await connection.ExecuteAsync("DELETE FROM TB_ROLES WHERE Id = @id", new { id });
+            return rows > 0;
         }
     }
 }

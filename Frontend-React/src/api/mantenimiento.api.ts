@@ -52,5 +52,40 @@ export const mantenimientoApi = {
     const res = await apiClient.get<CamionSimpleDto[]>('/camiones?soloActivos=true');
     return Array.isArray(res.data) ? res.data : [];
   },
+
+  // INCIDENTES (CHOFER <-> TALLER)
+  reportarIncidente: async (dto: {
+    camionId: number;
+    categoria?: string;
+    titulo: string;
+    descripcion: string;
+    urgencia?: string;
+    odometroKm?: number;
+    fotoUrl?: string;
+  }): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/mantenimiento-camiones/incidentes', dto);
+    return res.data;
+  },
+
+  getIncidentes: async (camionId?: number, estado?: string): Promise<MantenimientoCamionDto[]> => {
+    const params: Record<string, any> = {};
+    if (camionId) params.camionId = camionId;
+    if (estado) params.estado = estado;
+    const res = await apiClient.get<MantenimientoCamionDto[]>('/mantenimiento-camiones/incidentes', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  actualizarEstadoIncidente: async (
+    id: number,
+    dto: {
+      estado: string;
+      tallerOMecanico?: string;
+      costoTotalUSD?: number;
+      solucionAplicada?: string;
+    }
+  ): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/mantenimiento-camiones/incidentes/${id}/estado`, dto);
+    return res.data;
+  },
 };
 

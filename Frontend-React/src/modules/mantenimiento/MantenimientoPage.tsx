@@ -5,6 +5,7 @@ import { mantenimientoApi } from '@/api/mantenimiento.api';
 import { catalogosApi } from '@/api/catalogos.api';
 import { DataTable, type ColumnDef } from '@/components/common/DataTable';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
+import Swal from 'sweetalert2';
 import { CamionSelect } from '@/components/selectors';
 import type {
   MantenimientoCamionDto,
@@ -16,7 +17,7 @@ import type {
 export const MantenimientoPage: React.FC = () => {
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<'mantenimientos' | 'alertas'>('mantenimientos');
+  const [activeTab, setActiveTab] = useState<'mantenimientos' | 'incidentes' | 'alertas'>('mantenimientos');
   const [filtroCamion, setFiltroCamion] = useState<string>('');
   const [filtroTipo, setFiltroTipo] = useState<string>('');
   const [filtroEstado, setFiltroEstado] = useState<string>('');
@@ -50,6 +51,11 @@ export const MantenimientoPage: React.FC = () => {
       ),
   });
 
+  const { data: incidentes = [], isLoading: loadingIncidentes, refetch: refetchIncidentes } = useQuery<MantenimientoCamionDto[]>({
+    queryKey: ['mantenimientos-incidentes'],
+    queryFn: () => mantenimientoApi.getIncidentes(),
+  });
+
   const { data: alertas = [], isLoading: loadingAlertas } = useQuery<AlertaPreventivaDto[]>({
     queryKey: ['mantenimientos-alertas'],
     queryFn: () => mantenimientoApi.getAlertas(),
@@ -58,6 +64,22 @@ export const MantenimientoPage: React.FC = () => {
   const { data: camiones = [] } = useQuery<CamionDto[]>({
     queryKey: ['camiones-mantenimiento'],
     queryFn: () => catalogosApi.getCamiones(true),
+  });
+
+  // Mutación: Cambiar Estado de Incidente (Taller <-> Chofer)
+  const mutationCambiarEstadoIncidente = useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: { estado: string; tallerOMecanico?: string; costoTotalUSD?: number; solucionAplicada?: string } }) =>
+      mantenimientoApi.actualizarEstadoIncidente(id, dto),
+    onSuccess: (data: any) => {
+      toast.success(data?.message || 'Estado del incidente actualizado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['mantenimientos-incidentes'] });
+      queryClient.invalidateQueries({ queryKey: ['mantenimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['camiones'] });
+      queryClient.invalidateQueries({ queryKey: ['camiones-catalogos'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al actualizar el estado del incidente');
+    },
   });
 
   // Mutaciones
@@ -295,6 +317,285 @@ export const MantenimientoPage: React.FC = () => {
     },
   ];
 
+  const columnsIncidentes: ColumnDef<MantenimientoCamionDto>[] = [
+    {
+      header: 'FECHA REPORTE',
+      accessorKey: 'fechaEvento',
+      sortable: true,
+      width: '115px',
+      cell: (row) => (
+        <strong style={{ color: '#0f172a', fontSize: '12.5px', fontWeight: 700 }}>
+          {row.fechaEvento ? row.fechaEvento.split('T')[0] : '-'}
+        </strong>
+      ),
+    },
+    {
+      header: 'CAMIÓN & CHOFER',
+      accessorKey: 'camionPlaca',
+      sortable: true,
+      width: '160px',
+      cell: (row) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="fa-solid fa-truck" style={{ color: '#2563eb' }}></i>
+          <div>
+            <div style={{ fontWeight: 800, color: '#0f172a', fontFamily: 'monospace' }}>
+              {row.camionPlaca || `Camión #${row.camionId}`}
+            </div>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              {row.choferNombre || 'Chofer asignado'}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'URGENCIA',
+      accessorKey: 'urgencia',
+      sortable: true,
+      width: '110px',
+      cell: (row) => {
+        const urg = (row.urgencia || 'MEDIA').toUpperCase();
+        if (urg === 'ALTA' || urg === 'CRITICA') {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: '#fef2f2',
+                color: '#dc2626',
+                border: '1.5px solid #fecaca',
+                fontWeight: 800,
+                fontSize: '11px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <i className="fa-solid fa-fire text-red-500"></i> ALTA
+            </span>
+          );
+        }
+        if (urg === 'BAJA') {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: '#f8fafc',
+                color: '#64748b',
+                border: '1px solid #cbd5e1',
+                fontWeight: 700,
+                fontSize: '11px',
+              }}
+            >
+              BAJA
+            </span>
+          );
+        }
+        return (
+          <span
+            className="badge"
+            style={{
+              background: '#fffbeb',
+              color: '#d97706',
+              border: '1px solid #fde68a',
+              fontWeight: 800,
+              fontSize: '11px',
+            }}
+          >
+            MEDIA
+          </span>
+        );
+      },
+    },
+    {
+      header: 'AVERÍA / TAREA REPORTADA',
+      accessorKey: 'titulo',
+      cell: (row) => (
+        <div>
+          <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>{row.titulo}</div>
+          {row.descripcion && (
+            <div style={{ fontSize: '12px', color: '#475569', marginTop: '3px', lineHeight: 1.35 }}>
+              {row.descripcion}
+            </div>
+          )}
+          {row.solucionAplicada && (
+            <div style={{ fontSize: '11.5px', color: '#059669', marginTop: '4px', fontWeight: 600 }}>
+              <i className="fa-solid fa-wrench" style={{ marginRight: '4px' }}></i>
+              Solución: {row.solucionAplicada}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'ESTADO TALLER',
+      accessorKey: 'estado',
+      sortable: true,
+      width: '140px',
+      cell: (row) => {
+        const est = (row.estado || '').toUpperCase();
+        if (est === 'EN_TALLER') {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: '#fffbeb',
+                color: '#b45309',
+                border: '1.5px solid #fde68a',
+                fontWeight: 800,
+                fontSize: '11px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <i className="fa-solid fa-wrench"></i> EN TALLER
+            </span>
+          );
+        }
+        if (est === 'RESUELTO') {
+          return (
+            <span
+              className="badge"
+              style={{
+                background: '#ecfdf5',
+                color: '#059669',
+                border: '1.5px solid #a7f3d0',
+                fontWeight: 800,
+                fontSize: '11px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <i className="fa-solid fa-circle-check"></i> RESUELTO
+            </span>
+          );
+        }
+        return (
+          <span
+            className="badge"
+            style={{
+              background: '#fef2f2',
+              color: '#b91c1c',
+              border: '1.5px solid #fecaca',
+              fontWeight: 800,
+              fontSize: '11px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
+          >
+            <i className="fa-solid fa-bell"></i> REPORTADO
+          </span>
+        );
+      },
+    },
+    {
+      header: 'ACCIONES MECÁNICO',
+      width: '180px',
+      cell: (row) => {
+        const est = (row.estado || '').toUpperCase();
+        return (
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            {est !== 'EN_TALLER' && est !== 'RESUELTO' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                onClick={() => {
+                  Swal.fire({
+                    title: '¿Ingresar camión a Taller?',
+                    text: `El camión ${row.camionPlaca} pasará a estado MANTENIMIENTO y no estará disponible para planificaciones de ruta.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, ingresar a Taller',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#d97706',
+                  }).then((res) => {
+                    if (res.isConfirmed) {
+                      mutationCambiarEstadoIncidente.mutate({
+                        id: row.id,
+                        dto: { estado: 'EN_TALLER', tallerOMecanico: 'Taller Central' },
+                      });
+                    }
+                  });
+                }}
+                style={{
+                  height: '30px',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#b45309',
+                  borderColor: '#fde68a',
+                  background: '#fffbeb',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+                title="Pasa el camión a mantenimiento y lo inhabilita en rutas"
+              >
+                <i className="fa-solid fa-wrench"></i> A Taller
+              </button>
+            )}
+
+            {est !== 'RESUELTO' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                onClick={() => {
+                  Swal.fire({
+                    title: 'Completar Reparación',
+                    html: `
+                      <div style="text-align: left; font-size: 13px;">
+                        <label style="font-weight: 700; display: block; margin-bottom: 4px;">Solución / Tareas Realizadas:</label>
+                        <textarea id="swal-solucion" class="swal2-textarea" placeholder="Ej: Cambio de aceite y filtro 15W40, ajuste de frenos..." style="width: 100%; margin: 0 0 10px 0; height: 70px;"></textarea>
+                        <label style="font-weight: 700; display: block; margin-bottom: 4px;">Costo Total Invertido (USD):</label>
+                        <input id="swal-costo" type="number" step="0.01" class="swal2-input" placeholder="0.00" style="width: 100%; margin: 0;" />
+                      </div>
+                    `,
+                    focusConfirm: false,
+                    showCancelButton: true,
+                    confirmButtonText: '✅ Reparado (Habilitar Camión)',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#059669',
+                    preConfirm: () => {
+                      const sol = (document.getElementById('swal-solucion') as HTMLTextAreaElement)?.value || '';
+                      const costo = parseFloat((document.getElementById('swal-costo') as HTMLInputElement)?.value || '0');
+                      return { solucionAplicada: sol, costoTotalUSD: isNaN(costo) ? 0 : costo };
+                    },
+                  }).then((res) => {
+                    if (res.isConfirmed && res.value) {
+                      mutationCambiarEstadoIncidente.mutate({
+                        id: row.id,
+                        dto: {
+                          estado: 'RESUELTO',
+                          solucionAplicada: res.value.solucionAplicada,
+                          costoTotalUSD: res.value.costoTotalUSD,
+                        },
+                      });
+                    }
+                  });
+                }}
+                style={{
+                  height: '30px',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#059669',
+                  borderColor: '#a7f3d0',
+                  background: '#ecfdf5',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+                title="Marca como resuelto y devuelve el camión a estado ACTIVO"
+              >
+                <i className="fa-solid fa-check"></i> Listo
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <section id="tab-historial-camiones" className="tab-content" style={{ display: 'block' }}>
       {/* CABECERA VISTA */}
@@ -381,7 +682,7 @@ export const MantenimientoPage: React.FC = () => {
       </div>
 
       {/* SUB-PESTAÑAS */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0', paddingBottom: '2px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0', paddingBottom: '2px', flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={() => setActiveTab('mantenimientos')}
@@ -401,6 +702,43 @@ export const MantenimientoPage: React.FC = () => {
         >
           <i className="fa-solid fa-clipboard-list"></i> Bitácora de Servicios y Reparaciones ({mantenimientos.length})
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('incidentes')}
+          style={{
+            border: 'none',
+            borderBottom: activeTab === 'incidentes' ? '3px solid #0284c7' : 'none',
+            background: 'transparent',
+            fontWeight: 800,
+            fontSize: '13.5px',
+            color: activeTab === 'incidentes' ? '#0284c7' : '#64748b',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <i className="fa-solid fa-list-check" style={{ color: '#0284c7' }}></i>
+          Tareas de Taller & Averías ({incidentes.length})
+          {incidentes.filter((i) => i.estado !== 'RESUELTO').length > 0 && (
+            <span
+              style={{
+                background: '#fef2f2',
+                color: '#dc2626',
+                border: '1px solid #fecaca',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                fontSize: '10.5px',
+                fontWeight: 900,
+              }}
+            >
+              {incidentes.filter((i) => i.estado !== 'RESUELTO').length}
+            </span>
+          )}
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveTab('alertas')}
@@ -481,6 +819,15 @@ export const MantenimientoPage: React.FC = () => {
               </select>
             </div>
           }
+        />
+      ) : activeTab === 'incidentes' ? (
+        /* TABLA DE INCIDENTES Y TAREAS DE TALLER (DataTable - Regla Maestra 2) */
+        <DataTable
+          data={incidentes}
+          columns={columnsIncidentes}
+          isLoading={loadingIncidentes}
+          searchPlaceholder="Buscar avería por camión, chofer, título o descripción..."
+          exportFileName="tareas_taller_incidentes"
         />
       ) : (
         /* PANEL DE ALERTAS PREVENTIVAS POR CAMIÓN */

@@ -6,7 +6,8 @@ import { catalogosApi } from '@/api/catalogos.api';
 import { operacionesApi } from '@/api/operaciones.api';
 import { sistemaApi } from '@/api/sistema.api';
 import { notificacionesApi, type NotificacionMovil } from '@/api/notificaciones.api';
-import type { FincaDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
+import { mantenimientoApi } from '@/api/mantenimiento.api';
+import type { FincaDto, DespachoCompaniaDto, ControlRutaDto, CamionDto, MantenimientoCamionDto } from '@/types';
 
 interface DispositivoMovilData {
   token: string;
@@ -41,7 +42,19 @@ interface CargaOffline {
   serverTicketId?: number;
 }
 
-type TabMovil = 'principal' | 'recoleccion' | 'entregas' | 'reportes' | 'perfil';
+type TabMovil =
+  | 'principal'
+  | 'recoleccion'
+  | 'entregas'
+  | 'incidentes'
+  | 'reportes'
+  | 'perfil'
+  | 'admin_envivo'
+  | 'admin_logistica'
+  | 'taller_flota'
+  | 'taller_mantenimiento';
+
+export type ModoMovil = 'CHOFER' | 'ADMIN' | 'TALLER';
 
 const REPORTES_CHOFER = [
   { value: 'DIARIOS', label: '1. DIARIOS (Recolección Diaria)', icon: 'fa-calendar-days' },
@@ -171,6 +184,159 @@ export const AppMovilPage: React.FC = () => {
 
   // Fecha de hoy por defecto
   const hoyStr = new Date().toISOString().split('T')[0];
+
+  // Detección de Rol y Modo Adaptativo (CHOFER | ADMIN | TALLER)
+  const rolDispositivo = (dispositivo?.rol || '').toUpperCase();
+  const esAdminReal = rolDispositivo.includes('ADMIN') || rolDispositivo === 'SUPERADMIN' || rolDispositivo === 'ADMINISTRADOR' || rolDispositivo === 'SUPERVISOR';
+  const esTallerReal = rolDispositivo === 'TALLER' || rolDispositivo.includes('MECANICO');
+
+  const [modoActivo, setModoActivo] = useState<ModoMovil>(() => {
+    try {
+      const saved = localStorage.getItem('movil_modo_activo') as ModoMovil;
+      if (saved && ['CHOFER', 'ADMIN', 'TALLER'].includes(saved)) return saved;
+      if (esTallerReal) return 'TALLER';
+      if (esAdminReal) return 'ADMIN';
+      return 'CHOFER';
+    } catch {
+      return 'CHOFER';
+    }
+  });
+
+  const cambiarModo = (nuevoModo: ModoMovil) => {
+    setModoActivo(nuevoModo);
+    localStorage.setItem('movil_modo_activo', nuevoModo);
+    if (nuevoModo === 'ADMIN') setTabActiva('admin_envivo');
+    else if (nuevoModo === 'TALLER') setTabActiva('taller_flota');
+    else setTabActiva('principal');
+  };
+
+  // Estados para Módulo Chofer -> Incidentes
+  const [misIncidentes, setMisIncidentes] = useState<MantenimientoCamionDto[]>([]);
+  const [cargandoIncidentes, setCargandoIncidentes] = useState(false);
+  const [formIncidente, setFormIncidente] = useState({
+    titulo: '',
+    descripcion: '',
+    urgencia: 'MEDIA',
+    odometroKm: '',
+  });
+
+  // Estados para Módulo Taller
+  const [camionesTaller, setCamionesTaller] = useState<CamionDto[]>([]);
+  const [cargandoCamionesTaller, setCargandoCamionesTaller] = useState(false);
+  const [incidentesTaller, setIncidentesTaller] = useState<MantenimientoCamionDto[]>([]);
+  const [cargandoIncidentesTaller, setCargandoIncidentesTaller] = useState(false);
+
+  // Estados para Módulo Administrador
+  const [viajesEnVivo, setViajesEnVivo] = useState<ControlRutaDto[]>([]);
+  const [cargandoViajesEnVivo, setCargandoViajesEnVivo] = useState(false);
+
+  // Funciones Módulo Chofer: Incidentes / Averías
+  const cargarMisIncidentesChofer = async () => {
+    if (!dispositivo?.camionId && !dispositivo?.id) return;
+    setCargandoIncidentes(true);
+    try {
+      const list = await mantenimientoApi.getIncidentes(dispositivo.camionId || undefined);
+      setMisIncidentes(Array.isArray(list) ? list : []);
+    } catch {
+      console.warn('No se pudieron cargar incidentes del chofer.');
+    } finally {
+      setCargandoIncidentes(false);
+    }
+  };
+
+  const handleEnviarIncidenteChofer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dispositivo?.camionId) {
+      toast.error('No tienes un camión asignado para reportar la avería.');
+      return;
+    }
+    if (!formIncidente.titulo.trim()) {
+      toast.error('Por favor indica qué se debe reparar.');
+      return;
+    }
+
+    try {
+      const res = await mantenimientoApi.reportarIncidente({
+        camionId: dispositivo.camionId,
+        titulo: formIncidente.titulo.trim(),
+        descripcion: formIncidente.descripcion.trim(),
+        urgencia: formIncidente.urgencia,
+        odometroKm: formIncidente.odometroKm ? Number(formIncidente.odometroKm) : undefined,
+      });
+      toast.success(res.message || 'Avería enviada al Taller correctamente.');
+      setFormIncidente({ titulo: '', descripcion: '', urgencia: 'MEDIA', odometroKm: '' });
+      cargarMisIncidentesChofer();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al enviar reporte al taller.');
+    }
+  };
+
+  // Funciones Módulo Taller
+  const cargarDatosTaller = async () => {
+    setCargandoCamionesTaller(true);
+    setCargandoIncidentesTaller(true);
+    try {
+      const [cams, incs] = await Promise.all([
+        catalogosApi.getCamiones(false),
+        mantenimientoApi.getIncidentes(),
+      ]);
+      setCamionesTaller(Array.isArray(cams) ? cams : []);
+      setIncidentesTaller(Array.isArray(incs) ? incs : []);
+    } catch {
+      console.warn('Error al cargar datos del taller.');
+    } finally {
+      setCargandoCamionesTaller(false);
+      setCargandoIncidentesTaller(false);
+    }
+  };
+
+  const handleCambiarEstadoCamionTaller = async (camionId: number, nuevoEstado: string) => {
+    try {
+      await catalogosApi.actualizarEstadoCamion(camionId, nuevoEstado);
+      toast.success(`Camión actualizado a estado: ${nuevoEstado}`);
+      cargarDatosTaller();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al cambiar estado del camión.');
+    }
+  };
+
+  const handleAtenderIncidenteTaller = async (incidenteId: number, nuevoEstado: string, solucion?: string, costo?: number) => {
+    try {
+      const res = await mantenimientoApi.actualizarEstadoIncidente(incidenteId, {
+        estado: nuevoEstado,
+        solucionAplicada: solucion,
+        costoTotalUSD: costo,
+      });
+      toast.success(res.message || 'Estado de incidente actualizado');
+      cargarDatosTaller();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al actualizar incidente.');
+    }
+  };
+
+  // Funciones Módulo Administrador Móvil
+  const cargarDatosAdminEnVivo = async () => {
+    setCargandoViajesEnVivo(true);
+    try {
+      const viajes = await operacionesApi.getControles(hoyStr);
+      setViajesEnVivo(Array.isArray(viajes) ? viajes : []);
+    } catch {
+      console.warn('Error al cargar viajes en vivo para admin.');
+    } finally {
+      setCargandoViajesEnVivo(false);
+    }
+  };
+
+  // Carga reactiva de datos al cambiar de pestaña o modo
+  useEffect(() => {
+    if (tabActiva === 'incidentes') {
+      cargarMisIncidentesChofer();
+    } else if (tabActiva === 'admin_envivo') {
+      cargarDatosAdminEnVivo();
+    } else if (tabActiva === 'taller_flota' || tabActiva === 'taller_mantenimiento') {
+      cargarDatosTaller();
+    }
+  }, [tabActiva, modoActivo]);
 
   // Estado para la pantalla de Vinculación
   const [codigoInput, setCodigoInput] = useState('');
@@ -707,13 +873,9 @@ export const AppMovilPage: React.FC = () => {
     }
   };
 
-  // Acción: Cerrar Sesión del chofer (preserva la empresa y base de datos guardada en este teléfono)
+  // Acción: Cerrar Sesión
   const handleCerrarSesion = () => {
-    if (
-      window.confirm(
-        `¿Deseas cerrar la sesión de ${dispositivo?.nombreCompleto}? La base de datos de "${dispositivo?.empresaNombre || empresaGuardada}" permanecerá activa en este teléfono para que otro chofer pueda ingresar.`
-      )
-    ) {
+    if (window.confirm(`¿Deseas cerrar la sesión de ${dispositivo?.nombreCompleto || 'tu cuenta'}?`)) {
       localStorage.removeItem('movil_device_info');
       localStorage.removeItem('movil_viaje_activo');
       localStorage.removeItem('movil_paradas_activo');
@@ -725,7 +887,7 @@ export const AppMovilPage: React.FC = () => {
       setParadasViajeActivo([]);
       setLoginUsername('');
       setLoginPassword('');
-      toast.info('Sesión cerrada. La base de datos sigue guardada.');
+      toast.info('Sesión cerrada.');
     }
   };
 
@@ -1889,7 +2051,27 @@ export const AppMovilPage: React.FC = () => {
             >
               <i className="fa-solid fa-arrows-rotate"></i>
             </button>
-            {dispositivo.placaCamion && (
+            {esAdminReal && (
+              <select
+                value={modoActivo}
+                onChange={(e) => cambiarModo(e.target.value as ModoMovil)}
+                style={{
+                  background: '#0f172a',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '8px',
+                  padding: '4px 6px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="CHOFER">🚚 Chofer</option>
+                <option value="ADMIN">👔 Admin</option>
+                <option value="TALLER">🔧 Taller</option>
+              </select>
+            )}
+            {dispositivo.placaCamion && modoActivo === 'CHOFER' && (
               <span
                 style={{
                   background: 'rgba(255, 255, 255, 0.12)',
@@ -1908,7 +2090,7 @@ export const AppMovilPage: React.FC = () => {
             <button
               type="button"
               onClick={handleCerrarSesion}
-              title="Cerrar Sesión (Mantener Empresa)"
+              title="Cerrar Sesión"
               style={{
                 background: 'rgba(245, 158, 11, 0.2)',
                 border: '1px solid rgba(245, 158, 11, 0.4)',
@@ -3022,6 +3204,289 @@ export const AppMovilPage: React.FC = () => {
         )}
 
         {/* ===================================================================
+            PESTAÑA: INCIDENTES / AVERÍAS (MÓDULO CHOFER -> TALLER)
+           =================================================================== */}
+        {tabActiva === 'incidentes' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Formulario de reporte */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '16px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: '#fff7ed',
+                    color: '#ea580c',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                  }}
+                >
+                  <i className="fa-solid fa-wrench"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                    Reportar Avería o Tarea al Taller
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                    Camión: <strong>{dispositivo.placaCamion || 'Sin asignar'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Plantillas rápidas */}
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                  Averías Frecuentes (Toca para seleccionar):
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {[
+                    'Cambio de Aceite',
+                    'Falla de Frenos',
+                    'Luz trasera quemada',
+                    'Arreglar Motor / Ruido',
+                    'Caucho Espichado / Dañado',
+                    'Batería descargada',
+                  ].map((plantilla) => (
+                    <button
+                      key={plantilla}
+                      type="button"
+                      onClick={() => setFormIncidente((prev) => ({ ...prev, titulo: plantilla }))}
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        borderRadius: '20px',
+                        border: '1px solid #fed7aa',
+                        background: formIncidente.titulo === plantilla ? '#ea580c' : '#fff7ed',
+                        color: formIncidente.titulo === plantilla ? '#ffffff' : '#c2410c',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {plantilla}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <form onSubmit={handleEnviarIncidenteChofer} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                    Título / Falla Principal *
+                  </label>
+                  <input
+                    type="text"
+                    value={formIncidente.titulo}
+                    onChange={(e) => setFormIncidente((prev) => ({ ...prev, titulo: e.target.value }))}
+                    placeholder="Ej: Cambio de Aceite, Luz trasera, Motor..."
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      boxSizing: 'border-box',
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                      Nivel de Urgencia
+                    </label>
+                    <select
+                      value={formIncidente.urgencia}
+                      onChange={(e) => setFormIncidente((prev) => ({ ...prev, urgencia: e.target.value }))}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '12px',
+                        background: '#ffffff',
+                      }}
+                    >
+                      <option value="BAJA">🟢 Baja (Rutinario)</option>
+                      <option value="MEDIA">🟡 Media (Próximos días)</option>
+                      <option value="ALTA">🟠 Alta (Atención prioritaria)</option>
+                      <option value="CRITICA">🔴 Crítica (Camión detenido)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                      Odómetro / Km (Opcional)
+                    </label>
+                    <input
+                      type="number"
+                      value={formIncidente.odometroKm}
+                      onChange={(e) => setFormIncidente((prev) => ({ ...prev, odometroKm: e.target.value }))}
+                      placeholder="Km actual"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '13px',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                    Detalles para el Mecánico
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formIncidente.descripcion}
+                    onChange={(e) => setFormIncidente((prev) => ({ ...prev, descripcion: e.target.value }))}
+                    placeholder="Describe los síntomas, ruido o pieza que se necesita cambiar..."
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '12px',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    background: '#ea580c',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.25)',
+                    marginTop: '4px',
+                  }}
+                >
+                  <i className="fa-solid fa-paper-plane"></i>
+                  Enviar Falla al Taller
+                </button>
+              </form>
+            </div>
+
+            {/* Listado de fallas reportadas por el chofer */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '16px',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                  Mis Averías Reportadas
+                </h4>
+                <button
+                  type="button"
+                  onClick={cargarMisIncidentesChofer}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#ea580c',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                  }}
+                >
+                  <i className={`fa-solid fa-rotate-right ${cargandoIncidentes ? 'fa-spin' : ''}`}></i> Refrescar
+                </button>
+              </div>
+
+              {cargandoIncidentes ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '12px' }}>
+                  <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Cargando historial...
+                </div>
+              ) : misIncidentes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                  <i className="fa-solid fa-check-circle" style={{ fontSize: '28px', color: '#10b981', marginBottom: '8px' }}></i>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>Sin averías pendientes</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '11px' }}>Tu camión está al 100% operativo.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {misIncidentes.map((inc) => {
+                    const isResuelto = inc.estado === 'RESUELTO';
+                    const isTaller = inc.estado === 'EN_TALLER';
+                    return (
+                      <div
+                        key={inc.id}
+                        style={{
+                          padding: '12px',
+                          borderRadius: '12px',
+                          border: isResuelto ? '1px solid #bbf7d0' : isTaller ? '1px solid #bfdbfe' : '1px solid #fed7aa',
+                          background: isResuelto ? '#f0fdf4' : isTaller ? '#eff6ff' : '#fff7ed',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                            {inc.titulo}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '20px',
+                              background: isResuelto ? '#dcfce7' : isTaller ? '#dbeafe' : '#fef3c7',
+                              color: isResuelto ? '#15803d' : isTaller ? '#1d4ed8' : '#b45309',
+                            }}
+                          >
+                            {isResuelto ? '✅ REPARADO' : isTaller ? '🔧 EN TALLER' : '⚠️ REPORTADO'}
+                          </span>
+                        </div>
+                        {inc.descripcion && (
+                          <p style={{ margin: '4px 0', fontSize: '12px', color: '#475569' }}>
+                            {inc.descripcion}
+                          </p>
+                        )}
+                        {inc.solucionAplicada && (
+                          <div style={{ marginTop: '6px', fontSize: '11px', color: '#15803d', background: '#dcfce7', padding: '6px 8px', borderRadius: '6px' }}>
+                            <strong>Solución del taller:</strong> {inc.solucionAplicada}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '10.5px', color: '#64748b' }}>
+                          <span>Urgencia: <strong>{inc.urgencia || 'MEDIA'}</strong></span>
+                          <span>{new Date(inc.fechaEvento || inc.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================================
             PESTAÑA 4: REPORTES (SOLO NÚMEROS 1, 2, 3, 4 Y 7)
            =================================================================== */}
         {tabActiva === 'reportes' && (
@@ -3658,6 +4123,74 @@ export const AppMovilPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Selector de Modo si es Administrador */}
+            {esAdminReal && (
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  border: '1.5px solid #cbd5e1',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  <i className="fa-solid fa-arrows-split-up-and-left mr-1.5 text-blue-600"></i>
+                  Modo de Interfaz Móvil (Permiso SuperAdmin / Admin)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => cambiarModo('CHOFER')}
+                    style={{
+                      padding: '10px 4px',
+                      borderRadius: '10px',
+                      border: modoActivo === 'CHOFER' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                      background: modoActivo === 'CHOFER' ? '#eff6ff' : '#f8fafc',
+                      color: modoActivo === 'CHOFER' ? '#1d4ed8' : '#64748b',
+                      fontWeight: 800,
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🚚 Chofer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cambiarModo('ADMIN')}
+                    style={{
+                      padding: '10px 4px',
+                      borderRadius: '10px',
+                      border: modoActivo === 'ADMIN' ? '2px solid #0f172a' : '1px solid #cbd5e1',
+                      background: modoActivo === 'ADMIN' ? '#0f172a' : '#f8fafc',
+                      color: modoActivo === 'ADMIN' ? '#ffffff' : '#64748b',
+                      fontWeight: 800,
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    👔 Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cambiarModo('TALLER')}
+                    style={{
+                      padding: '10px 4px',
+                      borderRadius: '10px',
+                      border: modoActivo === 'TALLER' ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                      background: modoActivo === 'TALLER' ? '#fff7ed' : '#f8fafc',
+                      color: modoActivo === 'TALLER' ? '#c2410c' : '#64748b',
+                      fontWeight: 800,
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🔧 Taller
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Acciones de Sesión y Dispositivo */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
               <button
@@ -3709,6 +4242,504 @@ export const AppMovilPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* ===================================================================
+            PESTAÑA: MÓDULO ADMINISTRADOR -> EN VIVO
+           =================================================================== */}
+        {tabActiva === 'admin_envivo' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                borderRadius: '16px',
+                padding: '16px',
+                color: '#ffffff',
+                boxShadow: '0 4px 14px rgba(15,23,42,0.15)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Monitoreo de Flota en Vivo
+                  </div>
+                  <h3 style={{ margin: '4px 0 0', fontSize: '16px', fontWeight: 800 }}>
+                    Rutas Activas Hoy ({hoyStr})
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={cargarDatosAdminEnVivo}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <i className={`fa-solid fa-rotate-right ${cargandoViajesEnVivo ? 'fa-spin' : ''}`}></i>
+                </button>
+              </div>
+            </div>
+
+            {cargandoViajesEnVivo ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
+                <p style={{ marginTop: '8px', fontSize: '12px' }}>Cargando datos de camiones en vivo...</p>
+              </div>
+            ) : viajesEnVivo.length === 0 ? (
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '30px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                <i className="fa-solid fa-truck-ramp-box" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '10px' }}></i>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#334155' }}>
+                  No hay tickets creados para hoy
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Los choferes o supervisores aún no han iniciado rutas el día de hoy.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {viajesEnVivo.map((viaje) => {
+                  const litros = Number((viaje as any).totalLitros ?? (viaje as any).totalLitrosFinca ?? 0);
+                  const capacidad = Number(viaje.capacidadCamionLitros || 6000);
+                  const pct = Math.min(100, Math.round((litros / (capacidad || 1)) * 100));
+                  return (
+                    <div
+                      key={viaje.id}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: '6px' }}>
+                            Ticket #{viaje.codigoTicket || viaje.id}
+                          </span>
+                          <h4 style={{ margin: '6px 0 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                            {viaje.choferNombre || 'Chofer no asignado'}
+                          </h4>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>
+                            Camión: <strong>{viaje.camionPlaca || 'Sin placa'}</strong>
+                          </span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>
+                            {litros.toLocaleString()} L
+                          </span>
+                          <span style={{ display: 'block', fontSize: '11px', color: '#64748b' }}>
+                            de {capacidad.toLocaleString()} L ({pct}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Barra de progreso de cisterna */}
+                      <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden', margin: '10px 0' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            background: pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#10b981',
+                            borderRadius: '999px',
+                            transition: 'width 0.4s ease',
+                          }}
+                        ></div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b' }}>
+                        <span>
+                          <i className="fa-solid fa-cow mr-1 text-emerald-600"></i>
+                          Paradas: <strong>{(viaje as any).fincasRecolectadasCount ?? (viaje.fincasDetalle?.length || 0)}</strong>
+                        </span>
+                        <span style={{ fontWeight: 700, color: viaje.estado === 'FINALIZADO' ? '#15803d' : '#0369a1' }}>
+                          {viaje.estado || 'EN RUTA'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================================================================
+            PESTAÑA: MÓDULO ADMINISTRADOR -> LOGÍSTICA
+           =================================================================== */}
+        {tabActiva === 'admin_logistica' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '18px',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  <i className="fa-solid fa-route"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                    Logística & Planificación
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Organización de circuitos, rutas y choferes
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12.5px', color: '#475569', lineHeight: 1.5 }}>
+                <p style={{ margin: '0 0 10px 0' }}>
+                  Desde este módulo móvil puedes supervisar la planificación de camiones y choferes para el día <strong>{hoyStr}</strong>.
+                </p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = '/planificacion-rutas-choferes';
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      borderRadius: '8px',
+                      background: '#059669',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <i className="fa-solid fa-map-location-dot"></i>
+                    Ir a Planificador Completo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================================
+            PESTAÑA: MÓDULO TALLER -> FLOTA DE CAMIONES
+           =================================================================== */}
+        {tabActiva === 'taller_flota' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #c2410c, #ea580c)',
+                borderRadius: '16px',
+                padding: '16px',
+                color: '#ffffff',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#fed7aa', fontWeight: 800, textTransform: 'uppercase' }}>
+                    Módulo de Taller Mecánico
+                  </div>
+                  <h3 style={{ margin: '4px 0 0', fontSize: '16px', fontWeight: 800 }}>
+                    Estado Operativo de Flota
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={cargarDatosTaller}
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: '#ffffff',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <i className={`fa-solid fa-rotate-right ${cargandoCamionesTaller ? 'fa-spin' : ''}`}></i>
+                </button>
+              </div>
+            </div>
+
+            {cargandoCamionesTaller ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
+                <p style={{ marginTop: '8px', fontSize: '12px' }}>Cargando camiones...</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {camionesTaller.map((cam) => {
+                  const estado = (cam.estado || 'ACTIVO').toUpperCase();
+                  const isActivo = estado === 'ACTIVO';
+                  const isTaller = estado === 'MANTENIMIENTO';
+                  return (
+                    <div
+                      key={cam.id}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        border: isTaller ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>
+                            <i className="fa-solid fa-truck mr-1.5 text-slate-700"></i>
+                            {cam.placa}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                            {cam.marca} {cam.modelo} • Capacidad: {cam.capacidadLitros?.toLocaleString()} L
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: '20px',
+                            background: isActivo ? '#dcfce7' : isTaller ? '#ffedd5' : '#f1f5f9',
+                            color: isActivo ? '#15803d' : isTaller ? '#c2410c' : '#64748b',
+                          }}
+                        >
+                          {isActivo ? '🟢 ACTIVO' : isTaller ? '🔧 EN TALLER' : '⛔ INACTIVO'}
+                        </span>
+                      </div>
+
+                      {/* Acciones de cambio de estado directo */}
+                      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '10px' }}>
+                        <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                          Cambiar Estado Operativo:
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleCambiarEstadoCamionTaller(cam.id, 'ACTIVO')}
+                            style={{
+                              padding: '6px 4px',
+                              borderRadius: '8px',
+                              border: isActivo ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                              background: isActivo ? '#dcfce7' : '#ffffff',
+                              color: isActivo ? '#15803d' : '#64748b',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ✅ Apto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCambiarEstadoCamionTaller(cam.id, 'MANTENIMIENTO')}
+                            style={{
+                              padding: '6px 4px',
+                              borderRadius: '8px',
+                              border: isTaller ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                              background: isTaller ? '#ffedd5' : '#ffffff',
+                              color: isTaller ? '#c2410c' : '#64748b',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🔧 En Taller
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCambiarEstadoCamionTaller(cam.id, 'INACTIVO')}
+                            style={{
+                              padding: '6px 4px',
+                              borderRadius: '8px',
+                              border: estado === 'INACTIVO' ? '2px solid #64748b' : '1px solid #cbd5e1',
+                              background: estado === 'INACTIVO' ? '#f1f5f9' : '#ffffff',
+                              color: estado === 'INACTIVO' ? '#0f172a' : '#64748b',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ⛔ Inactivo
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===================================================================
+            PESTAÑA: MÓDULO TALLER -> TAREAS & AVERÍAS
+           =================================================================== */}
+        {tabActiva === 'taller_mantenimiento' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '16px',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                  Averías Asignadas al Taller
+                </h3>
+                <button
+                  type="button"
+                  onClick={cargarDatosTaller}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ea580c',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <i className={`fa-solid fa-rotate-right ${cargandoIncidentesTaller ? 'fa-spin' : ''}`}></i>
+                </button>
+              </div>
+            </div>
+
+            {cargandoIncidentesTaller ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
+                <p style={{ marginTop: '8px', fontSize: '12px' }}>Cargando tareas...</p>
+              </div>
+            ) : incidentesTaller.length === 0 ? (
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '30px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                <i className="fa-solid fa-circle-check" style={{ fontSize: '32px', color: '#10b981', marginBottom: '8px' }}></i>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#334155' }}>
+                  No hay averías registradas
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Todos los camiones se encuentran operativos.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {incidentesTaller.map((inc) => {
+                  const isResuelto = inc.estado === 'RESUELTO';
+                  const isTaller = inc.estado === 'EN_TALLER';
+                  return (
+                    <div
+                      key={inc.id}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        border: isResuelto ? '1px solid #bbf7d0' : isTaller ? '2px solid #3b82f6' : '2px solid #f59e0b',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                            {inc.camionPlaca || `Camión #${inc.camionId}`}
+                          </span>
+                          <h4 style={{ margin: '6px 0 0', fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                            {inc.titulo}
+                          </h4>
+                          {inc.choferNombre && (
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>
+                              Reportado por: {inc.choferNombre}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '20px',
+                            background: isResuelto ? '#dcfce7' : isTaller ? '#dbeafe' : '#fef3c7',
+                            color: isResuelto ? '#15803d' : isTaller ? '#1d4ed8' : '#b45309',
+                          }}
+                        >
+                          {isResuelto ? '✅ REPARADO' : isTaller ? '🔧 EN TALLER' : '⚠️ PENDIENTE'}
+                        </span>
+                      </div>
+
+                      {inc.descripcion && (
+                        <p style={{ margin: '8px 0', fontSize: '12px', color: '#334155', background: '#f8fafc', padding: '8px', borderRadius: '8px' }}>
+                          {inc.descripcion}
+                        </p>
+                      )}
+
+                      {inc.solucionAplicada && (
+                        <div style={{ fontSize: '11.5px', color: '#15803d', background: '#dcfce7', padding: '6px 8px', borderRadius: '6px', marginBottom: '8px' }}>
+                          <strong>Solución:</strong> {inc.solucionAplicada}
+                        </div>
+                      )}
+
+                      {/* Botones de acción para el mecánico */}
+                      {!isResuelto && (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                          {!isTaller && (
+                            <button
+                              type="button"
+                              onClick={() => handleAtenderIncidenteTaller(inc.id, 'EN_TALLER')}
+                              style={{
+                                flex: 1,
+                                padding: '8px',
+                                borderRadius: '8px',
+                                background: '#3b82f6',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              🔧 Ingresar a Taller
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sol = window.prompt('Indica la solución aplicada o repuesto cambiado:');
+                              if (sol !== null) {
+                                handleAtenderIncidenteTaller(inc.id, 'RESUELTO', sol || 'Reparado satisfactoriamente');
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '8px',
+                              borderRadius: '8px',
+                              background: '#10b981',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ✅ Marcar Reparado
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL ESTILO NATIVO PREMIUM */}
@@ -3724,20 +4755,36 @@ export const AppMovilPage: React.FC = () => {
           WebkitBackdropFilter: 'blur(20px)',
           borderTop: '1px solid rgba(226, 232, 240, 0.8)',
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
+          gridTemplateColumns: modoActivo === 'CHOFER' ? 'repeat(6, 1fr)' : 'repeat(4, 1fr)',
           alignItems: 'center',
           zIndex: 1000,
           boxShadow: '0 -4px 20px rgba(15, 23, 42, 0.06)',
           padding: '0 8px env(safe-area-inset-bottom, 0px) 8px',
         }}
       >
-        {[
-          { key: 'principal', label: 'Inicio', icon: 'fa-house', color: '#2563eb', bg: '#eff6ff' },
-          { key: 'recoleccion', label: 'Recolección', icon: 'fa-faucet-drip', color: '#10b981', bg: '#ecfdf5', badge: pendientesSync.length },
-          { key: 'entregas', label: 'Entregas', icon: 'fa-warehouse', color: '#9333ea', bg: '#f5f3ff', badge: entregas.filter(e => e.estado === 'EN VIA').length },
-          { key: 'reportes', label: 'Reportes', icon: 'fa-chart-pie', color: '#0284c7', bg: '#f0f9ff' },
-          { key: 'perfil', label: 'Perfil', icon: 'fa-user-gear', color: '#0f172a', bg: '#f1f5f9' },
-        ].map((item) => {
+        {(modoActivo === 'ADMIN'
+          ? [
+              { key: 'admin_envivo', label: 'En Vivo', icon: 'fa-tower-broadcast', color: '#2563eb', bg: '#eff6ff' },
+              { key: 'admin_logistica', label: 'Logística', icon: 'fa-route', color: '#059669', bg: '#ecfdf5' },
+              { key: 'reportes', label: 'Reportes', icon: 'fa-chart-pie', color: '#0284c7', bg: '#f0f9ff' },
+              { key: 'perfil', label: 'Perfil', icon: 'fa-user-gear', color: '#0f172a', bg: '#f1f5f9' },
+            ]
+          : modoActivo === 'TALLER'
+          ? [
+              { key: 'taller_flota', label: 'Flota', icon: 'fa-truck', color: '#ea580c', bg: '#fff7ed' },
+              { key: 'taller_mantenimiento', label: 'Taller', icon: 'fa-wrench', color: '#d97706', bg: '#fef3c7', badge: incidentesTaller.filter(i => i.estado === 'REPORTADO' || i.estado === 'EN_TALLER').length },
+              { key: 'reportes', label: 'Historial', icon: 'fa-clock-rotate-left', color: '#0284c7', bg: '#f0f9ff' },
+              { key: 'perfil', label: 'Perfil', icon: 'fa-user-gear', color: '#0f172a', bg: '#f1f5f9' },
+            ]
+          : [
+              { key: 'principal', label: 'Inicio', icon: 'fa-house', color: '#2563eb', bg: '#eff6ff' },
+              { key: 'recoleccion', label: 'Recolección', icon: 'fa-faucet-drip', color: '#10b981', bg: '#ecfdf5', badge: pendientesSync.length },
+              { key: 'entregas', label: 'Entregas', icon: 'fa-warehouse', color: '#9333ea', bg: '#f5f3ff', badge: entregas.filter(e => e.estado === 'EN VIA').length },
+              { key: 'incidentes', label: 'Averías', icon: 'fa-wrench', color: '#ea580c', bg: '#fff7ed', badge: misIncidentes.filter(i => i.estado === 'REPORTADO').length },
+              { key: 'reportes', label: 'Reportes', icon: 'fa-chart-pie', color: '#0284c7', bg: '#f0f9ff' },
+              { key: 'perfil', label: 'Perfil', icon: 'fa-user-gear', color: '#0f172a', bg: '#f1f5f9' },
+            ]
+        ).map((item) => {
           const isActiva = tabActiva === item.key;
           return (
             <button

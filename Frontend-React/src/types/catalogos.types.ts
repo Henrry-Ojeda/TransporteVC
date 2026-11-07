@@ -141,6 +141,7 @@ export interface CamionDto {
   odometroActualKm: number;
   usuarioId?: number;
   choferNombre?: string;
+  estado?: 'ACTIVO' | 'INACTIVO' | 'MANTENIMIENTO' | string;
   activo: boolean;
 }
 
@@ -152,6 +153,7 @@ export interface GuardarCamionDto {
   capacidadLitros: number;
   odometroActualKm: number;
   usuarioId?: number;
+  estado?: 'ACTIVO' | 'INACTIVO' | 'MANTENIMIENTO' | string;
   activo: boolean;
 }
 

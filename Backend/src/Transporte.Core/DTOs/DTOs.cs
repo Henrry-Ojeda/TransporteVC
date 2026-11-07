@@ -1258,6 +1258,15 @@ namespace Transporte.Core.DTOs
         public string Nombre { get; set; } = string.Empty;
         public string? Descripcion { get; set; }
         public bool Activo { get; set; } = true;
+        public int UsuariosCount { get; set; }
+    }
+
+    public class CrearRolDto
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string? Descripcion { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     // ==========================================
@@ -1278,6 +1287,7 @@ namespace Transporte.Core.DTOs
         public decimal OdometroActualKm { get; set; } = 0;
         public string? MarcaModelo { get; set; }
         public string? Observaciones { get; set; }
+        public string Estado { get; set; } = "ACTIVO"; // ACTIVO, INACTIVO, MANTENIMIENTO
         public bool Activo { get; set; } = true;
         public DateTime CreatedAt { get; set; }
     }
@@ -1293,6 +1303,7 @@ namespace Transporte.Core.DTOs
         public decimal OdometroActualKm { get; set; } = 0;
         public string? MarcaModelo { get; set; }
         public string? Observaciones { get; set; }
+        public string Estado { get; set; } = "ACTIVO";
         public bool Activo { get; set; } = true;
     }
 
@@ -1307,7 +1318,13 @@ namespace Transporte.Core.DTOs
         public decimal? OdometroActualKm { get; set; }
         public string? MarcaModelo { get; set; }
         public string? Observaciones { get; set; }
+        public string? Estado { get; set; }
         public bool? Activo { get; set; }
+    }
+
+    public class ActualizarEstadoCamionDto
+    {
+        public string Estado { get; set; } = "ACTIVO";
     }
 
     public class CambiarPasswordDto
@@ -2232,7 +2249,9 @@ namespace Transporte.Core.DTOs
         public decimal? ProximoKmSugerido { get; set; }
         public DateTime? ProximaFechaSugerida { get; set; }
         public string? TallerOMecanico { get; set; }
-        public string Estado { get; set; } = "RESUELTO"; // REPORTADO_CHOFER, EN_TALLER, RESUELTO
+        public string Estado { get; set; } = "RESUELTO"; // REPORTADO_CHOFER, PENDIENTE, EN_TALLER, RESUELTO, COMPLETADO, CANCELADO
+        public string Urgencia { get; set; } = "MEDIA"; // BAJA, MEDIA, ALTA, CRITICA
+        public string? FotoUrl { get; set; }
         public int? ReportadoPorChoferId { get; set; }
         public string? ChoferNombre { get; set; }
         public decimal CostoTotalUSD { get; set; }
@@ -2251,7 +2270,28 @@ namespace Transporte.Core.DTOs
         public DateTime? ProximaFechaSugerida { get; set; }
         public string? TallerOMecanico { get; set; }
         public string Estado { get; set; } = "RESUELTO";
+        public string Urgencia { get; set; } = "MEDIA";
+        public string? FotoUrl { get; set; }
         public decimal CostoTotalUSD { get; set; } = 0;
+    }
+
+    public class ReportarIncidenteChoferDto
+    {
+        public int CamionId { get; set; }
+        public string Categoria { get; set; } = "MOTOR"; // MOTOR, LUCES, FRENOS, ACEITE, NEUMATICOS, TRANSMISION, OTRO
+        public string Titulo { get; set; } = string.Empty;
+        public string Descripcion { get; set; } = string.Empty;
+        public string Urgencia { get; set; } = "MEDIA"; // BAJA, MEDIA, ALTA, CRITICA
+        public decimal? OdometroKm { get; set; }
+        public string? FotoUrl { get; set; }
+    }
+
+    public class ActualizarEstadoIncidenteDto
+    {
+        public string Estado { get; set; } = "EN_TALLER"; // PENDIENTE, EN_TALLER, RESUELTO, COMPLETADO, CANCELADO
+        public string? TallerOMecanico { get; set; }
+        public decimal? CostoTotalUSD { get; set; }
+        public string? SolucionAplicada { get; set; }
     }
 
     public class ReportarSiniestroChoferDto

@@ -29,11 +29,18 @@ namespace Transporte.API.Controllers
         [HttpGet("mis-notificaciones")]
         public async Task<IActionResult> ObtenerMisNotificaciones([FromQuery] int limite = 30)
         {
-            var userId = GetCurrentUserId();
-            if (userId <= 0) return Unauthorized(new { message = "Usuario no identificado." });
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId <= 0) return Unauthorized(new { message = "Usuario no identificado." });
 
-            var lista = await _notificacionesRepository.ObtenerMisNotificacionesAsync(userId, limite);
-            return Ok(lista);
+                var lista = await _notificacionesRepository.ObtenerMisNotificacionesAsync(userId, limite);
+                return Ok(lista ?? Enumerable.Empty<NotificacionMovilDto>());
+            }
+            catch (Exception)
+            {
+                return Ok(Enumerable.Empty<NotificacionMovilDto>());
+            }
         }
 
         [HttpPut("{id}/leer")]

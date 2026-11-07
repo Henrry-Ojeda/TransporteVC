@@ -144,6 +144,21 @@ export const useAuthStore = create<AuthState>()(
           return false;
         }
 
+        const rolUsuario = (get().user?.rol || '').toUpperCase();
+
+        // ROL TALLER: Sólo ve Flota, Mantenimiento, Repuestos, Combustible y Perfil
+        if (rolUsuario === 'TALLER' || rolUsuario.includes('MECANICO')) {
+          const tabsPermitidosTaller = ['camiones', 'mantenimiento', 'repuestos', 'combustible', 'perfil'];
+          return tabsPermitidosTaller.includes(tabId.toLowerCase());
+        }
+
+        // ROL CHOFER: No ve Taller ni Repuestos
+        if (rolUsuario === 'CHOFER') {
+          if (['mantenimiento', 'repuestos'].includes(tabId.toLowerCase())) {
+            return false;
+          }
+        }
+
         if (isAdmin()) return true;
 
         const tabPermissionMap: Record<string, string[]> = {

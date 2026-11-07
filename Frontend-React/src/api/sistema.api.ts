@@ -4,9 +4,31 @@ import type {
   UsuarioDto,
   GuardarUsuarioDto,
   PermisoModuloDto,
+  RolDto,
 } from '@/types';
 
 export const sistemaApi = {
+  // ROLES (CRUD SUPERADMIN)
+  getRoles: async (soloActivos = false): Promise<RolDto[]> => {
+    const res = await apiClient.get<RolDto[]>('/permisos/roles', { params: { soloActivos } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  crearRol: async (dto: { codigo: string; nombre: string; descripcion?: string; activo?: boolean }): Promise<{ id: number; message: string }> => {
+    const res = await apiClient.post('/permisos/roles', dto);
+    return res.data;
+  },
+
+  actualizarRol: async (id: number, dto: { codigo: string; nombre: string; descripcion?: string; activo?: boolean }): Promise<{ message: string }> => {
+    const res = await apiClient.put(`/permisos/roles/${id}`, dto);
+    return res.data;
+  },
+
+  eliminarRol: async (id: number): Promise<{ message: string }> => {
+    const res = await apiClient.delete(`/permisos/roles/${id}`);
+    return res.data;
+  },
+
   // USUARIOS
   getUsuarios: async (rol?: string, soloActivos = false): Promise<UsuarioDto[]> => {
     const params: Record<string, any> = { soloActivos };

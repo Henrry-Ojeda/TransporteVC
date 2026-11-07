@@ -304,12 +304,19 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
     );
   };
 
-  // Seleccionar todas las fincas de la ruta activa
+  // Seleccionar todas las fincas de la ruta activa o invertir
   const seleccionarTodasDeRuta = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const idsVisibles = fincasParaModal.map(getFincaId).filter((id) => id > 0);
-    setFormFincasSeleccionadas((prev) => Array.from(new Set([...prev, ...idsVisibles])));
+    if (idsVisibles.length === 0) return;
+    setFormFincasSeleccionadas((prev) => {
+      const todosYaEstan = idsVisibles.every((id) => prev.includes(id));
+      if (todosYaEstan) {
+        return prev.filter((id) => !idsVisibles.includes(id));
+      }
+      return Array.from(new Set([...prev, ...idsVisibles]));
+    });
   };
 
   // Deseleccionar todas las fincas
@@ -825,9 +832,9 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
             inset: 0,
             zIndex: 100000,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            padding: '70px 16px 24px 16px',
+            padding: '24px 16px',
             backgroundColor: 'rgba(15, 23, 42, 0.75)',
             backdropFilter: 'blur(6px)',
             overflowY: 'auto',
@@ -837,7 +844,7 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
             style={{
               width: '100%',
               maxWidth: '920px',
-              maxHeight: 'calc(100vh - 90px)',
+              maxHeight: 'calc(100vh - 48px)',
               margin: 'auto',
               background: '#ffffff',
               borderRadius: '20px',
@@ -1053,7 +1060,9 @@ export const PlanificacionRutasChoferesPage: React.FC = () => {
                       onClick={seleccionarTodasDeRuta}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                     >
-                      Seleccionar Visibles
+                      {fincasParaModal.length > 0 && fincasParaModal.every((f) => formFincasSeleccionadas.includes(getFincaId(f)))
+                        ? `Deseleccionar Visibles (${fincasParaModal.length})`
+                        : `Seleccionar Visibles (${fincasParaModal.length})`}
                     </button>
                     <span className="text-slate-300">|</span>
                     <button

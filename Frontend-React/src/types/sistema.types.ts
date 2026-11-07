@@ -1,3 +1,19 @@
+export interface RolDto {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  activo: boolean;
+  usuariosCount?: number;
+}
+
+export interface CrearRolDto {
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  activo: boolean;
+}
+
 export interface UsuarioDto {
   id: number;
   nombreUsuario: string;

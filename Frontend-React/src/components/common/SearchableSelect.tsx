@@ -6,6 +6,7 @@ export interface SelectOption {
   label: string;
   subLabel?: string;
   badge?: string;
+  disabled?: boolean;
 }
 
 interface SearchableSelectProps {
@@ -312,19 +313,24 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 return (
                   <div
                     key={opt.value}
-                    onClick={() => handleSelect(opt.value)}
+                    onClick={() => {
+                      if (!opt.disabled) handleSelect(opt.value);
+                    }}
                     style={{
                       padding: '8px 14px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      cursor: 'pointer',
+                      cursor: opt.disabled ? 'not-allowed' : 'pointer',
                       fontSize: '13px',
-                      backgroundColor: isSelected ? '#eff6ff' : isHighlighted ? '#f1f5f9' : 'transparent',
-                      color: isSelected ? '#1d4ed8' : '#1e293b',
+                      backgroundColor: opt.disabled ? '#f8fafc' : isSelected ? '#eff6ff' : isHighlighted ? '#f1f5f9' : 'transparent',
+                      color: opt.disabled ? '#94a3b8' : isSelected ? '#1d4ed8' : '#1e293b',
+                      opacity: opt.disabled ? 0.65 : 1,
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    onMouseEnter={() => {
+                      if (!opt.disabled) setHighlightedIndex(idx);
+                    }}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontWeight: isSelected ? 700 : 600, color: isSelected ? '#1d4ed8' : '#0f172a', fontSize: '13px' }}>

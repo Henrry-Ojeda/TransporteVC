@@ -18,6 +18,8 @@ namespace Transporte.Infrastructure.Repositories
         Task<bool> ActualizarMantenimientoAsync(int id, CrearMantenimientoCamionDto dto, int? userId);
         Task<bool> EliminarMantenimientoAsync(int id);
         Task<IEnumerable<dynamic>> ObtenerAlertasPreventivasAsync();
+        Task<int> ReportarIncidenteChoferAsync(ReportarIncidenteChoferDto dto, int choferId);
+        Task<bool> ActualizarEstadoIncidenteAsync(int id, ActualizarEstadoIncidenteDto dto, int userId);
     }
 
     public class MantenimientoCamionesRepository : IMantenimientoCamionesRepository
@@ -54,6 +56,8 @@ namespace Transporte.Infrastructure.Repositories
                     m.Estado,
                     m.ReportadoPorChoferId,
                     u.NombreCompleto AS ChoferNombre,
+                    m.Urgencia,
+                    m.FotoUrl,
                     m.CostoTotalUSD,
                     m.CreatedAt
                 FROM TB_MANTENIMIENTO_CAMIONES m
@@ -92,6 +96,8 @@ namespace Transporte.Infrastructure.Repositories
                     m.Estado,
                     m.ReportadoPorChoferId,
                     u.NombreCompleto AS ChoferNombre,
+                    m.Urgencia,
+                    m.FotoUrl,
                     m.CostoTotalUSD,
                     m.CreatedAt
                 FROM TB_MANTENIMIENTO_CAMIONES m
@@ -246,6 +252,88 @@ namespace Transporte.Infrastructure.Repositories
                 ORDER BY c.Placa ASC";
 
             return await connection.QueryAsync<dynamic>(sql);
+        }
+        public async Task<int> ReportarIncidenteChoferAsync(ReportarIncidenteChoferDto dto, int choferId)
+        {
+            using var connection = CreateConnection();
+            var sql = @"
+                INSERT INTO TB_MANTENIMIENTO_CAMIONES (
+                    CamionId, TipoEvento, Titulo, Descripcion, FechaEvento,
+                    OdometroKm, Estado, Urgencia, FotoUrl, ReportadoPorChoferId, CostoTotalUSD, CreatedAt, CreatedBy
+                )
+                VALUES (
+                    @CamionId, 'INCIDENTE', @Titulo, @Descripcion, CAST(GETDATE() AS DATE),
+                    @OdometroKm, 'PENDIENTE', @Urgencia, @FotoUrl, @choferId, 0, GETDATE(), @choferId
+                );
+                SELECT CAST(SCOPE_IDENTITY() as int);";
+
+            var id = await connection.ExecuteScalarAsync<int>(sql, new
+            {
+                dto.CamionId,
+                dto.Titulo,
+                dto.Descripcion,
+                dto.OdometroKm,
+                Urgencia = string.IsNullOrWhiteSpace(dto.Urgencia) ? "MEDIA" : dto.Urgencia.ToUpper(),
+                dto.FotoUrl,
+                choferId
+            });
+
+            if (dto.OdometroKm.HasValue && dto.OdometroKm.Value > 0)
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE TB_CAMIONES SET OdometroActualKm = @km WHERE Id = @CamionId AND OdometroActualKm < @km",
+                    new { km = dto.OdometroKm.Value, dto.CamionId });
+            }
+
+            return id;
+        }
+
+        public async Task<bool> ActualizarEstadoIncidenteAsync(int id, ActualizarEstadoIncidenteDto dto, int userId)
+        {
+            using var connection = CreateConnection();
+            var mant = await ObtenerPorIdAsync(id);
+            if (mant == null) return false;
+
+            string nuevoEstado = dto.Estado.Trim().ToUpper();
+            var sql = @"
+                UPDATE TB_MANTENIMIENTO_CAMIONES
+                SET Estado = @nuevoEstado,
+                    TallerOMecanico = COALESCE(@TallerOMecanico, TallerOMecanico),
+                    CostoTotalUSD = COALESCE(@CostoTotalUSD, CostoTotalUSD),
+                    Descripcion = CASE WHEN @SolucionAplicada IS NOT NULL AND @SolucionAplicada <> '' 
+                                       THEN Descripcion + ' | Solución: ' + @SolucionAplicada 
+                                       ELSE Descripcion END
+                WHERE Id = @id";
+
+            var rows = await connection.ExecuteAsync(sql, new
+            {
+                id,
+                nuevoEstado,
+                dto.TallerOMecanico,
+                dto.CostoTotalUSD,
+                dto.SolucionAplicada
+            });
+
+            if (nuevoEstado == "EN_TALLER")
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE TB_CAMIONES SET Estado = 'MANTENIMIENTO', Activo = 0 WHERE Id = @camionId",
+                    new { camionId = mant.CamionId });
+            }
+            else if (nuevoEstado == "RESUELTO" || nuevoEstado == "COMPLETADO" || nuevoEstado == "CANCELADO")
+            {
+                var otrosEnTaller = await connection.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM TB_MANTENIMIENTO_CAMIONES WHERE CamionId = @camionId AND Estado = 'EN_TALLER' AND Id <> @id",
+                    new { camionId = mant.CamionId, id });
+                if (otrosEnTaller == 0)
+                {
+                    await connection.ExecuteAsync(
+                        "UPDATE TB_CAMIONES SET Estado = 'ACTIVO', Activo = 1 WHERE Id = @camionId",
+                        new { camionId = mant.CamionId });
+                }
+            }
+
+            return rows > 0;
         }
     }
 }

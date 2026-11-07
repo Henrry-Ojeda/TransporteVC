@@ -125,5 +125,70 @@ namespace Transporte.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+        // ====================================================================
+        // INCIDENTES Y TAREAS DE TALLER (CHOFER <-> TALLER <-> ADMIN)
+        // ====================================================================
+        [HttpPost("incidentes")]
+        public async Task<IActionResult> ReportarIncidente([FromBody] ReportarIncidenteChoferDto dto)
+        {
+            if (dto.CamionId <= 0 || string.IsNullOrWhiteSpace(dto.Titulo))
+                return BadRequest(new { message = "El camión y el título del incidente son requeridos." });
+
+            var userId = GetCurrentUserId() ?? 1;
+            try
+            {
+                var id = await _repo.ReportarIncidenteChoferAsync(dto, userId);
+                return Ok(new { id, message = "Incidente reportado al taller exitosamente." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("incidentes")]
+        public async Task<IActionResult> ObtenerIncidentes([FromQuery] int? camionId, [FromQuery] string? estado)
+        {
+            var rol = (User.FindFirstValue(ClaimTypes.Role) ?? "").ToUpper();
+            int? choferFiltro = null;
+            if (rol == "CHOFER")
+            {
+                choferFiltro = GetCurrentUserId();
+            }
+
+            try
+            {
+                var list = await _repo.ObtenerMantenimientosAsync(camionId, "INCIDENTE", estado);
+                if (choferFiltro.HasValue)
+                {
+                    list = list.Where(x => x.ReportadoPorChoferId == choferFiltro.Value);
+                }
+                return Ok(list);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("incidentes/{id}/estado")]
+        [Authorize(Roles = "TALLER,ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR")]
+        public async Task<IActionResult> ActualizarEstadoIncidente([FromRoute] int id, [FromBody] ActualizarEstadoIncidenteDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Estado))
+                return BadRequest(new { message = "El estado del incidente es requerido." });
+
+            var userId = GetCurrentUserId() ?? 1;
+            try
+            {
+                var ok = await _repo.ActualizarEstadoIncidenteAsync(id, dto, userId);
+                if (!ok) return NotFound(new { message = "Incidente no encontrado." });
+                return Ok(new { message = "Estado del incidente y disponibilidad del camión actualizados." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

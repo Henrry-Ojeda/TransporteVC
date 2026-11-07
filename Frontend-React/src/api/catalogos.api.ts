@@ -550,6 +550,10 @@ export const catalogosApi = {
     const res = await apiClient.put(`/camiones/${id}`, dto);
     return res.data;
   },
+  actualizarEstadoCamion: async (id: number, estado: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.put(`/camiones/${id}/estado`, { estado });
+    return res.data;
+  },
   eliminarCamion: async (id: number): Promise<{ success: boolean; message: string }> => {
     const res = await apiClient.delete(`/camiones/${id}`);
     return res.data;

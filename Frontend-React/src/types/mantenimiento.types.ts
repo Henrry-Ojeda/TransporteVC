@@ -22,10 +22,30 @@ export interface MantenimientoCamionDto {
   proximaFechaSugerida?: string | null;
   tallerOMecanico?: string | null;
   estado: EstadoMantenimiento | string;
+  urgencia?: 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA' | string;
+  fotoUrl?: string | null;
+  solucionAplicada?: string | null;
   reportadoPorChoferId?: number | null;
   choferNombre?: string | null;
   costoTotalUSD: number;
   createdAt: string;
+}
+
+export interface ReportarIncidenteChoferDto {
+  camionId: number;
+  categoria?: string;
+  titulo: string;
+  descripcion: string;
+  urgencia?: string;
+  odometroKm?: number;
+  fotoUrl?: string;
+}
+
+export interface ActualizarEstadoIncidenteDto {
+  estado: string;
+  tallerOMecanico?: string;
+  costoTotalUSD?: number;
+  solucionAplicada?: string;
 }
 
 export interface CrearMantenimientoCamionDto {

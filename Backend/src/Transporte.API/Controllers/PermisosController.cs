@@ -177,5 +177,75 @@ namespace Transporte.API.Controllers
             await _permisosRepo.ToggleRolPermisoAsync(dto.RolId, dto.PermisoId, dto.Concedido);
             return Ok(new { message = "Permiso actualizado para el rol seleccionado." });
         }
+        // ====================================================================
+        // ROLES (CRUD SUPERADMIN)
+        // ====================================================================
+        [HttpGet("roles")]
+        public async Task<IActionResult> ObtenerRoles([FromQuery] bool soloActivos = false)
+        {
+            var roles = await _permisosRepo.ObtenerRolesAsync(soloActivos);
+            return Ok(roles);
+        }
+
+        [HttpGet("roles/{id}")]
+        public async Task<IActionResult> ObtenerRolPorId([FromRoute] int id)
+        {
+            var rol = await _permisosRepo.ObtenerRolPorIdAsync(id);
+            if (rol == null) return NotFound(new { message = "Rol no encontrado." });
+            return Ok(rol);
+        }
+
+        [HttpPost("roles")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> CrearRol([FromBody] CrearRolDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Codigo) || string.IsNullOrWhiteSpace(dto.Nombre))
+                return BadRequest(new { message = "Código y Nombre del rol son obligatorios." });
+
+            try
+            {
+                var id = await _permisosRepo.CrearRolAsync(dto);
+                return Ok(new { id, message = "Rol creado exitosamente." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("roles/{id}")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> ActualizarRol([FromRoute] int id, [FromBody] CrearRolDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Codigo) || string.IsNullOrWhiteSpace(dto.Nombre))
+                return BadRequest(new { message = "Código y Nombre del rol son obligatorios." });
+
+            try
+            {
+                var ok = await _permisosRepo.ActualizarRolAsync(id, dto);
+                if (!ok) return NotFound(new { message = "Rol no encontrado." });
+                return Ok(new { message = "Rol actualizado exitosamente." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("roles/{id}")]
+        [Authorize(Roles = "SUPERADMIN")]
+        public async Task<IActionResult> EliminarRol([FromRoute] int id)
+        {
+            try
+            {
+                var ok = await _permisosRepo.EliminarRolAsync(id);
+                if (!ok) return NotFound(new { message = "Rol no encontrado." });
+                return Ok(new { message = "Rol eliminado exitosamente." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

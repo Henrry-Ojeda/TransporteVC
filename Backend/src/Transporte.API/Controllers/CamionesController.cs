@@ -42,7 +42,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR,TALLER")]
         public async Task<IActionResult> CrearCamion([FromBody] CrearCamionDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Placa))
@@ -60,7 +60,7 @@ namespace Transporte.API.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR,TALLER")]
         public async Task<IActionResult> ActualizarCamion([FromRoute] int id, [FromBody] EditarCamionDto dto)
         {
             var ok = await _usuariosRepository.ActualizarCamionAsync(id, dto);
@@ -68,8 +68,20 @@ namespace Transporte.API.Controllers
             return Ok(new { message = "Camión actualizado exitosamente." });
         }
 
+        [HttpPut("{id}/estado")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR,TALLER")]
+        public async Task<IActionResult> ActualizarEstadoCamion([FromRoute] int id, [FromBody] ActualizarEstadoCamionDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Estado))
+                return BadRequest(new { message = "El estado es requerido." });
+
+            var ok = await _usuariosRepository.ActualizarEstadoCamionAsync(id, dto.Estado);
+            if (!ok) return NotFound(new { message = "Camión no encontrado." });
+            return Ok(new { message = $"Estado del camión actualizado a {dto.Estado.ToUpper()}." });
+        }
+
         [HttpDelete("{id}")]
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERADMIN,SUPER_ADMIN,ADMINISTRADOR,SUPERVISOR,TALLER")]
         public async Task<IActionResult> EliminarCamion([FromRoute] int id)
         {
             var ok = await _usuariosRepository.EliminarCamionAsync(id);

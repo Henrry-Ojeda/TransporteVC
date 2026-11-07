@@ -26,6 +26,7 @@ namespace Transporte.Infrastructure.Repositories
         Task<CamionDto?> ObtenerCamionPorUsuarioIdAsync(int usuarioId);
         Task<int> CrearCamionAsync(CrearCamionDto dto);
         Task<bool> ActualizarCamionAsync(int id, EditarCamionDto dto);
+        Task<bool> ActualizarEstadoCamionAsync(int id, string estado);
         Task<bool> EliminarCamionAsync(int id);
     }
 
@@ -539,7 +540,7 @@ namespace Transporte.Infrastructure.Repositories
             var sql = @"
                 SELECT c.Id, c.UsuarioId, u.NombreCompleto AS ChoferNombre, u.Cedula AS ChoferCedula, u.Telefono AS ChoferTelefono,
                        c.Placa, c.Compartimientos, c.CapacidadLitros, c.CapacidadTanqueLitros, c.TipoCombustible, c.OdometroActualKm,
-                       c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
+                       c.MarcaModelo, c.Observaciones, ISNULL(c.Estado, CASE WHEN c.Activo = 1 THEN 'ACTIVO' ELSE 'INACTIVO' END) AS Estado, c.Activo, c.CreatedAt
                 FROM TB_CAMIONES c
                 LEFT JOIN TB_USUARIOS u ON c.UsuarioId = u.Id
                 WHERE c.IsDeleted = 0 " + 
@@ -554,7 +555,7 @@ namespace Transporte.Infrastructure.Repositories
             var sql = @"
                 SELECT c.Id, c.UsuarioId, u.NombreCompleto AS ChoferNombre, u.Cedula AS ChoferCedula, u.Telefono AS ChoferTelefono,
                        c.Placa, c.Compartimientos, c.CapacidadLitros, c.CapacidadTanqueLitros, c.TipoCombustible, c.OdometroActualKm,
-                       c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
+                       c.MarcaModelo, c.Observaciones, ISNULL(c.Estado, CASE WHEN c.Activo = 1 THEN 'ACTIVO' ELSE 'INACTIVO' END) AS Estado, c.Activo, c.CreatedAt
                 FROM TB_CAMIONES c
                 LEFT JOIN TB_USUARIOS u ON c.UsuarioId = u.Id
                 WHERE c.Id = @id AND c.IsDeleted = 0";
@@ -567,7 +568,7 @@ namespace Transporte.Infrastructure.Repositories
             var sql = @"
                 SELECT c.Id, c.UsuarioId, u.NombreCompleto AS ChoferNombre, u.Cedula AS ChoferCedula, u.Telefono AS ChoferTelefono,
                        c.Placa, c.Compartimientos, c.CapacidadLitros, c.CapacidadTanqueLitros, c.TipoCombustible, c.OdometroActualKm,
-                       c.MarcaModelo, c.Observaciones, c.Activo, c.CreatedAt
+                       c.MarcaModelo, c.Observaciones, ISNULL(c.Estado, CASE WHEN c.Activo = 1 THEN 'ACTIVO' ELSE 'INACTIVO' END) AS Estado, c.Activo, c.CreatedAt
                 FROM TB_CAMIONES c
                 LEFT JOIN TB_USUARIOS u ON c.UsuarioId = u.Id
                 WHERE c.UsuarioId = @usuarioId AND c.IsDeleted = 0";
@@ -577,11 +578,14 @@ namespace Transporte.Infrastructure.Repositories
         public async Task<int> CrearCamionAsync(CrearCamionDto dto)
         {
             using var connection = new SqlConnection(_connectionString);
+            string estado = string.IsNullOrWhiteSpace(dto.Estado) ? (dto.Activo ? "ACTIVO" : "INACTIVO") : dto.Estado.ToUpper();
+            bool activo = estado == "ACTIVO";
+
             var sql = @"
                 INSERT INTO TB_CAMIONES 
-                (UsuarioId, Placa, Compartimientos, CapacidadLitros, CapacidadTanqueLitros, TipoCombustible, OdometroActualKm, MarcaModelo, Observaciones, Activo, IsDeleted, CreatedAt)
+                (UsuarioId, Placa, Compartimientos, CapacidadLitros, CapacidadTanqueLitros, TipoCombustible, OdometroActualKm, MarcaModelo, Observaciones, Estado, Activo, IsDeleted, CreatedAt)
                 VALUES 
-                (@UsuarioId, @Placa, @Compartimientos, @CapacidadLitros, @CapacidadTanqueLitros, @TipoCombustible, @OdometroActualKm, @MarcaModelo, @Observaciones, @Activo, 0, GETDATE());
+                (@UsuarioId, @Placa, @Compartimientos, @CapacidadLitros, @CapacidadTanqueLitros, @TipoCombustible, @OdometroActualKm, @MarcaModelo, @Observaciones, @estado, @activo, 0, GETDATE());
                 SELECT CAST(SCOPE_IDENTITY() as int);";
 
             var id = await connection.ExecuteScalarAsync<int>(sql, new
@@ -595,7 +599,8 @@ namespace Transporte.Infrastructure.Repositories
                 OdometroActualKm = dto.OdometroActualKm,
                 dto.MarcaModelo,
                 dto.Observaciones,
-                dto.Activo
+                estado,
+                activo
             });
 
             // Sincronizar placa en TB_USUARIOS si se asignó chofer
@@ -612,6 +617,9 @@ namespace Transporte.Infrastructure.Repositories
         public async Task<bool> ActualizarCamionAsync(int id, EditarCamionDto dto)
         {
             using var connection = new SqlConnection(_connectionString);
+            string? estado = !string.IsNullOrWhiteSpace(dto.Estado) ? dto.Estado.ToUpper() : null;
+            bool? activo = estado != null ? (estado == "ACTIVO") : dto.Activo;
+
             var sql = @"
                 UPDATE TB_CAMIONES
                 SET UsuarioId = @UsuarioId,
@@ -623,7 +631,8 @@ namespace Transporte.Infrastructure.Repositories
                     OdometroActualKm = COALESCE(@OdometroActualKm, OdometroActualKm),
                     MarcaModelo = COALESCE(@MarcaModelo, MarcaModelo),
                     Observaciones = COALESCE(@Observaciones, Observaciones),
-                    Activo = COALESCE(@Activo, Activo)
+                    Estado = COALESCE(@estado, Estado),
+                    Activo = COALESCE(@activo, Activo)
                 WHERE Id = @id AND IsDeleted = 0";
 
             var rows = await connection.ExecuteAsync(sql, new
@@ -638,7 +647,8 @@ namespace Transporte.Infrastructure.Repositories
                 dto.OdometroActualKm,
                 dto.MarcaModelo,
                 dto.Observaciones,
-                dto.Activo
+                estado,
+                activo
             });
 
             var camion = await ObtenerCamionPorIdAsync(id);
@@ -649,6 +659,17 @@ namespace Transporte.Infrastructure.Repositories
                     new { camion.Placa, Capacidad = (int)camion.CapacidadLitros, UsuarioId = camion.UsuarioId.Value });
             }
 
+            return rows > 0;
+        }
+
+        public async Task<bool> ActualizarEstadoCamionAsync(int id, string estado)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            string est = string.IsNullOrWhiteSpace(estado) ? "ACTIVO" : estado.ToUpper();
+            bool activo = est == "ACTIVO";
+            var rows = await connection.ExecuteAsync(
+                "UPDATE TB_CAMIONES SET Estado = @est, Activo = @activo WHERE Id = @id",
+                new { id, est, activo });
             return rows > 0;
         }
 
