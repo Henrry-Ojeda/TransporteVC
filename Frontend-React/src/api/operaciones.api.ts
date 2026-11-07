@@ -64,8 +64,12 @@ export const operacionesApi = {
     return res.data;
   },
 
-  revertirProcesoViaje: async (id: number, dto: { procesoDestinoId: number; motivo: string }): Promise<{ message: string }> => {
-    const res = await apiClient.post(`/control-rutas/${id}/revertir-proceso`, dto);
+  revertirProcesoViaje: async (id: number, dto: { nuevoProcesoId?: number; procesoDestinoId?: number; motivo: string }): Promise<{ message: string }> => {
+    const payload = {
+      nuevoProcesoId: dto.nuevoProcesoId ?? dto.procesoDestinoId ?? 1,
+      motivo: dto.motivo,
+    };
+    const res = await apiClient.post(`/control-rutas/${id}/revertir-proceso`, payload);
     return res.data;
   },
 
@@ -125,7 +129,7 @@ export const operacionesApi = {
     return res.data;
   },
 
-  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche?: number; litros?: number; esAcida?: boolean; esDiferido?: boolean; fecha?: string; tipoLeche?: string; observacion?: string; temperatura?: number }): Promise<{ success: boolean; message: string }> => {
+  agregarFincaViaje: async (id: number, dto: { fincaId: number; litrosLeche?: number; litros?: number; esAcida?: boolean; esDiferido?: boolean; fecha?: string; tipoLeche?: string; observacion?: string; temperatura?: number; fotoComprobante?: string }): Promise<{ success: boolean; message: string }> => {
     const payload = {
       controlRutaId: id,
       fincaId: dto.fincaId,
@@ -136,6 +140,7 @@ export const operacionesApi = {
       tipoLeche: dto.tipoLeche || 'VACA',
       observacion: dto.observacion || '',
       temperatura: dto.temperatura,
+      fotoComprobante: dto.fotoComprobante,
     };
     const res = await apiClient.post(`/control-rutas/${id}/fincas`, payload);
     return res.data;

@@ -94,6 +94,7 @@ namespace Transporte.Core.DTOs
         public decimal? PrecioLitroUSDAplicado { get; set; }
         public string? UuidLocal { get; set; }
         public string? Observacion { get; set; }
+        public string? FotoComprobante { get; set; }
         public long? ControlRutaId { get; set; }
     }
 
@@ -162,6 +163,7 @@ namespace Transporte.Core.DTOs
         public bool EsDiferido { get; set; }
         public long? RecoleccionOrigenId { get; set; }
         public int? LitrosOriginales { get; set; }
+        public string? FotoComprobante { get; set; }
         public DateTime? CreatedAt { get; set; }
     }
 
@@ -1478,6 +1480,7 @@ namespace Transporte.Core.DTOs
         public DateTime? Fecha { get; set; }
         public int? NumeroCompartimiento { get; set; }
         public string? Observacion { get; set; }
+        public string? FotoComprobante { get; set; }
     }
 
     public class EnviarAReceptoriaDto

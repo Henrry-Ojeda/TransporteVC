@@ -275,6 +275,7 @@ namespace Transporte.Infrastructure.Repositories
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(r.PrecioLitroUSDAplicado, CASE WHEN r.EsAcida = 1 THEN f.PrecioLitroAcidaUSD ELSE f.PrecioLitroUSD END) AS PrecioLitroUSD,
                     r.Observacion AS Observacion,
+                    r.FotoComprobante AS FotoComprobante,
                     r.ControlRutaId AS ControlRutaId,
                     r.CicloId AS CicloId,
                     r.CicloLiquidacionId AS CicloLiquidacionId,
@@ -374,9 +375,9 @@ namespace Transporte.Infrastructure.Repositories
 
             var sqlInsert = @"
                 INSERT INTO TB_RUTAS_RECOLECCION 
-                (CicloId, FincaId, UsuarioId, Fecha, Litros, EsAcida, TipoLeche, PrecioLitroUSDAplicado, TasaDolarBsAplicada, UuidLocal, Observacion, ControlRutaId, CreatedAt, CreatedBy)
+                (CicloId, FincaId, UsuarioId, Fecha, Litros, EsAcida, TipoLeche, PrecioLitroUSDAplicado, TasaDolarBsAplicada, UuidLocal, Observacion, FotoComprobante, ControlRutaId, CreatedAt, CreatedBy)
                 VALUES 
-                (@cicloId, @fincaId, @conductorId, @fecha, @litros, @esAcida, @tipoLeche, @precioAplicado, @tasaActual, @uuidLocal, @observacion, @ticketId, GETDATE(), @conductorId);
+                (@cicloId, @fincaId, @conductorId, @fecha, @litros, @esAcida, @tipoLeche, @precioAplicado, @tasaActual, @uuidLocal, @observacion, @fotoComprobante, @ticketId, GETDATE(), @conductorId);
                 SELECT CAST(SCOPE_IDENTITY() as int);";
 
             var nuevaRutaId = await connection.ExecuteScalarAsync<int>(sqlInsert, new
@@ -392,6 +393,7 @@ namespace Transporte.Infrastructure.Repositories
                 tasaActual,
                 uuidLocal = dto.UuidLocal ?? Guid.NewGuid().ToString(),
                 observacion = dto.Observacion,
+                fotoComprobante = dto.FotoComprobante,
                 ticketId
             });
 
@@ -7989,6 +7991,10 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                             CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
                         );
                         CREATE INDEX IX_TB_NOTIFICACIONES_MOVIL_UsuarioId ON TB_NOTIFICACIONES_MOVIL(UsuarioId, Leido, CreatedAt DESC);
+                    END
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('TB_RUTAS_RECOLECCION') AND name = 'FotoComprobante')
+                    BEGIN
+                        ALTER TABLE TB_RUTAS_RECOLECCION ADD FotoComprobante NVARCHAR(MAX) NULL;
                     END";
                 await connection.ExecuteAsync(sql);
                 _notifTableEnsured = true;
@@ -8735,8 +8741,8 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
 
             var sqlInsertRuta = @"
                 INSERT INTO TB_RUTAS_RECOLECCION
-                (CicloId, Fecha, FincaId, UsuarioId, Litros, EsAcida, TipoLeche, EsDiferido, PrecioLitroUSDAplicado, TasaDolarBsAplicada, UuidLocal, Observacion, ControlRutaId, CreatedAt, CreatedBy)
-                VALUES (@cicloId, @fecha, @fincaId, @choferId, @litros, @esAcida, @tipoLeche, @esDiferido, @precioAplicado, @tasaActual, @uuidLocal, @observacion, @controlRutaId, GETDATE(), @usuarioId);
+                (CicloId, Fecha, FincaId, UsuarioId, Litros, EsAcida, TipoLeche, EsDiferido, PrecioLitroUSDAplicado, TasaDolarBsAplicada, UuidLocal, Observacion, FotoComprobante, ControlRutaId, CreatedAt, CreatedBy)
+                VALUES (@cicloId, @fecha, @fincaId, @choferId, @litros, @esAcida, @tipoLeche, @esDiferido, @precioAplicado, @tasaActual, @uuidLocal, @observacion, @fotoComprobante, @controlRutaId, GETDATE(), @usuarioId);
                 SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
             var nuevaRutaId = await connection.ExecuteScalarAsync<long>(sqlInsertRuta, new
@@ -8753,6 +8759,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                 tasaActual,
                 uuidLocal = Guid.NewGuid().ToString(),
                 observacion = dto.Observacion,
+                fotoComprobante = dto.FotoComprobante,
                 controlRutaId = dto.ControlRutaId,
                 usuarioId
             });
@@ -8826,6 +8833,7 @@ RESPUESTA DEL ASISTENTE VIRTUAL (100% ESPAÑOL, DIRECTO A LOS DATOS EXACTOS, SIN
                     ISNULL(f.TieneDosTiposLeche, 0) AS TieneDosTiposLeche,
                     ISNULL(r.PrecioLitroUSDAplicado, CASE WHEN r.EsAcida = 1 THEN f.PrecioLitroAcidaUSD ELSE f.PrecioLitroUSD END) AS PrecioLitroUSD,
                     r.Observacion AS Observacion,
+                    r.FotoComprobante AS FotoComprobante,
                     r.ControlRutaId AS ControlRutaId,
                     r.CreatedAt AS CreatedAt,
                     1 AS PuedeModificar

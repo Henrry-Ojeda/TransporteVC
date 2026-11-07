@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { CamionSelect, ChoferSelect, CompaniaSelect, TipoLecheSelect } from '@/components/selectors';
 import { confirmDeleteOrDeactivate } from '@/lib/sweetalert';
+import Swal from 'sweetalert2';
 import type { CompaniaDto, CamionDto, UsuarioDto, DespachoCompaniaDto, ControlRutaDto } from '@/types';
 
 export const ReceptoriaPage: React.FC = () => {
@@ -254,12 +255,59 @@ export const ReceptoriaPage: React.FC = () => {
       toast.success(data.message || 'Entrega validada y conciliada');
       queryClient.invalidateQueries({ queryKey: ['despachos-companias'] });
       queryClient.invalidateQueries({ queryKey: ['receptoria-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalConfirmar(false);
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al validar entrega');
     },
   });
+
+  const devolverAlChoferMutation = useMutation({
+    mutationFn: ({ ticketId, motivo }: { ticketId: number; motivo: string }) =>
+      operacionesApi.revertirProcesoViaje(ticketId, {
+        nuevoProcesoId: 1,
+        motivo: motivo || 'Devuelto desde receptoría para que el chofer agregue o modifique fincas',
+      }),
+    onSuccess: (data: any) => {
+      Swal.fire({
+        icon: 'success',
+        title: '¡Ticket Devuelto al Chofer!',
+        text: data?.message || 'El ticket ha vuelto al estado ABIERTO exitosamente. El chofer ya puede agregar o editar fincas en el recorrido.',
+        confirmButtonColor: '#059669',
+      });
+      queryClient.invalidateQueries({ queryKey: ['despachos-companias'] });
+      queryClient.invalidateQueries({ queryKey: ['receptoria-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['controles-rutas-hoy'] });
+      setModalConfirmar(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al devolver el ticket al chofer');
+    },
+  });
+
+  const handleDevolverTicketAlChofer = async (ticketId: number) => {
+    const { isConfirmed, value: motivo } = await Swal.fire({
+      title: `¿Devolver Ticket #${ticketId} al Chofer?`,
+      text: 'El ticket volverá al estado ABIERTO para que el chofer pueda agregar o modificar fincas en el viaje.',
+      input: 'text',
+      inputLabel: 'Motivo de la devolución (opcional):',
+      inputPlaceholder: 'Ej: Faltó registrar fincas o corregir litros...',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Devolver al Chofer',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#64748b',
+    });
+
+    if (isConfirmed) {
+      devolverAlChoferMutation.mutate({
+        ticketId,
+        motivo: motivo || 'Devuelto desde receptoría para agregar o modificar fincas',
+      });
+    }
+  };
 
   const eliminarEntregaMutation = useMutation({
     mutationFn: (id: number) => operacionesApi.eliminarEntrega(id),
@@ -857,17 +905,20 @@ export const ReceptoriaPage: React.FC = () => {
                             <span
                               className="badge"
                               style={{
-                                background: '#f3e8ff',
-                                color: '#7e22ce',
+                                background: '#fef3c7',
+                                color: '#b45309',
                                 fontWeight: 800,
                                 fontSize: '11px',
-                                border: '1px solid #d8b4fe',
+                                border: '1px solid #fde68a',
                                 letterSpacing: '0.04em',
                                 padding: '3px 8px',
                                 borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
                               }}
                             >
-                              EN VÍA
+                              <i className="fa-solid fa-clock-rotate-left"></i> POR VERIFICACIÓN
                             </span>
                           </div>
                         </div>
@@ -894,7 +945,7 @@ export const ReceptoriaPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <button
                           type="button"
                           className="btn btn-sm btn-primary"
@@ -922,6 +973,32 @@ export const ReceptoriaPage: React.FC = () => {
                         >
                           <i className="fa-solid fa-clipboard-check"></i> Validar Entrega en Quesera
                         </button>
+
+                        {d.controlRutaId && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => handleDevolverTicketAlChofer(Number(d.controlRutaId))}
+                            style={{
+                              width: '100%',
+                              fontWeight: 700,
+                              fontSize: '11px',
+                              background: '#fff1f2',
+                              color: '#be123c',
+                              border: '1px solid #fecdd3',
+                              padding: '6px',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              cursor: 'pointer',
+                            }}
+                            title="Devolver ticket al chofer para que pueda agregar o modificar fincas"
+                          >
+                            <i className="fa-solid fa-arrow-rotate-left"></i> Devolver Ticket al Chofer
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -2227,35 +2304,64 @@ export const ReceptoriaPage: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => setModalConfirmar(false)}
-                    style={{ height: '40px', padding: '0 18px', fontWeight: 700 }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={validarMutation.isPending}
-                    style={{
-                      height: '40px',
-                      padding: '0 22px',
-                      fontWeight: 800,
-                      background: 'linear-gradient(135deg, #059669, #047857)',
-                      border: 'none',
-                      borderRadius: '8px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 2px 6px rgba(5,150,105,0.3)',
-                    }}
-                  >
-                    <i className="fa-solid fa-check-double"></i>
-                    {validarMutation.isPending ? 'Validando...' : 'Confirmar y Conciliar Entrega'}
-                  </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                  {despachoSeleccionado.controlRutaId ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleDevolverTicketAlChofer(Number(despachoSeleccionado.controlRutaId))}
+                      disabled={devolverAlChoferMutation.isPending}
+                      style={{
+                        height: '40px',
+                        padding: '0 16px',
+                        fontWeight: 800,
+                        fontSize: '12px',
+                        background: '#fff1f2',
+                        color: '#be123c',
+                        border: '1px solid #fecdd3',
+                        borderRadius: '8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                      }}
+                      title="Devolver ticket al chofer para que agregue o modifique fincas"
+                    >
+                      <i className="fa-solid fa-arrow-rotate-left"></i>
+                      {devolverAlChoferMutation.isPending ? 'Devolviendo...' : 'Devolver al Chofer'}
+                    </button>
+                  ) : <div />}
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => setModalConfirmar(false)}
+                      style={{ height: '40px', padding: '0 18px', fontWeight: 700 }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={validarMutation.isPending}
+                      style={{
+                        height: '40px',
+                        padding: '0 22px',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #059669, #047857)',
+                        border: 'none',
+                        borderRadius: '8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 2px 6px rgba(5,150,105,0.3)',
+                      }}
+                    >
+                      <i className="fa-solid fa-check-double"></i>
+                      {validarMutation.isPending ? 'Validando...' : 'Confirmar y Conciliar Entrega'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

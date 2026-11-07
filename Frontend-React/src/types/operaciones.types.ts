@@ -57,6 +57,7 @@ export interface ControlRutaFincaDto {
   horaRecoleccion?: string;
   precioLitroUSD?: number;
   observacion?: string;
+  fotoComprobante?: string;
   createdAt?: string;
 }
 

@@ -35,6 +35,7 @@ interface CargaOffline {
   esDiferido: boolean;
   temperatura?: number;
   observacion?: string;
+  fotoRecibo?: string;
   synced: boolean;
   syncedAt?: string;
   serverTicketId?: number;
@@ -186,8 +187,64 @@ export const AppMovilPage: React.FC = () => {
     esDiferido: false,
     temperatura: '',
     observacion: '',
+    fotoRecibo: '',
   });
   const [busquedaFinca, setBusquedaFinca] = useState('');
+  const [fotoReciboVerModal, setFotoReciboVerModal] = useState<string | null>(null);
+  const inputFotoReciboRef = useRef<HTMLInputElement | null>(null);
+
+  const comprimirImagenMovil = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxWidth = 1200;
+          const maxHeight = 1200;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleSubirFotoReciboMovil = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await comprimirImagenMovil(file);
+      setFormCarga((prev) => ({ ...prev, fotoRecibo: base64 }));
+      toast.success('Foto del comprobante/recibo adjuntada');
+    } catch (err) {
+      toast.error('No se pudo procesar la foto');
+    }
+    e.target.value = '';
+  };
 
   // Estado de Sincronización
   const [sincronizando, setSincronizando] = useState(false);
@@ -913,6 +970,7 @@ export const AppMovilPage: React.FC = () => {
       esDiferido: formCarga.esDiferido,
       temperatura: formCarga.temperatura ? Number(formCarga.temperatura) : undefined,
       observacion: formCarga.observacion,
+      fotoRecibo: formCarga.fotoRecibo || undefined,
       synced: false,
     };
 
@@ -928,6 +986,7 @@ export const AppMovilPage: React.FC = () => {
       esDiferido: false,
       temperatura: '',
       observacion: '',
+      fotoRecibo: '',
     });
     setBusquedaFinca('');
 
@@ -1018,6 +1077,7 @@ export const AppMovilPage: React.FC = () => {
             tipoLeche: carga.tipoLeche,
             observacion: obsConOrigen,
             temperatura: carga.temperatura,
+            fotoComprobante: carga.fotoRecibo,
           });
 
           const idx = actualizadas.findIndex((c) => c.localId === carga.localId);
@@ -2148,36 +2208,94 @@ export const AppMovilPage: React.FC = () => {
               </div>
             )}
 
-            {/* BOTÓN REGISTRAR CARGA EN FINCA */}
-            <button
-              type="button"
-              onClick={() => {
-                if (viajeActivo?.fecha) {
-                  setFormCarga((prev) => ({ ...prev, fecha: viajeActivo.fecha.split('T')[0] }));
-                }
-                setModalRegistro(true);
-              }}
-              style={{
-                width: '100%',
-                height: '60px',
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '16px',
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                boxShadow: '0 8px 22px rgba(16, 185, 129, 0.35)',
-                cursor: 'pointer',
-                marginBottom: '18px',
-              }}
-            >
-              <i className="fa-solid fa-plus text-xl"></i>
-              <span>Registrar Carga en Finca</span>
-            </button>
+            {/* BOTÓN REGISTRAR CARGA EN FINCA CON BLOQUEO SI ESTÁ EN RECEPTORÍA */}
+            {(() => {
+              const ticketEnReceptoria = viajeActivo && (
+                (viajeActivo.procesoActualId != null && viajeActivo.procesoActualId >= 2) ||
+                (viajeActivo.litrosEntregadosCompania != null && Number(viajeActivo.litrosEntregadosCompania) > 0) ||
+                (viajeActivo.totalLitrosReceptoria != null && Number(viajeActivo.totalLitrosReceptoria) > 0) ||
+                viajeActivo.estado === 'EN_RECEPTORIA' ||
+                viajeActivo.estado === 'RECEPCIONADO' ||
+                viajeActivo.estado === 'CAMINO A COMPAÑIA' ||
+                viajeActivo.estado === 'POR VERIFICACIÓN'
+              );
+
+              if (ticketEnReceptoria) {
+                return (
+                  <div
+                    style={{
+                      padding: '16px',
+                      borderRadius: '16px',
+                      background: '#fffbeb',
+                      border: '1.5px solid #fde68a',
+                      color: '#92400e',
+                      marginBottom: '18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        background: '#fef3c7',
+                        color: '#b45309',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '20px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <i className="fa-solid fa-lock"></i>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '13.5px', color: '#92400e' }}>
+                        Ticket en Receptoría (Por Verificación)
+                      </div>
+                      <div style={{ fontSize: '12px', marginTop: '3px', color: '#a16207', lineHeight: '1.35' }}>
+                        Este viaje ya fue despachado para pesaje y control. No se pueden registrar más fincas salvo que el receptor devuelva el ticket a estado Abierto.
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (viajeActivo?.fecha) {
+                      setFormCarga((prev) => ({ ...prev, fecha: viajeActivo.fecha.split('T')[0] }));
+                    }
+                    setModalRegistro(true);
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '60px',
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '16px',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 8px 22px rgba(16, 185, 129, 0.35)',
+                    cursor: 'pointer',
+                    marginBottom: '18px',
+                  }}
+                >
+                  <i className="fa-solid fa-plus text-xl"></i>
+                  <span>Registrar Carga en Finca</span>
+                </button>
+              );
+            })()}
 
             {/* Historial de Cargas de Hoy */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -2248,20 +2366,40 @@ export const AppMovilPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '15px', fontWeight: 900, color: '#2563eb' }}>
-                        {c.litros.toLocaleString()} L
-                      </div>
-                      <div style={{ marginTop: '2px' }}>
-                        {c.synced ? (
-                          <span style={{ fontSize: '10.5px', color: '#059669', fontWeight: 700 }}>
-                            <i className="fa-solid fa-circle-check mr-1"></i>Enviado
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '10.5px', color: '#d97706', fontWeight: 700 }}>
-                            <i className="fa-solid fa-mobile mr-1"></i>En Teléfono
-                          </span>
-                        )}
+                    <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {c.fotoRecibo && (
+                        <button
+                          type="button"
+                          onClick={() => setFotoReciboVerModal(c.fotoRecibo!)}
+                          style={{
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '8px',
+                            padding: '6px 8px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                          }}
+                          title="Ver comprobante de finca"
+                        >
+                          <i className="fa-solid fa-receipt"></i>
+                        </button>
+                      )}
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#2563eb' }}>
+                          {c.litros.toLocaleString()} L
+                        </div>
+                        <div style={{ marginTop: '2px' }}>
+                          {c.synced ? (
+                            <span style={{ fontSize: '10.5px', color: '#059669', fontWeight: 700 }}>
+                              <i className="fa-solid fa-circle-check mr-1"></i>Enviado
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '10.5px', color: '#d97706', fontWeight: 700 }}>
+                              <i className="fa-solid fa-mobile mr-1"></i>En Teléfono
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3273,6 +3411,85 @@ export const AppMovilPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Foto del Comprobante / Recibo de Finca */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
+                  <span><i className="fa-solid fa-camera" style={{ color: '#2563eb', marginRight: '6px' }}></i> Foto del Recibo en Finca</span>
+                  {formCarga.fotoRecibo ? (
+                    <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
+                      <i className="fa-solid fa-check"></i> Foto adjunta
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Opcional</span>
+                  )}
+                </label>
+
+                <input
+                  ref={inputFotoReciboRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleSubirFotoReciboMovil}
+                />
+
+                {formCarga.fotoRecibo ? (
+                  <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', border: '1.5px solid #93c5fd', background: '#000' }}>
+                    <img
+                      src={formCarga.fotoRecibo}
+                      alt="Comprobante Finca"
+                      style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', display: 'block' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormCarga((prev) => ({ ...prev, fotoRecibo: '' }))}
+                      style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        background: 'rgba(239, 68, 68, 0.9)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '28px',
+                        height: '28px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                      }}
+                      title="Quitar foto"
+                    >
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => inputFotoReciboRef.current?.click()}
+                    style={{
+                      width: '100%',
+                      height: '46px',
+                      borderRadius: '10px',
+                      border: '1.5px dashed #93c5fd',
+                      background: '#eff6ff',
+                      color: '#1d4ed8',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <i className="fa-solid fa-camera"></i>
+                    <span>Tomar Foto / Subir Recibo</span>
+                  </button>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button
                   type="button"
@@ -3543,6 +3760,56 @@ export const AppMovilPage: React.FC = () => {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* MODAL VER COMPROBANTE / FOTO RECIBO EN MÓVIL */}
+      {fotoReciboVerModal && (
+        <div
+          onClick={() => setFotoReciboVerModal(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.9)',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '480px',
+              background: '#0f172a',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', color: '#ffffff' }}>
+              <span style={{ fontWeight: 800, fontSize: '13px' }}>
+                <i className="fa-solid fa-receipt mr-2" style={{ color: '#38bdf8' }}></i> Recibo / Comprobante
+              </span>
+              <button
+                type="button"
+                onClick={() => setFotoReciboVerModal(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div style={{ padding: '8px', background: '#020617', display: 'flex', justifyContent: 'center' }}>
+              <img
+                src={fotoReciboVerModal}
+                alt="Comprobante Finca"
+                style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: '8px' }}
+              />
+            </div>
           </div>
         </div>
       )}

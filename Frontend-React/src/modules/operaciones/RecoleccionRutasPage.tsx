@@ -251,7 +251,10 @@ export const RecoleccionRutasPage: React.FC = () => {
     esDiferido: false,
     fecha: '',
     observacion: '',
+    fotoComprobante: '',
   });
+  const [fotoReciboModal, setFotoReciboModal] = useState<string | null>(null);
+  const fileInputComprobanteRef = useRef<HTMLInputElement | null>(null);
 
   // Formulario Editar Recolección
   const [formEditar, setFormEditar] = useState({
@@ -489,6 +492,59 @@ export const RecoleccionRutasPage: React.FC = () => {
     },
   });
 
+  const comprimirImagenRecibo = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxWidth = 1200;
+          const maxHeight = 1200;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFotoComprobanteChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await comprimirImagenRecibo(file);
+      setFormFinca((prev) => ({ ...prev, fotoComprobante: base64 }));
+      toast.success('Foto del comprobante/recibo adjuntada correctamente');
+    } catch (err) {
+      toast.error('No se pudo procesar la foto');
+    }
+    e.target.value = '';
+  };
+
   const guardarRecoleccionModalMutation = useMutation({
     mutationFn: async (dto: typeof formFinca) => {
       if (!viajeActivo) throw new Error('No hay ticket activo seleccionado');
@@ -501,6 +557,7 @@ export const RecoleccionRutasPage: React.FC = () => {
         esDiferido: Boolean(dto.esDiferido),
         fecha: dto.fecha || (viajeActivo.fecha ? viajeActivo.fecha.split('T')[0] : undefined),
         observacion: dto.observacion,
+        fotoComprobante: dto.fotoComprobante || undefined,
       };
       return operacionesApi.agregarFincaViaje(viajeActivo.id, payload);
     },
@@ -513,7 +570,7 @@ export const RecoleccionRutasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['rutas-fincas-hoy'] });
       queryClient.invalidateQueries({ queryKey: ['rutas-viajes-hoy'] });
       setModalRegistroFinca(false);
-      setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
+      setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '', fotoComprobante: '' });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al registrar recolección');
@@ -2072,7 +2129,6 @@ export const RecoleccionRutasPage: React.FC = () => {
 
                 const esAbierto = !esFinalizado && (item.estado === 'ABIERTO' || item.procesoActualId === 1);
                 const esMiTicket = item.usuarioId === user?.id || item.conductorId === user?.id;
-                const puedeEditarTicket = (esAdminOSup || esMiTicket) && esAbierto;
                 const tieneRutaLogistica = Boolean((item.rutaLogisticaId && item.rutaLogisticaId > 0) || item.rutaLogisticaNombre || item.rutaNombre);
 
                 const fincasTicket = esRuta
@@ -2086,6 +2142,20 @@ export const RecoleccionRutasPage: React.FC = () => {
                 const ltsEntregados = item._litrosEntregados || 0;
                 const mermaLitros = ltsRecolectados > 0 && ltsEntregados > 0 ? (ltsRecolectados - ltsEntregados) : 0;
                 const estaExpandido = Boolean(fincasExpandidas[item.id]);
+
+                const estaEnReceptoriaOCompania = esRuta && !esFinalizado && (
+                  (item.procesoActualId != null && item.procesoActualId >= 2) ||
+                  ltsEntregados > 0 ||
+                  (item.litrosEntregadosCompania != null && Number(item.litrosEntregadosCompania) > 0) ||
+                  (item.totalLitrosReceptoria != null && Number(item.totalLitrosReceptoria) > 0) ||
+                  item.estado === 'EN_RECEPTORIA' ||
+                  item.estado === 'RECEPCIONADO' ||
+                  item.estado === 'CAMINO A COMPAÑIA' ||
+                  item.estado === 'POR VERIFICACIÓN' ||
+                  item.estado === 'PENDIENTE'
+                );
+                const esAbiertoReal = !esFinalizado && !estaEnReceptoriaOCompania && (item.estado === 'ABIERTO' || item.procesoActualId === 1 || item.procesoActualId == null);
+                const puedeEditarTicket = (esAdminOSup || esMiTicket) && esAbiertoReal;
 
                 const camionMatch = camiones.find((c) => c.id === item.camionId || c.placa === item.camionPlaca);
                 const capacidadCisterna = camionMatch?.capacidadLitros || item.capacidadCamionLitros || 10000;
@@ -2201,7 +2271,29 @@ export const RecoleccionRutasPage: React.FC = () => {
                         {esRuta ? (
                           <>
                             <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              {tieneRutaLogistica ? (
+                              {estaEnReceptoriaOCompania ? (
+                                <span
+                                  className="badge"
+                                  title="Ticket en proceso de verificación en Receptoría (Modo Sólo Lectura)"
+                                  style={{
+                                    background: '#f8fafc',
+                                    color: '#64748b',
+                                    border: '1.5px solid #cbd5e1',
+                                    fontWeight: 700,
+                                    fontSize: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '4px 10px',
+                                    borderRadius: '7px',
+                                  }}
+                                >
+                                  <i className="fa-solid fa-lock" style={{ color: '#94a3b8' }}></i>
+                                  {tieneRutaLogistica
+                                    ? `Ruta: ${item.rutaLogisticaNombre || item.rutaNombre || `#${item.rutaLogisticaId}`}`
+                                    : 'Modo Libre (Paradas Flexibles)'}
+                                </span>
+                              ) : tieneRutaLogistica ? (
                                 <button
                                   type="button"
                                   onClick={() => abrirModalAsignarRutas(item)}
@@ -2387,7 +2479,7 @@ export const RecoleccionRutasPage: React.FC = () => {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setViajeActivo(item);
-                                  setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '' });
+                                  setFormFinca({ fincaId: 0, litros: '', tipoLeche: 'VACA', esAcida: false, esDiferido: false, fecha: '', observacion: '', fotoComprobante: '' });
                                   setModalRegistroFinca(true);
                                 }}
                                 className="btn btn-sm"
@@ -2439,73 +2531,97 @@ export const RecoleccionRutasPage: React.FC = () => {
                           Acciones
                         </div>
                         {esRuta && !esFinalizado ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirReceptoria(item)}
-                              className="btn btn-sm"
-                              style={{
-                                background: '#f0fdf4',
-                                color: '#15803d',
-                                border: '1px solid #bbf7d0',
-                                fontWeight: 700,
-                                fontSize: '11px',
-                                padding: '6px 2px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                              }}
-                              title="Descargar en receptoría"
-                            >
-                              <i className="fa-solid fa-scale-balanced"></i> Receptoría
-                            </button>
+                          estaEnReceptoriaOCompania ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span
+                                className="badge"
+                                style={{
+                                  background: '#faf5ff',
+                                  color: '#7e22ce',
+                                  border: '1.5px solid #d8b4fe',
+                                  fontWeight: 800,
+                                  fontSize: '11px',
+                                  padding: '6px 14px',
+                                  borderRadius: '7px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: '0 1px 3px rgba(147, 51, 234, 0.12)',
+                                  letterSpacing: '0.03em',
+                                }}
+                              >
+                                <i className="fa-solid fa-building-circle-check"></i> RECEPTORÍA
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirReceptoria(item)}
+                                className="btn btn-sm"
+                                style={{
+                                  background: '#f0fdf4',
+                                  color: '#15803d',
+                                  border: '1px solid #bbf7d0',
+                                  fontWeight: 700,
+                                  fontSize: '11px',
+                                  padding: '6px 2px',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                }}
+                                title="Descargar en receptoría"
+                              >
+                                <i className="fa-solid fa-scale-balanced"></i> Receptoría
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirCompania(item)}
-                              className="btn btn-sm"
-                              style={{
-                                background: '#faf5ff',
-                                color: '#7e22ce',
-                                border: '1px solid #e9d5ff',
-                                fontWeight: 700,
-                                fontSize: '11px',
-                                padding: '6px 2px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                              }}
-                              title="Despachar a quesera / compañía"
-                            >
-                              <i className="fa-solid fa-building"></i> Compañías
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirCompania(item)}
+                                className="btn btn-sm"
+                                style={{
+                                  background: '#faf5ff',
+                                  color: '#7e22ce',
+                                  border: '1px solid #e9d5ff',
+                                  fontWeight: 700,
+                                  fontSize: '11px',
+                                  padding: '6px 2px',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                }}
+                                title="Despachar a quesera / compañía"
+                              >
+                                <i className="fa-solid fa-building"></i> Compañías
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirTraspaso(item)}
-                              className="btn btn-sm"
-                              style={{
-                                background: '#f0fdfa',
-                                color: '#0f766e',
-                                border: '1px solid #99f6e4',
-                                fontWeight: 700,
-                                fontSize: '11px',
-                                padding: '6px 2px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                              }}
-                              title="Traspasar leche a otro chofer"
-                            >
-                              <i className="fa-solid fa-right-left"></i> Traspaso
-                            </button>
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirTraspaso(item)}
+                                className="btn btn-sm"
+                                style={{
+                                  background: '#f0fdfa',
+                                  color: '#0f766e',
+                                  border: '1px solid #99f6e4',
+                                  fontWeight: 700,
+                                  fontSize: '11px',
+                                  padding: '6px 2px',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                }}
+                                title="Traspasar leche a otro chofer"
+                              >
+                                <i className="fa-solid fa-right-left"></i> Traspaso
+                              </button>
+                            </div>
+                          )
                         ) : (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {!esRuta && !item.esConfirmado && item.estado !== 'FINALIZADO' ? (
@@ -2600,6 +2716,17 @@ export const RecoleccionRutasPage: React.FC = () => {
                                   </div>
 
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {(f.fotoComprobante || f.FotoComprobante) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setFotoReciboModal(f.fotoComprobante || f.FotoComprobante)}
+                                        className="btn btn-xs"
+                                        style={{ padding: '3px 7px', background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8', fontWeight: 700, borderRadius: '5px' }}
+                                        title="Ver foto del recibo dejado en la finca"
+                                      >
+                                        <i className="fa-solid fa-receipt"></i> Recibo
+                                      </button>
+                                    )}
                                     <span style={{ fontWeight: 800, color: '#2563eb', fontSize: '13px' }}>
                                       {fLitros.toLocaleString()} L
                                     </span>
@@ -3039,6 +3166,27 @@ export const RecoleccionRutasPage: React.FC = () => {
                                   <span style={{ fontSize: '10.5px', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                                     ⚠️ Ácida
                                   </span>
+                                )}
+                                {p.fotoComprobante && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFotoReciboModal(p.fotoComprobante)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      fontSize: '10.5px',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #bfdbfe',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-receipt"></i> Recibo Finca
+                                  </button>
                                 )}
                               </div>
 
@@ -3707,6 +3855,64 @@ export const RecoleccionRutasPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* 4.1 FOTO COMPROBANTE / RECIBO EN FINCA */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <i className="fa-solid fa-camera text-sky-600"></i>
+                      Foto del Recibo / Comprobante en Finca (Opcional)
+                    </span>
+                    {formFinca.fotoComprobante && (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <i className="fa-solid fa-check"></i> Foto Adjunta
+                      </span>
+                    )}
+                  </label>
+
+                  <input
+                    ref={fileInputComprobanteRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={handleFotoComprobanteChange}
+                  />
+
+                  {formFinca.fotoComprobante ? (
+                    <div className="relative rounded-xl overflow-hidden border-[1.5px] border-sky-300 bg-slate-900 group">
+                      <img
+                        src={formFinca.fotoComprobante}
+                        alt="Recibo en finca"
+                        className="w-full h-36 object-contain block"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFotoReciboModal(formFinca.fotoComprobante)}
+                          className="px-3 py-1.5 rounded-lg bg-white/90 text-slate-800 text-xs font-bold hover:bg-white flex items-center gap-1.5 cursor-pointer shadow-md"
+                        >
+                          <i className="fa-solid fa-eye"></i> Ver Grande
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormFinca((prev) => ({ ...prev, fotoComprobante: '' }))}
+                          className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 flex items-center gap-1.5 cursor-pointer shadow-md"
+                        >
+                          <i className="fa-solid fa-trash-can"></i> Quitar Foto
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputComprobanteRef.current?.click()}
+                      className="border-[1.5px] border-dashed border-sky-300 bg-sky-50/60 hover:bg-sky-50 hover:border-sky-400 rounded-xl p-3.5 flex items-center justify-center gap-2.5 cursor-pointer transition-colors text-sky-800"
+                    >
+                      <i className="fa-solid fa-camera text-base text-sky-600"></i>
+                      <span className="text-xs font-bold">Tomar Foto o Adjuntar Recibo / Nota de Entrega</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 5. OBSERVACIONES */}
@@ -5659,6 +5865,75 @@ export const RecoleccionRutasPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL VISUALIZADOR DE RECIBO DE FINCA */}
+      {fotoReciboModal && (
+        <div
+          onClick={() => setFotoReciboModal(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(5px)',
+            padding: '20px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              background: '#ffffff',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 18px',
+                background: '#0f172a',
+                color: '#ffffff',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800 }}>
+                <i className="fa-solid fa-receipt" style={{ color: '#38bdf8' }}></i>
+                <span>Comprobante / Recibo de Finca</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFotoReciboModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div style={{ padding: '12px', background: '#020617', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto', maxHeight: 'calc(90vh - 60px)' }}>
+              <img
+                src={fotoReciboModal}
+                alt="Comprobante de finca"
+                style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '8px' }}
+              />
+            </div>
           </div>
         </div>
       )}
